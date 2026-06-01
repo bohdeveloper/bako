@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import agentRoutes from './routes/agent';
+import { startTelegramBot } from './tools/telegram';
 
 dotenv.config();
 
@@ -26,4 +27,5 @@ mongoose.connect(process.env.MONGODB_URI!)
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+  startTelegramBot();
 });
