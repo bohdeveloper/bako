@@ -5,8 +5,18 @@ import { runMorningBriefing } from '../agents/MorningBriefingAgent';
 import { getWeather } from './weather';
 import { fetchGitHubData } from './github';
 import { askClaude } from '../llm/claude';
+import { generateVoiceBuffer } from './tts';
 
 let bot: TelegramBot;
+
+async function sendVoiceReply(chatId: number, text: string): Promise<void> {
+  try {
+    const buffer = await generateVoiceBuffer(text);
+    await bot.sendVoice(chatId, buffer, {}, { filename: 'bako.webm', contentType: 'audio/webm' });
+  } catch {
+    await bot.sendMessage(chatId, text);
+  }
+}
 
 function isAuthorized(chatId: number): boolean {
   const allowed = process.env.TELEGRAM_CHAT_ID;
@@ -43,17 +53,14 @@ async function handleCommand(chatId: number, command: string): Promise<void> {
   if (command === '/briefing') {
     await bot.sendMessage(chatId, '⏳ Un momento, señor...');
     const briefing = await runMorningBriefing();
-    await bot.sendMessage(chatId, briefing);
+    await sendVoiceReply(chatId, briefing);
     return;
   }
 
   if (command === '/tiempo') {
     const w = await getWeather();
-    await bot.sendMessage(
-      chatId,
-      `🌤 *${w.city}*: ${w.current.temp}°C, ${w.current.description}\nViento: ${w.current.windSpeed} km/h · Humedad: ${w.current.humidity}%\nMañana: ${w.forecast[1]?.minTemp}–${w.forecast[1]?.maxTemp}°C, ${w.forecast[1]?.description}`,
-      { parse_mode: 'Markdown' }
-    );
+    const text = `En ${w.city} ahora hay ${w.current.temp} grados y está ${w.current.description}. Viento de ${w.current.windSpeed} kilómetros por hora. Mañana entre ${w.forecast[1]?.minTemp} y ${w.forecast[1]?.maxTemp} grados, ${w.forecast[1]?.description}.`;
+    await sendVoiceReply(chatId, text);
     return;
   }
 
@@ -131,25 +138,53 @@ export function startTelegramBot(): void {
       await bot.sendMessage(chatId, `🗣 _"${transcription}"_`, { parse_mode: 'Markdown' });
 
       const response = await askClaude(transcription, {
-        systemPrompt: 'Eres BAKO, asistente personal de un developer. Responde en español, de forma concisa. Máximo 3 frases.',
+        systemPrompt: `Eres BAKO, asistente personal de tu señor. Reglas estrictas:
+1. NUNCA inventes información. Solo usa los datos del contexto proporcionado.
+2. Si no tienes datos reales sobre algo, di exactamente: "No tengo datos sobre eso todavía."
+3. Responde siempre en español, de forma concisa. Máximo 3 frases.`,
+        useCloud: true,
       });
-      await bot.sendMessage(chatId, response);
+      await sendVoiceReply(chatId, response);
     } catch (err) {
       await bot.sendMessage(chatId, '❌ No pude procesar el audio.');
     }
   });
 
-  // Texto libre → LLM
+  // Texto libre → Groq con contexto real según intención
   bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return;
     if (!msg.text || msg.text.startsWith('/')) return;
 
     try {
-      const response = await askClaude(msg.text, {
-        systemPrompt: 'Eres BAKO, asistente personal de un developer. Responde en español, de forma directa y concisa. Máximo 3 frases.',
+      const text = msg.text;
+      const contextParts: string[] = [
+        `Fecha y hora: ${new Date().toLocaleString('es-ES')}`,
+      ];
+
+      if (/tiempo|clima|temperatura|lluvia|sol|nublado|mañana|previsión|meteorolog/i.test(text)) {
+        const w = await getWeather();
+        contextParts.push(`Clima en ${w.city}: ${w.current.temp}°C, ${w.current.description}, viento ${w.current.windSpeed} km/h`);
+        w.forecast.forEach(d => contextParts.push(`${d.date}: ${d.minTemp}-${d.maxTemp}°C, ${d.description}, lluvia ${d.rainProbability}%`));
+      }
+
+      if (/proyecto|repo|commit|github|code|código|PR/i.test(text)) {
+        const gh = await fetchGitHubData();
+        const repos = gh.repos.slice(0, 3).map(r => r.name).join(', ');
+        contextParts.push(`Proyectos activos: ${repos}`);
+        if (gh.recentCommits.length > 0) contextParts.push(`Commits recientes: ${gh.recentCommits.length}`);
+      }
+
+      const context = contextParts.length > 1 ? `\nContexto:\n${contextParts.join('\n')}` : '';
+
+      const response = await askClaude(text + context, {
+        systemPrompt: `Eres BAKO, asistente personal de tu señor. Reglas estrictas:
+1. NUNCA inventes información. Solo usa los datos del contexto proporcionado.
+2. Si no tienes datos reales sobre algo (reuniones, tareas, eventos), di exactamente: "No tengo datos sobre eso todavía."
+3. Responde siempre en español, de forma concisa. Máximo 3 frases.`,
+        useCloud: true,
       });
-      await bot.sendMessage(chatId, response);
+      await sendVoiceReply(chatId, response);
     } catch (err) {
       await bot.sendMessage(chatId, '❌ Error al procesar tu mensaje.');
     }

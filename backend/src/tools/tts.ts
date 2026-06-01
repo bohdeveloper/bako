@@ -46,10 +46,40 @@ function playAudio(): Promise<void> {
 }
 
 export async function speak(text: string): Promise<void> {
+  if (process.platform !== 'win32') {
+    console.log('🔊 TTS local no disponible fuera de Windows');
+    return;
+  }
   await generateAudio(text);
   await playAudio();
 }
 
 export function stopSpeaking(): void {
   exec('powershell -c "Get-Process -Name wmplayer -ErrorAction SilentlyContinue | Stop-Process"');
+}
+
+// Genera audio OGG/Opus para enviar como nota de voz en Telegram
+let _ttsOgg: MsEdgeTTS | null = null;
+
+async function getTTSOgg(): Promise<MsEdgeTTS> {
+  if (!_ttsOgg) {
+    _ttsOgg = new MsEdgeTTS();
+    await _ttsOgg.setMetadata(
+      process.env.TTS_VOICE ?? 'es-ES-AlvaroNeural',
+      OUTPUT_FORMAT.WEBM_24KHZ_16BIT_MONO_OPUS
+    );
+  }
+  return _ttsOgg;
+}
+
+export async function generateVoiceBuffer(text: string): Promise<Buffer> {
+  const tts = await getTTSOgg();
+  const { audioStream } = await tts.toStream(text);
+  const chunks: Buffer[] = [];
+
+  return new Promise((resolve, reject) => {
+    audioStream.on('data', (chunk: Buffer) => chunks.push(chunk));
+    audioStream.on('end', () => resolve(Buffer.concat(chunks)));
+    audioStream.on('error', reject);
+  });
 }

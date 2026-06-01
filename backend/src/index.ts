@@ -11,11 +11,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
-    message: 'AI Personal OS arrancado' 
-  });
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', message: 'AI Personal OS arrancado' });
+});
+
+app.get('/ping', (_req, res) => {
+  res.json({ ok: true, ts: Date.now() });
 });
 
 app.use('/api/agent', agentRoutes); 

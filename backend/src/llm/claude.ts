@@ -7,6 +7,7 @@ const GROQ_MODEL = process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile';
 interface AskClaudeOptions {
   systemPrompt?: string;
   maxTokens?: number;
+  useCloud?: boolean; // salta Ollama y va directo a Groq (mejor para conversación)
 }
 
 interface Message {
@@ -46,11 +47,17 @@ async function askGroq(messages: Message[], maxTokens?: number): Promise<string>
 }
 
 export async function askClaude(prompt: string, options: AskClaudeOptions = {}): Promise<string> {
-  const { systemPrompt, maxTokens } = options;
+  const { systemPrompt, maxTokens, useCloud = false } = options;
 
   const messages: Message[] = [];
   if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
   messages.push({ role: 'user', content: prompt });
+
+  if (useCloud) {
+    const response = await askGroq(messages, maxTokens);
+    console.log('☁️  BAKO: usando Groq (cloud)');
+    return response;
+  }
 
   try {
     const response = await askOllama(messages, maxTokens);
