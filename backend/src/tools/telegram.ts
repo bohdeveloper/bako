@@ -1,22 +1,15 @@
 import TelegramBot from 'node-telegram-bot-api';
 import FormData from 'form-data';
 import axios from 'axios';
-import * as fs from 'fs';
-import * as path from 'path';
 import { runMorningBriefing } from '../agents/MorningBriefingAgent';
 import { getWeather } from './weather';
 import { fetchGitHubData } from './github';
 import { askClaude } from '../llm/claude';
 import { generateVoiceBuffer } from './tts';
+import { BAKO_PROFILE } from '../knowledge/profile';
 
 function loadProfile(): string {
-  try {
-    const profilePath = path.join(__dirname, '../knowledge/profile.json');
-    const profile = JSON.parse(fs.readFileSync(profilePath, 'utf-8'));
-    return `\n\nPERFIL DE TU SEÑOR:\n${JSON.stringify(profile, null, 2)}`;
-  } catch {
-    return '';
-  }
+  return `\n\nPERFIL DE TU SEÑOR:\n${JSON.stringify(BAKO_PROFILE, null, 2)}`;
 }
 
 let bot: TelegramBot;

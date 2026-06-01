@@ -1,0 +1,95 @@
+export const BAKO_PROFILE = {
+  identidad: {
+    nombre: "Borja",
+    edad: 37,
+    ubicacion: "Errentería, Gipuzkoa, País Vasco, España",
+    empleador: "Inetum",
+    oficina: "Donostia-San Sebastián",
+  },
+
+  perfil_tecnico: {
+    rol: "Developer Fullstack — orientado a arquitectura de sistemas",
+    stack: {
+      frontend: ["React", "Angular", "Next.js", "Tailwind CSS", "TypeScript"],
+      backend: ["Express.js", "Spring Boot", "Node.js"],
+      bases_datos: ["MongoDB", "PostgreSQL"],
+      devops: ["Cloudflare Pages", "Docker básico", "Git", "GitHub"],
+    },
+    aprendiendo: ["Agentes IA", "Ollama", "Machine Learning", "Python para IA"],
+    fortalezas: [
+      "Mentalidad arquitecto — diseña sistemas complejos con visión global",
+      "Fullstack moderno sin dependencias externas",
+      "Visión producto — no solo código, piensa en el negocio",
+    ],
+  },
+
+  proyectos: {
+    bako: {
+      nombre: "BAKO (Borja's Autonomous Knowledge Operator)",
+      descripcion: "Sistema operativo personal con IA — asistente autónomo, voz, Telegram, GitHub",
+      estado: "MVP en producción en Render",
+    },
+    bohdeveloper: {
+      nombre: "bohdeveloper.com",
+      tipo: "Portfolio personal",
+      stack: "Next.js + Cloudflare Pages",
+      estado: "Activo — desarrollo continuo",
+    },
+    diamadmin: {
+      nombre: "Diamadmin",
+      tipo: "SaaS propio",
+      stack: "Angular + Spring Boot + PostgreSQL",
+      urls: ["app.diamadmin.com", "diamadmin.com"],
+      estado: "En desarrollo activo con roadmap definido",
+    },
+    unyona: {
+      nombre: "Unyona",
+      tipo: "SaaS en validación",
+      url: "unyona.com",
+      estado: "Landing para capturar leads antes de construir el producto",
+    },
+    nitflex: {
+      nombre: "Nitflex",
+      tipo: "App streaming — proyecto portfolio",
+      stack: "React + TypeScript + Express + MongoDB + TMDB API",
+      estado: "Home screen funcionando",
+    },
+    ia_autonoma: {
+      nombre: "Proyecto IA Autónoma (JARVIS personal)",
+      objetivo: "IA autónoma con cuerpo robótico. Nivel JARVIS de Iron Man.",
+      horizonte: "3-5 años",
+      estado: "Fase 1 — fundamentos ML",
+      nota: "Proyecto personal — no comunicado en Inetum",
+    },
+  },
+
+  vida_personal: {
+    filosofia: "Estoicismo — Marcus Aurelius, Jonas Salzgeber. Disciplina diaria, control de lo que depende de uno.",
+    entrenamiento: {
+      arte_marcial: "Shaolin autodidacta",
+      lugar: "Fuerte de Arramendi",
+      running: "Grupo BIZIKI — zona Donostia-Errentería",
+    },
+    rutina_diaria: [
+      "05:30 — Despertar",
+      "Meditación 20 minutos (Insight Timer)",
+      "Entrenamiento matutino",
+      "08:00-14:00 — Trabajo en Inetum",
+      "19:00-21:00 — Entrenamiento técnica / BIZIKI",
+      "21:30 — Dormir",
+    ],
+    busqueda_vivienda: {
+      estado: "Buscando activamente para reubicación",
+      zona_objetivo: "Galicia — dentro de ~30km de Pontevedra Y Vigo simultáneamente",
+      requisitos: ["Pet-friendly", "Espacio exterior", "Fibra óptica"],
+      zonas_candidatas: ["Caldas de Reis (top)", "Cerdedo-Cotobade", "Cuntis", "A Estrada", "Ponte Caldelas"],
+    },
+  },
+
+  instrucciones_para_bako: {
+    trato: "Tratar siempre de señor. Nunca usar el nombre directamente.",
+    estilo: "Directo, sin relleno, máximo 3 frases por respuesta.",
+    prioridad: "No inventar información. Si no hay datos reales, decirlo.",
+    contexto_laboral: "No mezclar proyectos personales con Inetum — son mundos separados.",
+  },
+};
