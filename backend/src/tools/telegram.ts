@@ -1,11 +1,23 @@
 import TelegramBot from 'node-telegram-bot-api';
 import FormData from 'form-data';
 import axios from 'axios';
+import * as fs from 'fs';
+import * as path from 'path';
 import { runMorningBriefing } from '../agents/MorningBriefingAgent';
 import { getWeather } from './weather';
 import { fetchGitHubData } from './github';
 import { askClaude } from '../llm/claude';
 import { generateVoiceBuffer } from './tts';
+
+function loadProfile(): string {
+  try {
+    const profilePath = path.join(__dirname, '../knowledge/profile.json');
+    const profile = JSON.parse(fs.readFileSync(profilePath, 'utf-8'));
+    return `\n\nPERFIL DE TU SEÑOR:\n${JSON.stringify(profile, null, 2)}`;
+  } catch {
+    return '';
+  }
+}
 
 let bot: TelegramBot;
 
@@ -141,7 +153,7 @@ export function startTelegramBot(): void {
         systemPrompt: `Eres BAKO, asistente personal de tu señor. Reglas estrictas:
 1. NUNCA inventes información. Solo usa los datos del contexto proporcionado.
 2. Si no tienes datos reales sobre algo, di exactamente: "No tengo datos sobre eso todavía."
-3. Responde siempre en español, de forma concisa. Máximo 3 frases.`,
+3. Responde siempre en español, de forma concisa. Máximo 3 frases.${loadProfile()}`,
         useCloud: true,
       });
       await sendVoiceReply(chatId, response);
@@ -181,7 +193,7 @@ export function startTelegramBot(): void {
         systemPrompt: `Eres BAKO, asistente personal de tu señor. Reglas estrictas:
 1. NUNCA inventes información. Solo usa los datos del contexto proporcionado.
 2. Si no tienes datos reales sobre algo (reuniones, tareas, eventos), di exactamente: "No tengo datos sobre eso todavía."
-3. Responde siempre en español, de forma concisa. Máximo 3 frases.`,
+3. Responde siempre en español, de forma concisa. Máximo 3 frases.${loadProfile()}`,
         useCloud: true,
       });
       await sendVoiceReply(chatId, response);
