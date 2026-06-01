@@ -12,12 +12,14 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.100.1",
     "axios": "^1.16.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "mongoose": "^9.6.3"
+    "mongoose": "^9.6.3",
+    "msedge-tts": "^2.0.5",
+    "rss-parser": "^3.13.0",
+    "say": "^0.16.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
