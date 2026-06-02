@@ -86,6 +86,28 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 
 ---
 
+## Asimilación de XMLs de contexto
+
+Proceso para importar XMLs de roles, proyectos e información personal a la memoria de BAKO.
+**Flujo:** Claude parsea el XML → propone memorias → usuario aprueba → se guardan en MongoDB Atlas vía `POST /api/agent/memories/import`.
+
+| XML | Contenido | Estado |
+|---|---|---|
+| `prompt_MASTER` | Contexto universal: identidad, stack completo, proyectos, reglas de desarrollo, filosofía | ✅ Asimilado (10 memorias) |
+| `prompt_app_kefir` | Pendiente de revisar | ⏳ Pendiente |
+| `prompt_automatizar_IA` | Pendiente de revisar | ⏳ Pendiente |
+| `prompt_busqueda_empleo` | Pendiente de revisar | ⏳ Pendiente |
+| `prompt_desarrollar_ia` | Pendiente de revisar | ⏳ Pendiente |
+| `prompt_desarrollar_ju...` | Pendiente de revisar | ⏳ Pendiente |
+| `prompt_estilo_vida` | Pendiente de revisar | ⏳ Pendiente |
+| `prompt_ingresos_pasivos` | Pendiente de revisar | ⏳ Pendiente |
+| `prompt_operacion_galicia` | Pendiente de revisar | ⏳ Pendiente |
+| `prompt_piloto_drones` | Pendiente de revisar | ⏳ Pendiente |
+
+**Cómo continuar:** Abrir Claude Code, decir "vamos a continuar con los XMLs" y pegar el siguiente. Claude tiene el contexto completo del proceso.
+
+---
+
 ## HORIZONTE 0 — Convertir BAKO en mayordomo real
 ### Los 5 gaps críticos. Objetivo: ~1-3 meses.
 
