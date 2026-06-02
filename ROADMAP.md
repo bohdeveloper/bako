@@ -115,6 +115,12 @@ Reducir al mínimo los pasos para hablar con BAKO.
 - BAKO detecta la intención solo ("quiero ver mi agenda" = `/agenda`)
 - Wake word en PC: di "Bako" → responde sin tocar el teclado
 - Respuestas en menos de 2 segundos para preguntas simples
+- ❌ **Personalidad configurable** — parámetros de tono inyectados en el system prompt:
+  - `sinceridad` (0-10): cuánto te dice las verdades incómodas sin filtros
+  - `sarcasmo` (0-10): ironía y humor seco al estilo Alfred/Jarvis
+  - `simpatía` (0-10): calidez y empatía en las respuestas
+  - Presets: `mayordomo clásico` / `colega directo` / `modo Jarvis`
+  - Configurable vía `/personalidad <preset>` o desde el futuro panel admin
 
 ### Gap 5 — Conocimiento vivo 📚
 El perfil deja de ser un archivo que editas a mano.

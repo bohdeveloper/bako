@@ -184,6 +184,8 @@ ai-personal-os/
 | `/tracker` | Estado del tracker diario (✅ ❌ ⏳) |
 | `/comentarios` | Comentarios del blog bohdeveloper.com |
 | `/privado <msg>` | Fuerza modo local Ollama — nunca sale a la nube |
+| `/servicio` | Muestra si BAKO está usando Ollama local o Groq cloud |
+| `/personalidad <preset>` | *(próximamente)* Ajusta el tono: `mayordomo`, `colega`, `jarvis` |
 
 ---
 
@@ -268,13 +270,11 @@ El deploy es automático desde GitHub (rama `master`).
 
 ## Lo que viene — próximos pasos
 
-Los 5 gaps críticos hacia el mayordomo real, por orden de prioridad:
-
-1. **Memoria persistente** — BAKO recuerda entre conversaciones (MongoDB Memory collection)
-2. **Ejecución de acciones** — crear tareas Notion, eventos Calendar, issues GitHub
-3. **Briefing automático** — cron job 05:45, alertas proactivas
-4. **Texto libre sin comandos** — detección de intención sin `/comando`
-5. **Wake word** — di "Bako" en casa y responde al instante
+1. **Personalidad configurable** — parámetros de sinceridad, sarcasmo y simpatía (0-10) inyectados en el system prompt. Presets: `mayordomo clásico`, `colega directo`, `modo Jarvis`. Comando `/personalidad` + panel admin.
+2. **Texto libre sin comandos** — detección de intención pura sin necesidad de `/comando`
+3. **Wake word** — di "Bako" en casa y responde sin tocar el teclado (OpenWakeWord)
+4. **Gmail** — resumen de correos sin leer, borradores por voz
+5. **Panel admin** — dashboard Next.js para gestionar memorias, configurar BAKO y ver estadísticas
 
 Ver [ROADMAP.md](ROADMAP.md) para el plan completo de todos los horizontes.
 
