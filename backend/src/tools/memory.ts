@@ -46,6 +46,16 @@ export async function forgetMemory(hint: string): Promise<boolean> {
   return true;
 }
 
+export async function getCurrentLocation(): Promise<string> {
+  try {
+    const mem = await Memory.findOne({ tags: 'ubicacion-actual' }).sort({ createdAt: -1 });
+    if (!mem) return process.env.WEATHER_CITY ?? 'Errentería';
+    return mem.content.replace(/^ubicaci[oó]n\s+actual[^:]*:\s*/i, '').trim();
+  } catch {
+    return process.env.WEATHER_CITY ?? 'Errentería';
+  }
+}
+
 const EXTRACTION_SYSTEM = `Eres el sistema de memoria de BAKO, asistente personal de Borja.
 Analiza la conversación y extrae SOLO hechos importantes y duraderos.
 

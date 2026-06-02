@@ -10,8 +10,9 @@ import { getTrackerSummary, formatTrackerForSpeech, markTrackerRecord, getBlogCo
 import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
 import { generateVoiceBuffer } from './tts';
 import { BAKO_PROFILE } from '../knowledge/profile';
-import { saveMemory, getMemories, formatMemoriesForPrompt, forgetMemory, extractAndSaveMemories } from './memory';
+import { saveMemory, getMemories, formatMemoriesForPrompt, forgetMemory, extractAndSaveMemories, getCurrentLocation } from './memory';
 import { tryExecuteAction } from './actions';
+import { getAmbientContext } from './context';
 
 function buildSystemPrompt(extraContext = '', memoriesSection = ''): string {
   const now   = nowInSpain();
@@ -353,9 +354,13 @@ export function startTelegramBot(): void {
         return;
       }
 
-      const memoriesSection = await getMemoriesSection();
+      const voiceLocation = await getCurrentLocation();
+      const [memoriesSection, ambientCtx] = await Promise.all([
+        getMemoriesSection(),
+        getAmbientContext(voiceLocation),
+      ]);
       const response = await askClaude(transcription, {
-        systemPrompt: buildSystemPrompt('', memoriesSection),
+        systemPrompt: buildSystemPrompt(ambientCtx, memoriesSection),
         useCloud: true,
       });
       await sendVoiceReply(chatId, response);
@@ -373,6 +378,17 @@ export function startTelegramBot(): void {
 
     try {
       const text = msg.text;
+
+      // Comando de ubicación: "Bako, estoy en Madrid"
+      const locationMatch = text.match(/^(?:bako[,.]?\s*)?(?:estoy\s+en|me\s+encuentro\s+en|ahora\s+estoy\s+en|estoy\s+ahora\s+en)\s+(.+)$/i);
+      if (locationMatch) {
+        const loc = locationMatch[1].trim();
+        await saveMemory(`Ubicación actual de Borja: ${loc}`, {
+          type: 'fact', importance: 'high', source: 'manual', tags: ['ubicacion', 'ubicacion-actual'],
+        });
+        await bot.sendMessage(chatId, `📍 Ubicación actualizada: *${loc}*\nTendré en cuenta el entorno desde allí.`, { parse_mode: 'Markdown' });
+        return;
+      }
 
       // Comandos de memoria (antes de cualquier otro procesamiento)
       const rememberMatch = text.match(/^(?:bako[,.]?\s*)?recuerda(?:\s+que)?\s+(.+)$/i);
@@ -434,28 +450,26 @@ export function startTelegramBot(): void {
         return;
       }
 
-      const now = nowInSpain();
-      const contextParts: string[] = [
-        `Fecha y hora en España: ${now.toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}`,
-      ];
+      // Contexto ambiental siempre activo: tiempo, ubicación, agenda
+      const currentLocation = await getCurrentLocation();
+      const [memoriesSection, ambientCtx] = await Promise.all([
+        getMemoriesSection(),
+        getAmbientContext(currentLocation),
+      ]);
 
-      if (/tiempo|clima|temperatura|lluvia|sol|nublado|mañana|previsión|meteorolog/i.test(text)) {
-        const w = await getWeather();
-        contextParts.push(`Clima en ${w.city}: ${w.current.temp}°C, ${w.current.description}, viento ${w.current.windSpeed} km/h`);
-        w.forecast.forEach(d => contextParts.push(`${d.date}: ${d.minTemp}-${d.maxTemp}°C, ${d.description}, lluvia ${d.rainProbability}%`));
-      }
+      // Contexto adicional según keywords específicos
+      const additionalParts: string[] = [];
 
       if (/proyecto|repo|commit|github|code|código|PR/i.test(text)) {
         const gh = await fetchGitHubData();
         const repos = gh.repos.slice(0, 3).map(r => r.name).join(', ');
-        contextParts.push(`Proyectos activos: ${repos}`);
-        if (gh.recentCommits.length > 0) contextParts.push(`Commits recientes: ${gh.recentCommits.length}`);
+        additionalParts.push(`Proyectos activos: ${repos}`);
+        if (gh.recentCommits.length > 0) additionalParts.push(`Commits recientes: ${gh.recentCommits.length}`);
       }
 
       if (/tracker|actividad|kronoshin|biziki|tarea.*hoy|hoy.*tarea|completad|completar|marcar|registrar|hice|no hice/i.test(text)) {
-        // Detectar intención de escritura: "marca X como completada/hecha/done"
-        const writeMatch = text.match(/(?:marca|pon|registra|completa|da por completad[ao]|marca como hecha?)\s+(?:la tarea\s+)?(.+?)(?:\s+como\s+(?:completad[ao]|hech[ao]|done|lista?|realizada?))?(?:\s+en tracker)?\.?$/i);
-        const notDoneMatch = text.match(/(?:marca|pon|registra)\s+(?:la tarea\s+)?(.+?)\s+como\s+(?:no completad[ao]|no hech[ao]|pendiente|fallid[ao])(?:\s+(?:porque|por|motivo[:]?)\s+(.+))?\.?$/i);
+        const writeMatch    = text.match(/(?:marca|pon|registra|completa|da por completad[ao]|marca como hecha?)\s+(?:la tarea\s+)?(.+?)(?:\s+como\s+(?:completad[ao]|hech[ao]|done|lista?|realizada?))?(?:\s+en tracker)?\.?$/i);
+        const notDoneMatch  = text.match(/(?:marca|pon|registra)\s+(?:la tarea\s+)?(.+?)\s+como\s+(?:no completad[ao]|no hech[ao]|pendiente|fallid[ao])(?:\s+(?:porque|por|motivo[:]?)\s+(.+))?\.?$/i);
 
         if (notDoneMatch) {
           const taskName = notDoneMatch[1].trim();
@@ -474,29 +488,25 @@ export function startTelegramBot(): void {
           return;
         }
 
-        // Solo lectura: inyectar datos del tracker como contexto
-        const summary = await getTrackerSummary();
+        const summary    = await getTrackerSummary();
         const trackerCtx = summary.tasks.map(t => {
           const estado = t.done === true ? 'completada' : t.done === false ? `no completada${t.reason ? ` (${t.reason})` : ''}` : 'pendiente';
           return `${t.name} [${t.time}]: ${estado}`;
         }).join('\n');
-        contextParts.push(`Tracker de hoy (${summary.date}):\n${trackerCtx}`);
-        contextParts.push(`Resumen: ${summary.completedCount} completadas, ${summary.notDoneCount} no hechas, ${summary.pendingCount} pendientes`);
+        additionalParts.push(`Tracker de hoy (${summary.date}):\n${trackerCtx}`);
+        additionalParts.push(`Resumen: ${summary.completedCount} completadas, ${summary.notDoneCount} no hechas, ${summary.pendingCount} pendientes`);
       }
 
       if (/comentario|blog|post/i.test(text)) {
         const comments = await getBlogComments(false);
-        if (comments.length > 0) {
-          const ctx = comments.map(c => `"${c.body}" — ${c.alias} en "${c.post_title}"`).join('\n');
-          contextParts.push(`Comentarios del blog:\n${ctx}`);
-        } else {
-          contextParts.push('Blog: sin comentarios todavía.');
-        }
+        const ctx = comments.length > 0
+          ? comments.map(c => `"${c.body}" — ${c.alias} en "${c.post_title}"`).join('\n')
+          : 'Sin comentarios todavía.';
+        additionalParts.push(`Comentarios del blog:\n${ctx}`);
       }
 
-      const extraContext = contextParts.length > 1 ? `\nDATOS EN TIEMPO REAL:\n${contextParts.join('\n')}\n\n` : '';
+      const extraContext = ambientCtx + (additionalParts.length > 0 ? `\n\nCONTEXTO ADICIONAL:\n${additionalParts.join('\n')}` : '');
 
-      const memoriesSection = await getMemoriesSection();
       const response = await askClaude(text, {
         systemPrompt: buildSystemPrompt(extraContext, memoriesSection),
         useCloud: true,
