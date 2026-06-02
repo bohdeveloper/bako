@@ -10,8 +10,9 @@ import { getTrackerSummary, formatTrackerForSpeech, markTrackerRecord, getBlogCo
 import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
 import { generateVoiceBuffer } from './tts';
 import { BAKO_PROFILE } from '../knowledge/profile';
+import { saveMemory, getMemories, formatMemoriesForPrompt, forgetMemory, extractAndSaveMemories } from './memory';
 
-function buildSystemPrompt(extraContext = ''): string {
+function buildSystemPrompt(extraContext = '', memoriesSection = ''): string {
   const now   = nowInSpain();
   const hora  = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
   const fecha = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -47,8 +48,18 @@ REGLAS ESTRICTAS:
 3. Responde siempre en español, de forma concisa. Máximo 3 frases.
 4. Trato: siempre de "señor". Nunca usar el nombre directamente.
 ${extraContext}
+${memoriesSection ? `RECUERDOS DINÁMICOS (complementan o actualizan el perfil base):\n${memoriesSection}\n` : ''}
 PERFIL DE TU SEÑOR:
 ${JSON.stringify(BAKO_PROFILE, null, 2)}`;
+}
+
+async function getMemoriesSection(): Promise<string> {
+  try {
+    const memories = await getMemories();
+    return formatMemoriesForPrompt(memories);
+  } catch {
+    return '';
+  }
 }
 
 const SENSITIVE_PATTERN = /inetum|contrato|nómina|sueldo|salario|password|contraseña|token|secret|credencial|dni|seguridad social|banco|cuenta corriente|tarjeta/i;
@@ -274,8 +285,9 @@ export function startTelegramBot(): void {
         return;
       }
       await bot.sendMessage(chatId, '🔒 Procesando en modo privado (solo local)...');
+      const memoriesSection = await getMemoriesSection();
       const response = await askClaude(text, {
-        systemPrompt: buildSystemPrompt(),
+        systemPrompt: buildSystemPrompt('', memoriesSection),
         private: true,
       });
       await sendVoiceReply(chatId, response);
@@ -310,11 +322,13 @@ export function startTelegramBot(): void {
       const transcription = await transcribeAudio(buffer);
       await bot.sendMessage(chatId, `🗣 _"${transcription}"_`, { parse_mode: 'Markdown' });
 
+      const memoriesSection = await getMemoriesSection();
       const response = await askClaude(transcription, {
-        systemPrompt: buildSystemPrompt(),
+        systemPrompt: buildSystemPrompt('', memoriesSection),
         useCloud: true,
       });
       await sendVoiceReply(chatId, response);
+      extractAndSaveMemories(transcription, response).catch(() => {});
     } catch (err) {
       await bot.sendMessage(chatId, '❌ No pude procesar el audio.');
     }
@@ -329,6 +343,37 @@ export function startTelegramBot(): void {
     try {
       const text = msg.text;
 
+      // Comandos de memoria (antes de cualquier otro procesamiento)
+      const rememberMatch = text.match(/^(?:bako[,.]?\s*)?recuerda(?:\s+que)?\s+(.+)$/i);
+      if (rememberMatch) {
+        await saveMemory(rememberMatch[1].trim(), { importance: 'high', source: 'manual' });
+        await bot.sendMessage(chatId, '🧠 Memorizado, señor.');
+        return;
+      }
+
+      const forgetMatch = text.match(/^(?:bako[,.]?\s*)?olvida(?:\s+(?:que|lo\s+de?))?\s+(.+)$/i);
+      if (forgetMatch) {
+        const deleted = await forgetMemory(forgetMatch[1].trim());
+        await bot.sendMessage(chatId, deleted ? '🧠 Olvidado, señor.' : '⚠️ No encontré ese recuerdo.');
+        return;
+      }
+
+      if (/qu[eé]\s+recuerdas|qu[eé]\s+sabes(?:\s+de\s+m[ií])?|muéstrame\s+(?:tus\s+)?recuerdos/i.test(text)) {
+        const memories = await getMemories();
+        if (!memories.length) {
+          await bot.sendMessage(chatId, '🧠 Aún no tengo recuerdos guardados sobre usted, señor.');
+          return;
+        }
+        let mem = '🧠 *Lo que recuerdo de usted:*\n\n';
+        for (const m of memories) {
+          const icon  = m.importance === 'high' ? '🔴' : m.importance === 'medium' ? '🟡' : '⚪';
+          const fecha = new Date(m.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+          mem += `${icon} ${m.content} _(${fecha})_\n`;
+        }
+        await bot.sendMessage(chatId, mem, { parse_mode: 'Markdown' });
+        return;
+      }
+
       // Detección automática de contenido sensible
       if (isSensitive(text)) {
         const ollamaOk = await isOllamaAvailable();
@@ -340,11 +385,13 @@ export function startTelegramBot(): void {
           return;
         }
         await bot.sendMessage(chatId, '🔒 Contenido sensible detectado — procesando solo en local...');
+        const memoriesSection = await getMemoriesSection();
         const response = await askClaude(text, {
-          systemPrompt: buildSystemPrompt(),
+          systemPrompt: buildSystemPrompt('', memoriesSection),
           private: true,
         });
         await sendVoiceReply(chatId, response);
+        // Sin extracción en mensajes sensibles — privacidad
         return;
       }
 
@@ -410,11 +457,13 @@ export function startTelegramBot(): void {
 
       const extraContext = contextParts.length > 1 ? `\nDATOS EN TIEMPO REAL:\n${contextParts.join('\n')}\n\n` : '';
 
+      const memoriesSection = await getMemoriesSection();
       const response = await askClaude(text, {
-        systemPrompt: buildSystemPrompt(extraContext),
+        systemPrompt: buildSystemPrompt(extraContext, memoriesSection),
         useCloud: true,
       });
       await sendVoiceReply(chatId, response);
+      extractAndSaveMemories(text, response).catch(() => {});
     } catch (err) {
       await bot.sendMessage(chatId, '❌ Error al procesar tu mensaje.');
     }
