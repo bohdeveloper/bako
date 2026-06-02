@@ -72,6 +72,24 @@ function isSensitive(text: string): boolean {
 
 let bot: TelegramBot;
 
+// ─── Modo LLM ─────────────────────────────────────────────────────────────────
+
+type LlmMode = 'auto' | 'groq' | 'ollama';
+let llmMode: LlmMode = 'auto';
+
+function llmModeLabel(mode: LlmMode): string {
+  if (mode === 'groq')   return '☁️ Groq (forzado)';
+  if (mode === 'ollama') return '🏠 Ollama (si disponible, si no Groq)';
+  return '🔄 Auto (Ollama si disponible, Groq si no)';
+}
+
+async function resolveLlmOptions(base: { systemPrompt?: string; maxTokens?: number; conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }> }) {
+  if (llmMode === 'groq')   return { ...base, useCloud: true };
+  if (llmMode === 'ollama') return { ...base, useCloud: false };
+  // auto: useCloud=false → askClaude usa Ollama con fallback a Groq
+  return { ...base, useCloud: false };
+}
+
 // ─── Historial de sesión por chat ─────────────────────────────────────────────
 
 interface SessionHistory {
@@ -285,6 +303,25 @@ async function handleCommand(chatId: number, command: string): Promise<void> {
     return;
   }
 
+  if (command.startsWith('/llm')) {
+    const arg = command.split(' ')[1]?.toLowerCase() as LlmMode | undefined;
+    if (arg === 'groq' || arg === 'ollama' || arg === 'auto') {
+      llmMode = arg;
+      const reply = `✅ Modo LLM cambiado a: ${llmModeLabel(llmMode)}`;
+      await bot.sendMessage(chatId, reply);
+      await sendVoiceReply(chatId, reply.replace(/[✅☁️🏠🔄]/g, '').trim());
+    } else {
+      const ollamaOk = await isOllamaAvailable();
+      const status = ollamaOk ? '🟢 Ollama disponible' : '🔴 Ollama no disponible';
+      await bot.sendMessage(chatId,
+        `🤖 *Modo LLM actual:* ${llmModeLabel(llmMode)}\n${status}\n\n` +
+        `Comandos:\n/llm auto — comportamiento por defecto\n/llm groq — fuerza Groq\n/llm ollama — fuerza Ollama`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+    return;
+  }
+
   if (command === '/comentarios') {
     await bot.sendMessage(chatId, '💬 Revisando el blog...');
     const comments = await getBlogComments(false);
@@ -396,6 +433,13 @@ export function startTelegramBot(): void {
   });
 
   // Comandos
+  bot.onText(/^\/(llm(?:\s+\w+)?)$/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(chatId)) return;
+    try { await handleCommand(chatId, `/${match![1]}`); }
+    catch (err) { await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`); }
+  });
+
   bot.onText(/^\/(briefing|tiempo|proyectos|tareas|agenda|tracker|comentarios|servicio)$/, async (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return;
@@ -431,11 +475,10 @@ export function startTelegramBot(): void {
         getAmbientContext(voiceLocation),
       ]);
       const voiceHistory = getSessionHistory(chatId);
-      const response = await askClaude(transcription, {
+      const response = await askClaude(transcription, await resolveLlmOptions({
         systemPrompt: buildSystemPrompt(ambientCtx, memoriesSection),
         conversationHistory: voiceHistory,
-        useCloud: true,
-      });
+      }));
       await sendVoiceReply(chatId, response);
       appendToSession(chatId, transcription, response);
       extractAndSaveMemories(transcription, response).catch(() => {});
@@ -465,6 +508,16 @@ export function startTelegramBot(): void {
           type: 'fact', importance: 'high', source: 'manual', tags: ['ubicacion', 'ubicacion-actual'],
         });
         await bot.sendMessage(chatId, `📍 Ubicación actualizada: *${loc}*\nConsultaré el tiempo de ${loc} desde ahora.`, { parse_mode: 'Markdown' });
+        return;
+      }
+
+      // Cambio de modo LLM en lenguaje natural
+      const llmSwitchMatch = text.match(/(?:bako[,.]?\s*)?(?:usa|cambia\s+a|activa|cambia\s+al?\s+modo)\s+(ollama|groq|auto)/i);
+      if (llmSwitchMatch) {
+        llmMode = llmSwitchMatch[1].toLowerCase() as LlmMode;
+        const reply = `✅ Entendido, señor. ${llmModeLabel(llmMode)}.`;
+        await bot.sendMessage(chatId, reply);
+        await sendVoiceReply(chatId, reply.replace(/[✅☁️🏠🔄]/g, '').trim());
         return;
       }
 
@@ -601,11 +654,10 @@ export function startTelegramBot(): void {
       const extraContext = ambientCtx + (additionalParts.length > 0 ? `\n\nCONTEXTO ADICIONAL:\n${additionalParts.join('\n')}` : '');
       const conversationHistory = getSessionHistory(chatId);
 
-      const response = await askClaude(text, {
+      const response = await askClaude(text, await resolveLlmOptions({
         systemPrompt: buildSystemPrompt(extraContext, memoriesSection),
         conversationHistory,
-        useCloud: true,
-      });
+      }));
       await sendVoiceReply(chatId, response);
       appendToSession(chatId, text, response);
       extractAndSaveMemories(text, response).catch(() => {});
