@@ -89,7 +89,7 @@ export async function extractAndSaveMemories(userMessage: string, assistantRespo
     const raw = await askClaude(conversation, {
       systemPrompt: EXTRACTION_SYSTEM,
       maxTokens:    400,
-      useCloud:     true,
+      useCloud:     false,
     });
 
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
