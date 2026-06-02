@@ -60,7 +60,10 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | Tarea | Estado |
 |---|---|
 | Ollama autostart en inicio de sesión | ✅ Vía Ollama.lnk en carpeta Startup |
-| PM2 bako-backend arranque automático | ✅ Registrado en HKCU\Run vía pm2-windows-startup |
+| Cloudflare Tunnel bako-ollama | ✅ Task Scheduler arranca cloudflared al login |
+| Render usa Ollama local vía túnel | ✅ OLLAMA_URL=https://ollama.bohdeveloper.com |
+| Fallback automático a Groq si PC apagado | ✅ isOllamaAvailable() con timeout 3s |
+| Selector manual de LLM | ✅ /llm ollama\|groq\|auto + lenguaje natural |
 
 ---
 

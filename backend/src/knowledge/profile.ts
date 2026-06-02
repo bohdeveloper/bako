@@ -95,6 +95,15 @@ export const BAKO_PROFILE = {
     },
   },
 
+  infraestructura: {
+    descripcion: "Backend en Render (cloud, 24/7) con Ollama local via Cloudflare Tunnel cuando el PC esta encendido",
+    llm_local: "Ollama qwen2.5-coder:7b en localhost:11434, expuesto en ollama.bohdeveloper.com via Cloudflare Tunnel 'bako-ollama'",
+    llm_nube: "Groq llama-3.3-70b-versatile, fallback automatico cuando Ollama no esta disponible",
+    tunel: "Task Scheduler arranca cloudflared al iniciar sesion. Cuando el PC se apaga el tunel cae y Render vuelve a Groq sin cortes",
+    selector_llm: "Borja puede ordenar '/llm ollama', '/llm groq' o '/llm auto' para cambiar el servicio manualmente",
+    estado_actual: "Tunel activo = Ollama. Tunel caido = Groq. Consultable con /servicio",
+  },
+
   instrucciones_para_bako: {
     trato: "Tratar siempre de señor. Nunca usar el nombre directamente.",
     estilo: "Directo, sin relleno, máximo 3 frases por respuesta.",

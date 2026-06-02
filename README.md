@@ -255,11 +255,33 @@ npx ts-node scripts/auth-google.ts
 # Se genera token.json automáticamente
 ```
 
-### Configurar autostart en Windows (Ollama + PM2)
+### Configurar autostart en Windows + Cloudflare Tunnel
+
+El script configura el túnel que permite a Render usar tu Ollama local cuando el PC está encendido.
+
+**Prerrequisitos (una sola vez):**
 ```powershell
-# Como Administrador:
+winget install Cloudflare.cloudflared
+cloudflared tunnel login                                      # abre navegador, autoriza
+cloudflared tunnel create bako-ollama                         # guarda el ID que devuelve
+cloudflared tunnel route dns bako-ollama ollama.bohdeveloper.com
+```
+
+**Luego ejecuta el script (PowerShell normal, sin Admin):**
+```powershell
 .\backend\scripts\setup-windows-autostart.ps1
 ```
+
+**Añade en Render Dashboard:**
+```
+OLLAMA_URL=https://ollama.bohdeveloper.com
+```
+
+**Resultado:**
+- PC encendido → Render usa Ollama local vía túnel (privado, sin rate limits)
+- PC apagado → túnel cae, Render vuelve a Groq automáticamente sin cortes
+- `/servicio` en Telegram → muestra qué LLM está usando BAKO ahora mismo
+- `/llm ollama|groq|auto` → cambia manualmente el LLM preferido
 
 ### Producción (Render.com)
 El deploy es automático desde GitHub (rama `master`).
