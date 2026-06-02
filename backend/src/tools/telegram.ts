@@ -72,6 +72,15 @@ function isSensitive(text: string): boolean {
 
 let bot: TelegramBot;
 
+// ─── Detección de rate limit ──────────────────────────────────────────────────
+
+function is429(err: unknown): boolean {
+  const e = err as any;
+  return e?.response?.status === 429 || String(e?.message ?? '').includes('429');
+}
+
+const MSG_429 = '⚠️ Groq ha alcanzado su límite de solicitudes. BAKO volverá a funcionar cuando el límite se resetee (medianoche UTC) o cuando Ollama esté disponible vía túnel.\nPuede forzar Ollama con `/llm ollama`.';
+
 // ─── Modo LLM ─────────────────────────────────────────────────────────────────
 
 type LlmMode = 'auto' | 'groq' | 'ollama';
@@ -483,8 +492,12 @@ export function startTelegramBot(): void {
       appendToSession(chatId, transcription, response);
       extractAndSaveMemories(transcription, response).catch(() => {});
     } catch (err) {
-      console.error('❌ Voice handler error:', (err as Error).message, (err as Error).stack);
-      await bot.sendMessage(chatId, `❌ No pude procesar el audio.\n_Error: ${(err as Error).message}_`, { parse_mode: 'Markdown' });
+      console.error('❌ Voice handler error:', (err as Error).message);
+      if (is429(err)) {
+        await bot.sendMessage(chatId, MSG_429, { parse_mode: 'Markdown' });
+      } else {
+        await bot.sendMessage(chatId, `❌ No pude procesar el audio.\n_${(err as Error).message}_`, { parse_mode: 'Markdown' });
+      }
     }
   });
 
@@ -662,7 +675,12 @@ export function startTelegramBot(): void {
       appendToSession(chatId, text, response);
       extractAndSaveMemories(text, response).catch(() => {});
     } catch (err) {
-      await bot.sendMessage(chatId, '❌ Error al procesar tu mensaje.');
+      console.error('❌ Message handler error:', (err as Error).message);
+      if (is429(err)) {
+        await bot.sendMessage(chatId, MSG_429, { parse_mode: 'Markdown' });
+      } else {
+        await bot.sendMessage(chatId, '❌ Error al procesar tu mensaje.');
+      }
     }
   });
 
