@@ -96,22 +96,51 @@ async function downloadFile(fileId: string): Promise<Buffer> {
   return Buffer.from(data);
 }
 
-// Vocabulario propio inyectado en Whisper para mejorar reconocimiento de nombres
-const WHISPER_PROMPT = 'BAKO, Borja, Unyona, Diamadmin, Nitflex, bohdeveloper, Inetum, Errentería, Donostia, Gipuzkoa, BIZIKI, Shaolin, Arramendi, Cloudflare, MongoDB, PostgreSQL, TypeScript, React, Angular, Next.js, Spring Boot, Node.js, GitHub, Notion, Telegram, Render, Groq, Ollama, AlvaroNeural';
+// Vocabulario propio inyectado en Whisper para mejorar reconocimiento de nombres.
+// Incluye proyectos, lugares, personas, hobbies y stack técnico de Borja.
+const WHISPER_PROMPT = [
+  // Proyectos personales
+  'BAKO, Unyona, Diamadmin, Nitflex, Kronoshin, bohdeveloper',
+  // Trabajo
+  'Inetum',
+  // Localización — actual y futura (Galicia)
+  'Errentería, Donostia, Gipuzkoa, Euskadi, País Vasco, Galicia, Pontevedra, Caldas de Reis, Arramendi',
+  // Hobbies y vida diaria
+  'Shaolin, Running, BIZIKI, Estoicismo, Meditación, Insight Timer, Marcus Aurelius',
+  // Stack técnico
+  'Cloudflare, MongoDB, PostgreSQL, TypeScript, React, Angular, Next.js, Spring Boot, Node.js',
+  'GitHub, Notion, Telegram, Render, Groq, Ollama, Whisper, AlvaroNeural, Tailwind, Docker, Wrangler',
+].join(', ');
 
 // Correcciones para errores fonéticos conocidos (segunda capa de seguridad)
 const TRANSCRIPTION_FIXES: Array<[RegExp, string]> = [
-  [/\buniona\b/gi,     'Unyona'],
-  [/\buniiona\b/gi,    'Unyona'],
-  [/\bunyiona\b/gi,    'Unyona'],
-  [/\bdia\s+admin\b/gi,'Diamadmin'],
-  [/\bdiamadin\b/gi,   'Diamadmin'],
-  [/\bnetflix\b/gi,    'Nitflex'],
-  [/\bnitflix\b/gi,    'Nitflex'],
-  [/\bvako\b/gi,       'BAKO'],
-  [/\bbaco\b/gi,       'BAKO'],
-  [/\birrentería\b/gi, 'Errentería'],
-  [/\berrenterÍa\b/gi, 'Errentería'],
+  // Proyectos
+  [/\buniona\b/gi,       'Unyona'],
+  [/\buniiona\b/gi,      'Unyona'],
+  [/\bunyiona\b/gi,      'Unyona'],
+  [/\bdia\s+admin\b/gi,  'Diamadmin'],
+  [/\bdiamadin\b/gi,     'Diamadmin'],
+  [/\bnetflix\b/gi,      'Nitflex'],
+  [/\bnitflix\b/gi,      'Nitflex'],
+  [/\bcronoshin\b/gi,    'Kronoshin'],
+  [/\bkronosín\b/gi,     'Kronoshin'],
+  [/\bcronosín\b/gi,     'Kronoshin'],
+  [/\bkronochin\b/gi,    'Kronoshin'],
+  // Asistente
+  [/\bvako\b/gi,         'BAKO'],
+  [/\bbaco\b/gi,         'BAKO'],
+  [/\bvack[oa]\b/gi,     'BAKO'],
+  // Hobbies
+  [/\bchaolin\b/gi,      'Shaolin'],
+  [/\bchaolín\b/gi,      'Shaolin'],
+  [/\bbisiki\b/gi,       'BIZIKI'],
+  [/\bbisiqui\b/gi,      'BIZIKI'],
+  [/\bviziki\b/gi,       'BIZIKI'],
+  // Lugares
+  [/\birrentería\b/gi,   'Errentería'],
+  [/\berrenterÍa\b/gi,   'Errentería'],
+  [/\barramendi\b/gi,    'Arramendi'],
+  [/\bcaldas\s+de\s+reyes\b/gi, 'Caldas de Reis'],
 ];
 
 function fixTranscription(text: string): string {
