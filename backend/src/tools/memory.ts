@@ -46,14 +46,30 @@ export async function forgetMemory(hint: string): Promise<boolean> {
   return true;
 }
 
+function inferLocationFromRoutine(): string {
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
+  const hora = now.getHours();
+  const isWeekend = now.getDay() === 0 || now.getDay() === 6;
+  // Jornada laboral presencial en Inetum, Donostia
+  if (!isWeekend && hora >= 7 && hora < 15) return 'Donostia';
+  return process.env.WEATHER_CITY ?? 'Errentería';
+}
+
+const ROUTINE_CITIES = /errenteria|errentería|donostia|donosti/i;
+
 export async function getCurrentLocation(): Promise<string> {
   try {
     const mem = await Memory.findOne({ tags: 'ubicacion-actual' }).sort({ createdAt: -1 });
-    if (!mem) return process.env.WEATHER_CITY ?? 'Errentería';
-    return mem.content.replace(/^ubicaci[oó]n\s+actual[^:]*:\s*/i, '').trim();
-  } catch {
-    return process.env.WEATHER_CITY ?? 'Errentería';
-  }
+    if (mem) {
+      const loc = mem.content.replace(/^ubicaci[oó]n\s+actual[^:]*:\s*/i, '').trim();
+      const ageHours = (Date.now() - new Date(mem.createdAt).getTime()) / 3_600_000;
+      // Ciudad de viaje (no rutinaria) → se respeta indefinidamente
+      // Ciudad rutinaria (Errentería/Donostia) → solo si fue guardada en las últimas 4h
+      if (!ROUTINE_CITIES.test(loc) || ageHours < 4) return loc;
+    }
+  } catch {}
+  // Sin override reciente → inferir por horario y rutina
+  return inferLocationFromRoutine();
 }
 
 const EXTRACTION_SYSTEM = `Eres el sistema de memoria de BAKO, asistente personal de Borja.
