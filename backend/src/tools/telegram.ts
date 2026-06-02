@@ -11,8 +11,44 @@ import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
 import { generateVoiceBuffer } from './tts';
 import { BAKO_PROFILE } from '../knowledge/profile';
 
-function loadProfile(): string {
-  return `\n\nPERFIL DE TU SEÑOR:\n${JSON.stringify(BAKO_PROFILE, null, 2)}`;
+function buildSystemPrompt(extraContext = ''): string {
+  const now   = nowInSpain();
+  const hora  = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  const fecha = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const diasSemana = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  const diaSemana  = diasSemana[now.getDay()];
+
+  // Deducir contexto situacional según hora y día
+  const hora24 = now.getHours();
+  const esFinDeSemana = now.getDay() === 0 || now.getDay() === 6;
+  let situacion = '';
+  if (!esFinDeSemana) {
+    if (hora24 >= 5 && hora24 < 6)       situacion = 'Acaba de despertar. Rutina matutina: Kronoshin y preparación.';
+    else if (hora24 >= 6 && hora24 < 7)  situacion = 'En camino al trabajo — bus Errentería → Donostia.';
+    else if (hora24 >= 7 && hora24 < 14) situacion = 'Jornada laboral en Inetum, Donostia.';
+    else if (hora24 >= 14 && hora24 < 15) situacion = 'Volviendo a casa — bus Donostia → Errentería.';
+    else if (hora24 >= 15 && hora24 < 19) situacion = 'Tiempo personal en casa — ocio o proyectos propios.';
+    else if (hora24 >= 19 && hora24 < 21) situacion = 'Entrenamiento: Biziki o técnica Shaolin en Arramendi.';
+    else if (hora24 >= 21)               situacion = 'Noche — ducha, cena ligera y descanso.';
+  } else {
+    situacion = `Fin de semana — día libre. ${diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1)}.`;
+  }
+
+  return `Eres BAKO (Borja's Autonomous Knowledge Operator), asistente personal de tu señor.
+
+CONTEXTO ACTUAL:
+- Fecha y hora: ${fecha} — ${hora} (hora de España, Europe/Madrid)
+- Día: ${diaSemana}
+- Situación probable: ${situacion}
+
+REGLAS ESTRICTAS:
+1. NUNCA inventes datos que no tienes (emails, reuniones, cifras). Si no hay datos reales, di exactamente: "No tengo datos sobre eso todavía."
+2. SÍ puedes razonar con lo que sabes: hora actual, ubicación, rutina, proyectos del perfil.
+3. Responde siempre en español, de forma concisa. Máximo 3 frases.
+4. Trato: siempre de "señor". Nunca usar el nombre directamente.
+${extraContext}
+PERFIL DE TU SEÑOR:
+${JSON.stringify(BAKO_PROFILE, null, 2)}`;
 }
 
 const SENSITIVE_PATTERN = /inetum|contrato|nómina|sueldo|salario|password|contraseña|token|secret|credencial|dni|seguridad social|banco|cuenta corriente|tarjeta/i;
@@ -239,7 +275,7 @@ export function startTelegramBot(): void {
       }
       await bot.sendMessage(chatId, '🔒 Procesando en modo privado (solo local)...');
       const response = await askClaude(text, {
-        systemPrompt: `Eres BAKO. Responde en español, máximo 3 frases.${loadProfile()}`,
+        systemPrompt: buildSystemPrompt(),
         private: true,
       });
       await sendVoiceReply(chatId, response);
@@ -275,10 +311,7 @@ export function startTelegramBot(): void {
       await bot.sendMessage(chatId, `🗣 _"${transcription}"_`, { parse_mode: 'Markdown' });
 
       const response = await askClaude(transcription, {
-        systemPrompt: `Eres BAKO, asistente personal de tu señor. Reglas estrictas:
-1. NUNCA inventes información. Solo usa los datos del contexto proporcionado.
-2. Si no tienes datos reales sobre algo, di exactamente: "No tengo datos sobre eso todavía."
-3. Responde siempre en español, de forma concisa. Máximo 3 frases.${loadProfile()}`,
+        systemPrompt: buildSystemPrompt(),
         useCloud: true,
       });
       await sendVoiceReply(chatId, response);
@@ -308,7 +341,7 @@ export function startTelegramBot(): void {
         }
         await bot.sendMessage(chatId, '🔒 Contenido sensible detectado — procesando solo en local...');
         const response = await askClaude(text, {
-          systemPrompt: `Eres BAKO. Responde en español, máximo 3 frases.${loadProfile()}`,
+          systemPrompt: buildSystemPrompt(),
           private: true,
         });
         await sendVoiceReply(chatId, response);
@@ -333,13 +366,10 @@ export function startTelegramBot(): void {
         if (gh.recentCommits.length > 0) contextParts.push(`Commits recientes: ${gh.recentCommits.length}`);
       }
 
-      const context = contextParts.length > 1 ? `\nContexto:\n${contextParts.join('\n')}` : '';
+      const extraContext = contextParts.length > 1 ? `\nDATOS EN TIEMPO REAL:\n${contextParts.join('\n')}\n\n` : '';
 
-      const response = await askClaude(text + context, {
-        systemPrompt: `Eres BAKO, asistente personal de tu señor. Reglas estrictas:
-1. NUNCA inventes información. Solo usa los datos del contexto proporcionado.
-2. Si no tienes datos reales sobre algo (reuniones, tareas, eventos), di exactamente: "No tengo datos sobre eso todavía."
-3. Responde siempre en español, de forma concisa. Máximo 3 frases.${loadProfile()}`,
+      const response = await askClaude(text, {
+        systemPrompt: buildSystemPrompt(extraContext),
         useCloud: true,
       });
       await sendVoiceReply(chatId, response);

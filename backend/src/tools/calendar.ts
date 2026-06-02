@@ -13,20 +13,30 @@ export interface CalendarEvent {
 }
 
 function getAuth() {
-  const credPath   = path.resolve(process.env.GOOGLE_CREDENTIALS_PATH ?? './credentials.json');
-  const tokenPath  = path.resolve(process.env.GOOGLE_TOKEN_PATH       ?? './token.json');
+  let clientId: string;
+  let clientSecret: string;
+  let token: object;
 
-  if (!fs.existsSync(credPath))  throw new Error('credentials.json no encontrado — ejecuta el script de auth');
-  if (!fs.existsSync(tokenPath)) throw new Error('token.json no encontrado — ejecuta: npx ts-node scripts/auth-google.ts');
+  // Producción (Render): leer desde variables de entorno
+  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_TOKEN_JSON) {
+    clientId     = process.env.GOOGLE_CLIENT_ID;
+    clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    token        = JSON.parse(process.env.GOOGLE_TOKEN_JSON);
+  } else {
+    // Local: leer desde archivos
+    const credPath  = path.resolve(process.env.GOOGLE_CREDENTIALS_PATH ?? './credentials.json');
+    const tokenPath = path.resolve(process.env.GOOGLE_TOKEN_PATH       ?? './token.json');
 
-  const { installed } = JSON.parse(fs.readFileSync(credPath, 'utf-8'));
-  const token         = JSON.parse(fs.readFileSync(tokenPath, 'utf-8'));
+    if (!fs.existsSync(credPath))  throw new Error('credentials.json no encontrado — ejecuta el script de auth');
+    if (!fs.existsSync(tokenPath)) throw new Error('token.json no encontrado — ejecuta: npx ts-node scripts/auth-google.ts');
 
-  const auth = new google.auth.OAuth2(
-    installed.client_id,
-    installed.client_secret,
-    'http://localhost:3000'
-  );
+    const { installed } = JSON.parse(fs.readFileSync(credPath, 'utf-8'));
+    clientId     = installed.client_id;
+    clientSecret = installed.client_secret;
+    token        = JSON.parse(fs.readFileSync(tokenPath, 'utf-8'));
+  }
+
+  const auth = new google.auth.OAuth2(clientId, clientSecret, 'http://localhost:3000');
   auth.setCredentials(token);
   return auth;
 }
