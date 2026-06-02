@@ -67,6 +67,25 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 
 ---
 
+## Límites de uso de servicios
+
+| Servicio | Plan | Límite | Cuándo aplica |
+|---|---|---|---|
+| **Ollama** (qwen2.5-coder:7b) | Local | Sin límites | PC encendido |
+| **Groq Chat** (llama-3.1-8b-instant) | Free | 20.000 tokens/min · 14.400 req/día · reset 01:00h España | PC apagado |
+| **Groq Whisper** (voz→texto) | Free | 20 req/min · ~33 min audio/día · reset 01:00h España | PC apagado |
+| **Cloudflare D1** | Free | 5M lecturas/día · 100K escrituras/día | Siempre |
+| **Notion API** | Free | 3 req/seg | Siempre |
+| **GitHub API** | Free | 5.000 req/hora | Siempre |
+| **Google Calendar** | Free | 1M req/día | Siempre |
+| **Open-Meteo** | Free | 10.000 req/día (cacheado 30 min) | Siempre |
+| **MongoDB Atlas** | M0 Free | 512MB almacenamiento | Siempre |
+| **Render** | Free | 750h/mes (no duerme con ping activo) | Siempre |
+
+**Regla práctica:** Con PC encendido, BAKO no consume ninguna cuota. Con PC apagado, espaciar mensajes de voz y preferir texto para consultas rápidas.
+
+---
+
 ## HORIZONTE 0 — Convertir BAKO en mayordomo real
 ### Los 5 gaps críticos. Objetivo: ~1-3 meses.
 

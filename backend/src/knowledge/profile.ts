@@ -97,11 +97,18 @@ export const BAKO_PROFILE = {
 
   infraestructura: {
     descripcion: "Backend en Render (cloud, 24/7) con Ollama local via Cloudflare Tunnel cuando el PC esta encendido",
-    llm_local: "Ollama qwen2.5-coder:7b en localhost:11434, expuesto en ollama.bohdeveloper.com via Cloudflare Tunnel 'bako-ollama'",
-    llm_nube: "Groq llama-3.3-70b-versatile, fallback automatico cuando Ollama no esta disponible",
-    tunel: "Task Scheduler arranca cloudflared al iniciar sesion. Cuando el PC se apaga el tunel cae y Render vuelve a Groq sin cortes",
-    selector_llm: "Borja puede ordenar '/llm ollama', '/llm groq' o '/llm auto' para cambiar el servicio manualmente",
-    estado_actual: "Tunel activo = Ollama. Tunel caido = Groq. Consultable con /servicio",
+    llm_local: "Ollama qwen2.5-coder:7b — sin limites, privado, gratuito. Arranca solo con el PC.",
+    llm_nube: "Groq llama-3.1-8b-instant — fallback automatico cuando Ollama no esta disponible",
+    tunel: "Cloudflare Tunnel 'bako-ollama' via Task Scheduler. Al apagar PC el tunel cae y Render vuelve a Groq sin cortes.",
+    selector_llm: "Borja puede ordenar '/llm ollama', '/llm groq' o '/llm auto' para cambiar manualmente",
+    estado_actual: "Tunel activo = Ollama (sin limites). Tunel caido = Groq (limites aplican). Ver /servicio y /limites",
+    limites_groq: {
+      contexto: "Solo aplican cuando el PC esta apagado y Ollama no esta disponible",
+      chat_llm: "llama-3.1-8b-instant: 20.000 tokens/minuto, 14.400 peticiones/dia, reset a medianoche UTC",
+      voz_whisper: "whisper-large-v3-turbo: 20 peticiones/minuto, ~33 minutos de audio/dia (2.000 segundos)",
+      consejo_pc_apagado: "Espaciar mensajes de voz. Preferir texto para consultas rapidas. Reservar voz para lo que lo necesite.",
+      reset_diario: "Medianoche UTC = 01:00 hora de Espana (02:00 en verano)",
+    },
   },
 
   instrucciones_para_bako: {

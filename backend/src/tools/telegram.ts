@@ -312,6 +312,30 @@ async function handleCommand(chatId: number, command: string): Promise<void> {
     return;
   }
 
+  if (command === '/limites') {
+    const ollamaOk = await isOllamaAvailable();
+    if (ollamaOk) {
+      await bot.sendMessage(chatId,
+        `✅ *Ollama activo — sin límites de uso*\n\nSu PC está encendido y el túnel funciona. No se consume cuota de Groq.\n\n` +
+        `_Límites de Groq (solo aplican cuando el PC está apagado):_\n` +
+        `• Chat: 20.000 tokens/min · 14.400 req/día\n` +
+        `• Voz: 20 req/min · ~33 min audio/día\n` +
+        `• Reset diario: 01:00h España (02:00h verano)`,
+        { parse_mode: 'Markdown' }
+      );
+    } else {
+      await bot.sendMessage(chatId,
+        `⚠️ *Groq activo — PC apagado*\n\n` +
+        `*Chat (llama-3.1-8b-instant):*\n• 20.000 tokens/minuto\n• 14.400 peticiones/día\n\n` +
+        `*Voz (Whisper):*\n• 20 peticiones/minuto\n• ~33 min de audio/día (2.000 seg)\n\n` +
+        `*Reset diario:* 01:00h España (02:00h verano)\n\n` +
+        `_Consejo: espacie los mensajes de voz. Use texto para consultas rápidas._`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+    return;
+  }
+
   if (command.startsWith('/llm')) {
     const arg = command.split(' ')[1]?.toLowerCase() as LlmMode | undefined;
     if (arg === 'groq' || arg === 'ollama' || arg === 'auto') {
@@ -449,7 +473,7 @@ export function startTelegramBot(): void {
     catch (err) { await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`); }
   });
 
-  bot.onText(/^\/(briefing|tiempo|proyectos|tareas|agenda|tracker|comentarios|servicio)$/, async (msg, match) => {
+  bot.onText(/^\/(briefing|tiempo|proyectos|tareas|agenda|tracker|comentarios|servicio|limites)$/, async (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return;
     try {
