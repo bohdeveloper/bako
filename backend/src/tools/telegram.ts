@@ -95,11 +95,34 @@ async function downloadFile(fileId: string): Promise<Buffer> {
   return Buffer.from(data);
 }
 
+// Vocabulario propio inyectado en Whisper para mejorar reconocimiento de nombres
+const WHISPER_PROMPT = 'BAKO, Borja, Unyona, Diamadmin, Nitflex, bohdeveloper, Inetum, Errentería, Donostia, Gipuzkoa, BIZIKI, Shaolin, Arramendi, Cloudflare, MongoDB, PostgreSQL, TypeScript, React, Angular, Next.js, Spring Boot, Node.js, GitHub, Notion, Telegram, Render, Groq, Ollama, AlvaroNeural';
+
+// Correcciones para errores fonéticos conocidos (segunda capa de seguridad)
+const TRANSCRIPTION_FIXES: Array<[RegExp, string]> = [
+  [/\buniona\b/gi,     'Unyona'],
+  [/\buniiona\b/gi,    'Unyona'],
+  [/\bunyiona\b/gi,    'Unyona'],
+  [/\bdia\s+admin\b/gi,'Diamadmin'],
+  [/\bdiamadin\b/gi,   'Diamadmin'],
+  [/\bnetflix\b/gi,    'Nitflex'],
+  [/\bnitflix\b/gi,    'Nitflex'],
+  [/\bvako\b/gi,       'BAKO'],
+  [/\bbaco\b/gi,       'BAKO'],
+  [/\birrentería\b/gi, 'Errentería'],
+  [/\berrenterÍa\b/gi, 'Errentería'],
+];
+
+function fixTranscription(text: string): string {
+  return TRANSCRIPTION_FIXES.reduce((t, [pattern, fix]) => t.replace(pattern, fix), text);
+}
+
 async function transcribeAudio(buffer: Buffer): Promise<string> {
   const form = new FormData();
   form.append('file', buffer, { filename: 'voice.ogg', contentType: 'audio/ogg' });
   form.append('model', 'whisper-large-v3-turbo');
   form.append('language', 'es');
+  form.append('prompt', WHISPER_PROMPT);
 
   const { data } = await axios.post(
     'https://api.groq.com/openai/v1/audio/transcriptions',
@@ -111,7 +134,7 @@ async function transcribeAudio(buffer: Buffer): Promise<string> {
       },
     }
   );
-  return data.text as string;
+  return fixTranscription(data.text as string);
 }
 
 async function handleCommand(chatId: number, command: string): Promise<void> {

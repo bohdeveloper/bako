@@ -85,6 +85,25 @@ export async function getNotionProjects(): Promise<NotionProject[]> {
   }));
 }
 
+export async function createNotionProject(
+  nombre: string,
+  opciones: { descripcion?: string; estado?: string } = {}
+): Promise<string> {
+  const dbId = process.env.NOTION_PROJECTS_DB_ID;
+  if (!dbId) throw new Error('NOTION_PROJECTS_DB_ID no definido en .env');
+
+  const { data } = await api.post('/pages', {
+    parent: { database_id: dbId },
+    properties: {
+      Nombre:      { title:     [{ text: { content: nombre } }] },
+      Estado:      { select:    { name: opciones.estado ?? 'Activo' } },
+      Descripción: { rich_text: [{ text: { content: opciones.descripcion ?? '' } }] },
+    },
+  });
+
+  return data.id as string;
+}
+
 export async function updateNotionTaskStatus(
   taskId: string,
   estado: 'Pendiente' | 'En progreso' | 'Completada'
