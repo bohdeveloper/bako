@@ -87,4 +87,26 @@ router.post('/morning-briefing', async (req: Request, res: Response) => {
   }
 });
 
+// POST /api/agent/memories/import — importar memorias en batch
+router.post('/memories/import', async (req: Request, res: Response) => {
+  const { memories } = req.body;
+  if (!Array.isArray(memories) || memories.length === 0) {
+    res.status(400).json({ error: 'memories debe ser un array no vacío' });
+    return;
+  }
+  const { saveMemory } = await import('../tools/memory');
+  const results = [];
+  for (const m of memories) {
+    if (!m.content) continue;
+    const saved = await saveMemory(m.content, {
+      type:       m.type,
+      importance: m.importance,
+      source:     'manual',
+      tags:       m.tags ?? [],
+    });
+    results.push({ id: String(saved._id), content: m.content.slice(0, 60) });
+  }
+  res.json({ ok: true, saved: results.length, memories: results });
+});
+
 export default router;
