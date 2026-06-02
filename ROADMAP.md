@@ -1,8 +1,28 @@
 # BAKO — Roadmap completo
 ### Borja's Autonomous Knowledge Operator
 
-> De asistente personal a IA autónoma con presencia física.
+> De asistente personal a mayordomo digital omnisciente con presencia física.
 > El objetivo final: un Jarvis real. No en ficción — en producción.
+
+---
+
+## Ideología de desarrollo
+
+**BAKO es un mayordomo, no un chatbot.**
+
+Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que lo definen. Cada decisión de arquitectura, cada feature, cada prioridad debe evaluarse contra esta lista:
+
+| Característica | Descripción | Estado BAKO |
+|---|---|---|
+| **Memoria** | Recuerda todo lo que le has dicho. Conoce tu historia, tus bloqueos, tus decisiones | ⚠️ Solo perfil estático |
+| **Ejecución** | No solo informa — actúa. Crea, modifica, cierra, agenda | ⚠️ Solo lectura |
+| **Proactividad** | Anticipa necesidades. Habla sin que le preguntes cuando hay algo relevante | ❌ Completamente reactivo |
+| **Acceso sin fricción** | Está ahí. Levantas la vista, dices su nombre, ya está | ⚠️ Requiere abrir Telegram + escribir |
+| **Conocimiento vivo** | Aprende y se actualiza. Tu vida evoluciona, él también | ❌ Perfil hardcodeado |
+
+**Regla de priorización:** antes de añadir una nueva integración de lectura, pregunta si resuelve uno de estos 5 gaps. Si no, espera.
+
+**Coste objetivo:** $0/mes en infraestructura digital. Hardware robótico incremental a largo plazo.
 
 ---
 
@@ -24,6 +44,7 @@
 | Google Calendar — agenda en briefing y `/agenda` | ✅ |
 | Notion — tareas y proyectos, `/tareas` actualizado | ✅ |
 | Selector de privacidad — `/privado` + detección automática | ✅ |
+| Cloudflare D1 — Tracker diario + Blog comments | ✅ |
 
 ---
 
@@ -36,38 +57,77 @@
 
 ---
 
+## HORIZONTE 0 — Convertir BAKO en mayordomo real
+### Los 5 gaps críticos. Objetivo: ~1-3 meses.
+
+Estas son las mejoras que más impacto tienen en la experiencia. Sin ellas BAKO es un chatbot avanzado pero no un mayordomo.
+
+```
+MEMORIA ──► EJECUCIÓN ──► PROACTIVIDAD
+   ▲                            │
+   └──── CONOCIMIENTO VIVO ◄───┘
+                    ▲
+              ACCESO SIN FRICCIÓN (mejora continua)
+```
+
+### Gap 1 — Memoria persistente y dinámica 🧠 [PRIORITARIO]
+Un mayordomo recuerda todo. BAKO olvida cada conversación al terminar.
+
+- Colección `Memory` en MongoDB con hechos extraídos de cada conversación
+- Búsqueda semántica antes de cada respuesta: "¿qué sé de este tema?"
+- Resumen automático al final de cada conversación
+- Memoria a dos niveles:
+  - **Corto plazo**: últimas 10 conversaciones completas
+  - **Largo plazo**: hechos importantes extraídos ("Borja está bloqueado en el login de Diamadmin", "decidió pivotar Unyona al B2B")
+- Actualización manual: "Bako, recuerda que ya no trabajo en Inetum"
+
+### Gap 2 — Ejecución de acciones ⚡ [PRIORITARIO]
+BAKO lee pero no actúa. Necesita poder ejecutar órdenes.
+
+- **Notion**: crear tareas, cambiar estado, asignar fecha límite
+- **Google Calendar**: crear eventos, modificar hora, añadir descripción
+- **GitHub**: crear issues, añadir comentarios
+- **Telegram propio**: programar recordatorios ("Bako, recuérdame esto en 2 horas")
+- Confirmación antes de ejecutar acciones irreversibles
+
+### Gap 3 — Proactividad y alertas 📡
+BAKO solo habla cuando le hablas. Necesita iniciativa propia.
+
+- Briefing automático a las 05:45 (cron job en Render)
+- Resumen semanal automático los viernes a las 18:00
+- Alertas inteligentes:
+  - "Llevas 3 días sin commits en Diamadmin — ¿bloqueado?"
+  - "Tienes 2 PRs sin revisar desde hace 4 días"
+  - "Mañana tienes reunión a las 9 — ¿quieres el briefing antes?"
+  - "Tu Tracker de hoy está vacío y son las 22:00"
+- Motor de reglas configurables por Borja
+
+### Gap 4 — Acceso sin fricción 🎤
+Reducir al mínimo los pasos para hablar con BAKO.
+
+- Texto libre natural sin necesidad de comandos `/comando`
+- BAKO detecta la intención solo ("quiero ver mi agenda" = `/agenda`)
+- Wake word en PC: di "Bako" → responde sin tocar el teclado
+- Respuestas en menos de 2 segundos para preguntas simples
+
+### Gap 5 — Conocimiento vivo 📚
+El perfil deja de ser un archivo que editas a mano.
+
+- Las conversaciones alimentan el perfil automáticamente
+- `profile.ts` se convierte en base de datos dinámica
+- BAKO pregunta cuando necesita actualizar algo importante
+- Historial de cambios de vida: trabajo, ciudad, proyectos, rutina
+
+---
+
 ## HORIZONTE 1 — BAKO completo como asistente
 ### Objetivo: BAKO gestiona toda tu vida digital. ~6-12 meses.
-
-### Fase 4 — Calendario y Tareas ✅ COMPLETADA
-- Google Calendar API → agenda del día en el briefing y por Telegram
-- Notion API → tareas pendientes reales (no solo GitHub issues)
-- `/agenda` en Telegram → eventos de hoy y mañana por voz
-
-### Fase 4.5 — Contexto temporal y Portfolio apps ✅ COMPLETADA
-**Hora y ubicación:**
-- BAKO conoce la hora actual según la ubicación real (zona horaria de Errentería / dónde estés)
-- Respuestas contextuales según momento del día ("son las 14:00, debería estar en Inetum")
-
-**Portfolio apps via Cloudflare D1 (`bohdeveloper-admin`):**
-- **Tracker** — BAKO lee el historial de tareas del día: qué completaste, qué no y por qué
-  - `/tracker` en Telegram → resumen del día con ✅ ❌ ⏳ + voz
-  - Incluido en el morning briefing si hay actividades registradas
-- **Blog (bohdeveloper.com)** — BAKO lee los comentarios nuevos de tus posts
-  - `/comentarios` en Telegram → lista qué posts tienen comentarios y los lee por voz
-  - Morning briefing incluye comentarios de la última semana
-
-### Fase 4.6 — ROADMAPs de proyectos desde GitHub
-- BAKO lee el `ROADMAP.md` de cada repo activo en GitHub
-- Detecta automáticamente qué fases están completadas (✅) y cuáles son las siguientes
-- `/siguiente` en Telegram → BAKO dice cuál es el próximo paso de cada proyecto activo
-- Incluido en el morning briefing si hay fases recién completadas o bloqueadas
-- Proyectos objetivo: Diamadmin, Unyona, bohdeveloper, BAKO
 
 ### Fase 5 — Email inteligente
 - Gmail API → resumen de correos sin leer priorizados
 - Borrador de respuesta generado por LLM
 - `/email` en Telegram → lista de los más importantes por voz
+- Acción: "Bako, redacta una respuesta a este email de Inetum"
 
 ### Fase 6 — Redes Sociales
 - Twitter/X + LinkedIn API
@@ -88,11 +148,10 @@
 - Sin tocar el teclado, sin abrir el móvil
 
 ### Fase 9 — Agentes autónomos y memoria larga
-- Alertas proactivas sin que las pidas: PRs sin revisar, deadlines próximos
-- Resumen semanal automático cada viernes
 - Decisiones asistidas: BAKO propone opciones, tú confirmas con un número
-- Memoria persistente entre conversaciones (MongoDB `Memory`)
-- Cron jobs: briefing a las 05:45, resumen viernes a las 18:00
+- Cron jobs: briefing a las 05:45, resumen viernes a las 18:00 (ya en Gap 3)
+- Alertas proactivas sin que las pidas: PRs sin revisar, deadlines próximos
+- Memoria persistente entre conversaciones (ya en Gap 1)
 
 ---
 
@@ -222,9 +281,9 @@ Agentes especializados trabajando en paralelo:
 
 | Meta | Proyecto BAKO relacionado |
 |---|---|
-| Diamadmin en producción con usuarios | PMAgent + DevAgent |
+| Diamadmin en producción con usuarios | PMAgent + DevAgent + Ejecución |
 | Unyona validada con leads reales | ContentAgent + IdeasAgent |
 | Portfolio que consigue clientes | Fase 7 — IA pública + Blog comments |
 | Aprender ML/IA en profundidad | LearningAgent guía el roadmap |
-| Vivir en Galicia trabajando remoto | Ops integrado con rutina nueva |
+| Vivir en Galicia trabajando remoto | BAKO viaja contigo — misma experiencia en cualquier sitio |
 | JARVIS físico funcional | Horizontes 3 y 4 |
