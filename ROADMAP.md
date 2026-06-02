@@ -16,7 +16,7 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 |---|---|---|
 | **Memoria** | Recuerda todo lo que le has dicho. Conoce tu historia, tus bloqueos, tus decisiones | ✅ Implementado |
 | **Ejecución** | No solo informa — actúa. Crea, modifica, cierra, agenda | ✅ Implementado |
-| **Proactividad** | Anticipa necesidades. Habla sin que le preguntes cuando hay algo relevante | 🔄 En desarrollo |
+| **Proactividad** | Anticipa necesidades. Habla sin que le preguntes cuando hay algo relevante | ✅ Implementado |
 | **Acceso sin fricción** | Está ahí. Levantas la vista, dices su nombre, ya está | ⚠️ Requiere abrir Telegram + escribir |
 | **Conocimiento vivo** | Aprende y se actualiza. Tu vida evoluciona, él también | ✅ Implementado |
 
@@ -35,7 +35,7 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | LLM híbrido Ollama local + Groq fallback | ✅ |
 | Morning Briefing con voz (AlvaroNeural) | ✅ |
 | Tool GitHub — repos, commits, PRs, issues | ✅ |
-| Tool Weather — Open-Meteo, Errentería | ✅ |
+| Tool Weather — Open-Meteo, geocoding dinámico por ciudad actual | ✅ |
 | Tool News — RSS (El País, Hacker News) | ✅ |
 | Tool TTS — msedge-tts, voz neural española | ✅ |
 | Telegram Bot — voz, comandos, texto libre | ✅ |
@@ -48,7 +48,10 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | Memoria dinámica — MongoDB Memory collection | ✅ |
 | Seed inicial — 19 memorias sobre Borja cargadas | ✅ |
 | Ejecución — crear tareas Notion + eventos Calendar | ✅ |
-| Proactividad — cron briefing, alertas, resumen semanal | 🔄 |
+| Proactividad — cron briefing 05:45, alertas 08:30, resumen semanal viernes | ✅ |
+| Tracker Kronoshin — siempre en contexto ambiental (sin keywords) | ✅ |
+| Historial de sesión — BAKO recuerda la conversación actual (30 min) | ✅ |
+| Ubicación inferida por rutina horaria — Donostia 07-15h L-V | ✅ |
 
 ---
 
@@ -93,7 +96,7 @@ BAKO lee pero no actúa. Necesita poder ejecutar órdenes.
 - ❌ **Recordatorios**: "Bako, recuérdame esto en 2 horas" (pendiente)
 - Confirmación antes de ejecutar acciones irreversibles
 
-### Gap 3 — Proactividad y alertas 📡 🔄 EN DESARROLLO
+### Gap 3 — Proactividad y alertas 📡 ✅ COMPLETADO (v1)
 BAKO solo habla cuando le hablas. Necesita iniciativa propia.
 
 - ✅ Briefing automático a las 05:45 (L-V, cron en Render)
