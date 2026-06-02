@@ -12,7 +12,7 @@ import { generateVoiceBuffer } from './tts';
 import { BAKO_PROFILE } from '../knowledge/profile';
 import { saveMemory, getMemories, formatMemoriesForPrompt, forgetMemory, extractAndSaveMemories, getCurrentLocation } from './memory';
 import { tryExecuteAction } from './actions';
-import { getAmbientContext } from './context';
+import { getAmbientContext, invalidateCityWeatherCache } from './context';
 
 function buildSystemPrompt(extraContext = '', memoriesSection = ''): string {
   const now   = nowInSpain();
@@ -71,6 +71,38 @@ function isSensitive(text: string): boolean {
 }
 
 let bot: TelegramBot;
+
+// ─── Historial de sesión por chat ─────────────────────────────────────────────
+
+interface SessionHistory {
+  messages: Array<{ role: 'user' | 'assistant'; content: string }>;
+  lastActivity: number;
+}
+
+const sessionHistories = new Map<number, SessionHistory>();
+const SESSION_TTL_MS   = 30 * 60 * 1000; // 30 min de inactividad → sesión nueva
+const MAX_HISTORY_TURNS = 10;             // últimos 10 intercambios (20 mensajes)
+
+function getSessionHistory(chatId: number): Array<{ role: 'user' | 'assistant'; content: string }> {
+  const session = sessionHistories.get(chatId);
+  if (!session) return [];
+  if (Date.now() - session.lastActivity > SESSION_TTL_MS) {
+    sessionHistories.delete(chatId);
+    return [];
+  }
+  return session.messages;
+}
+
+function appendToSession(chatId: number, userMsg: string, assistantMsg: string): void {
+  const session = sessionHistories.get(chatId) ?? { messages: [], lastActivity: 0 };
+  session.messages.push({ role: 'user',      content: userMsg      });
+  session.messages.push({ role: 'assistant', content: assistantMsg });
+  if (session.messages.length > MAX_HISTORY_TURNS * 2) {
+    session.messages = session.messages.slice(-(MAX_HISTORY_TURNS * 2));
+  }
+  session.lastActivity = Date.now();
+  sessionHistories.set(chatId, session);
+}
 
 async function sendVoiceReply(chatId: number, text: string): Promise<void> {
   try {
@@ -380,6 +412,7 @@ export function startTelegramBot(): void {
       if (voiceAction) {
         await bot.sendMessage(chatId, voiceAction.text, { parse_mode: 'Markdown' });
         await sendVoiceReply(chatId, voiceAction.voice);
+        appendToSession(chatId, transcription, voiceAction.voice);
         return;
       }
 
@@ -388,11 +421,14 @@ export function startTelegramBot(): void {
         getMemoriesSection(),
         getAmbientContext(voiceLocation),
       ]);
+      const voiceHistory = getSessionHistory(chatId);
       const response = await askClaude(transcription, {
         systemPrompt: buildSystemPrompt(ambientCtx, memoriesSection),
+        conversationHistory: voiceHistory,
         useCloud: true,
       });
       await sendVoiceReply(chatId, response);
+      appendToSession(chatId, transcription, response);
       extractAndSaveMemories(transcription, response).catch(() => {});
     } catch (err) {
       await bot.sendMessage(chatId, '❌ No pude procesar el audio.');
@@ -412,10 +448,13 @@ export function startTelegramBot(): void {
       const locationMatch = text.match(/^(?:bako[,.]?\s*)?(?:estoy\s+en|me\s+encuentro\s+en|ahora\s+estoy\s+en|estoy\s+ahora\s+en)\s+(.+)$/i);
       if (locationMatch) {
         const loc = locationMatch[1].trim();
+        const oldLoc = await getCurrentLocation();
+        invalidateCityWeatherCache(oldLoc);
+        invalidateCityWeatherCache(loc);
         await saveMemory(`Ubicación actual de Borja: ${loc}`, {
           type: 'fact', importance: 'high', source: 'manual', tags: ['ubicacion', 'ubicacion-actual'],
         });
-        await bot.sendMessage(chatId, `📍 Ubicación actualizada: *${loc}*\nTendré en cuenta el entorno desde allí.`, { parse_mode: 'Markdown' });
+        await bot.sendMessage(chatId, `📍 Ubicación actualizada: *${loc}*\nConsultaré el tiempo de ${loc} desde ahora.`, { parse_mode: 'Markdown' });
         return;
       }
 
@@ -476,10 +515,11 @@ export function startTelegramBot(): void {
       if (action) {
         await bot.sendMessage(chatId, action.text, { parse_mode: 'Markdown' });
         await sendVoiceReply(chatId, action.voice);
+        appendToSession(chatId, text, action.voice);
         return;
       }
 
-      // Contexto ambiental siempre activo: tiempo, ubicación, agenda
+      // Contexto ambiental siempre activo: tiempo (ciudad actual), ubicación, agenda, tracker
       const currentLocation = await getCurrentLocation();
       const [memoriesSection, ambientCtx] = await Promise.all([
         getMemoriesSection(),
@@ -497,23 +537,27 @@ export function startTelegramBot(): void {
       }
 
       if (/tracker|actividad|kronoshin|biziki|tarea.*hoy|hoy.*tarea|completad|completar|marcar|registrar|hice|no hice/i.test(text)) {
-        const writeMatch    = text.match(/(?:marca|pon|registra|completa|da por completad[ao]|marca como hecha?)\s+(?:la tarea\s+)?(.+?)(?:\s+como\s+(?:completad[ao]|hech[ao]|done|lista?|realizada?))?(?:\s+en tracker)?\.?$/i);
-        const notDoneMatch  = text.match(/(?:marca|pon|registra)\s+(?:la tarea\s+)?(.+?)\s+como\s+(?:no completad[ao]|no hech[ao]|pendiente|fallid[ao])(?:\s+(?:porque|por|motivo[:]?)\s+(.+))?\.?$/i);
+        const writeMatch   = text.match(/(?:marca|pon|registra|completa|da por completad[ao]|marca como hecha?)\s+(?:la tarea\s+)?(.+?)(?:\s+como\s+(?:completad[ao]|hech[ao]|done|lista?|realizada?))?(?:\s+en tracker)?\.?$/i);
+        const notDoneMatch = text.match(/(?:marca|pon|registra)\s+(?:la tarea\s+)?(.+?)\s+como\s+(?:no completad[ao]|no hech[ao]|pendiente|fallid[ao])(?:\s+(?:porque|por|motivo[:]?)\s+(.+))?\.?$/i);
 
         if (notDoneMatch) {
           const taskName = notDoneMatch[1].trim();
           const reason   = notDoneMatch[2]?.trim();
           const result   = await markTrackerRecord(taskName, false, reason);
-          await bot.sendMessage(chatId, result.success ? `✅ ${result.message}` : `⚠️ ${result.message}`);
+          const reply    = result.success ? `✅ ${result.message}` : `⚠️ ${result.message}`;
+          await bot.sendMessage(chatId, reply);
           if (result.success) await sendVoiceReply(chatId, result.message);
+          appendToSession(chatId, text, result.message);
           return;
         }
 
         if (writeMatch) {
           const taskName = writeMatch[1].trim();
           const result   = await markTrackerRecord(taskName, true);
-          await bot.sendMessage(chatId, result.success ? `✅ ${result.message}` : `⚠️ ${result.message}`);
+          const reply    = result.success ? `✅ ${result.message}` : `⚠️ ${result.message}`;
+          await bot.sendMessage(chatId, reply);
           if (result.success) await sendVoiceReply(chatId, result.message);
+          appendToSession(chatId, text, result.message);
           return;
         }
 
@@ -522,7 +566,7 @@ export function startTelegramBot(): void {
           const estado = t.done === true ? 'completada' : t.done === false ? `no completada${t.reason ? ` (${t.reason})` : ''}` : 'pendiente';
           return `${t.name} [${t.time}]: ${estado}`;
         }).join('\n');
-        additionalParts.push(`Tracker de hoy (${summary.date}):\n${trackerCtx}`);
+        additionalParts.push(`Tracker detallado de hoy (${summary.date}):\n${trackerCtx}`);
         additionalParts.push(`Resumen: ${summary.completedCount} completadas, ${summary.notDoneCount} no hechas, ${summary.pendingCount} pendientes`);
       }
 
@@ -535,12 +579,15 @@ export function startTelegramBot(): void {
       }
 
       const extraContext = ambientCtx + (additionalParts.length > 0 ? `\n\nCONTEXTO ADICIONAL:\n${additionalParts.join('\n')}` : '');
+      const conversationHistory = getSessionHistory(chatId);
 
       const response = await askClaude(text, {
         systemPrompt: buildSystemPrompt(extraContext, memoriesSection),
+        conversationHistory,
         useCloud: true,
       });
       await sendVoiceReply(chatId, response);
+      appendToSession(chatId, text, response);
       extractAndSaveMemories(text, response).catch(() => {});
     } catch (err) {
       await bot.sendMessage(chatId, '❌ Error al procesar tu mensaje.');
@@ -550,4 +597,18 @@ export function startTelegramBot(): void {
   bot.on('polling_error', (err) => {
     console.error('❌ Telegram polling error:', err.message);
   });
+}
+
+export async function sendSystemMessage(text: string, voiceText?: string): Promise<void> {
+  const chatId = Number(process.env.TELEGRAM_CHAT_ID);
+  if (!chatId) {
+    console.warn('⚠️  TELEGRAM_CHAT_ID no definido — ignorando mensaje de sistema');
+    return;
+  }
+  if (!bot) {
+    console.warn('⚠️  Bot no iniciado — ignorando mensaje de sistema');
+    return;
+  }
+  await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+  if (voiceText) await sendVoiceReply(chatId, voiceText);
 }

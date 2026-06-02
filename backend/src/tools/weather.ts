@@ -30,11 +30,29 @@ const WMO: Record<number, string> = {
 
 const describe = (code: number) => WMO[code] ?? 'condiciones variables';
 
-export async function getWeather(): Promise<WeatherData> {
-  const lat  = process.env.WEATHER_LAT  ?? '40.4168';
-  const lon  = process.env.WEATHER_LON  ?? '-3.7038';
-  const city = process.env.WEATHER_CITY ?? 'Madrid';
+// Cache de geocoding para no repetir llamadas por la misma ciudad
+const geoCache = new Map<string, { lat: string; lon: string; name: string }>();
 
+async function geocodeCity(cityName: string): Promise<{ lat: string; lon: string; name: string } | null> {
+  const key = cityName.toLowerCase().trim();
+  if (geoCache.has(key)) return geoCache.get(key)!;
+
+  try {
+    const { data } = await axios.get('https://geocoding-api.open-meteo.com/v1/search', {
+      params: { name: cityName, count: 1, language: 'es', format: 'json' },
+      timeout: 5000,
+    });
+    const r = data.results?.[0];
+    if (!r) return null;
+    const result = { lat: String(r.latitude), lon: String(r.longitude), name: r.name as string };
+    geoCache.set(key, result);
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchWeatherFromCoords(lat: string, lon: string, city: string): Promise<WeatherData> {
   const { data } = await axios.get('https://api.open-meteo.com/v1/forecast', {
     params: {
       latitude: lat,
@@ -65,4 +83,26 @@ export async function getWeather(): Promise<WeatherData> {
       rainProbability: d.precipitation_probability_max[i] ?? 0,
     })),
   };
+}
+
+// Ciudad base desde .env — sin geocoding, uso normal
+export async function getWeather(): Promise<WeatherData> {
+  return fetchWeatherFromCoords(
+    process.env.WEATHER_LAT  ?? '40.4168',
+    process.env.WEATHER_LON  ?? '-3.7038',
+    process.env.WEATHER_CITY ?? 'Madrid'
+  );
+}
+
+// Ciudad dinámica — geocodifica si es diferente a la base
+export async function getWeatherForCity(cityName: string): Promise<WeatherData> {
+  const envCity = (process.env.WEATHER_CITY ?? '').toLowerCase().trim();
+  if (cityName.toLowerCase().trim() === envCity) return getWeather();
+
+  const geo = await geocodeCity(cityName);
+  if (!geo) {
+    console.warn(`⚠️  No se pudo geocodificar "${cityName}" — usando ciudad base`);
+    return getWeather();
+  }
+  return fetchWeatherFromCoords(geo.lat, geo.lon, geo.name);
 }

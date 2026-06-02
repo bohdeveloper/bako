@@ -4,6 +4,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import agentRoutes from './routes/agent';
 import { startTelegramBot } from './tools/telegram';
+import { startProactivityService } from './services/ProactivityService';
 
 dotenv.config();
 
@@ -29,4 +30,5 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
   startTelegramBot();
+  startProactivityService();
 });

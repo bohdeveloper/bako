@@ -1,31 +1,37 @@
 /**
  * Contexto ambiental siempre activo de BAKO.
- * Tiempo, ubicación y agenda están disponibles en CADA respuesta,
- * sin necesidad de que el usuario mencione palabras clave.
+ * Tiempo (ciudad actual), ubicación, agenda y Tracker están disponibles en CADA respuesta.
  * Los datos se cachean para no llamar APIs en cada mensaje.
  */
 
-import { getWeather, WeatherData } from './weather';
+import { getWeather, getWeatherForCity, WeatherData } from './weather';
 import { getCalendarEvents, CalendarEvent } from './calendar';
-import { nowInSpain } from './cloudflare';
+import { getTrackerSummary, TrackerDaySummary, todayStringSpain, nowInSpain } from './cloudflare';
 
 // ─── Caches ──────────────────────────────────────────────────────────────────
 
-let weatherCache:  { data: WeatherData;     ts: number } | null = null;
+// Weather cacheado por ciudad (no único global)
+const weatherByCity = new Map<string, { data: WeatherData; ts: number }>();
+const WEATHER_TTL  = 30 * 60 * 1000; // 30 min
+
 let calendarCache: { data: CalendarEvent[]; ts: number } | null = null;
+const CALENDAR_TTL = 15 * 60 * 1000; // 15 min
 
-const WEATHER_TTL  = 30 * 60 * 1000; // 30 min — el tiempo no cambia tan rápido
-const CALENDAR_TTL = 15 * 60 * 1000; // 15 min — la agenda puede tener eventos nuevos
+let trackerCache: { data: TrackerDaySummary; ts: number; date: string } | null = null;
+const TRACKER_TTL  =  5 * 60 * 1000; // 5 min — cambia cuando Borja registra actividades
 
-async function cachedWeather(): Promise<WeatherData | null> {
+async function cachedWeatherForCity(city: string): Promise<WeatherData | null> {
+  const key = city.toLowerCase().trim();
   const now = Date.now();
-  if (weatherCache && now - weatherCache.ts < WEATHER_TTL) return weatherCache.data;
+  const cached = weatherByCity.get(key);
+  if (cached && now - cached.ts < WEATHER_TTL) return cached.data;
+
   try {
-    const data = await getWeather();
-    weatherCache = { data, ts: now };
+    const data = await getWeatherForCity(city);
+    weatherByCity.set(key, { data, ts: now });
     return data;
   } catch {
-    return weatherCache?.data ?? null; // datos obsoletos son mejor que nada
+    return cached?.data ?? null;
   }
 }
 
@@ -39,6 +45,26 @@ async function cachedCalendar(): Promise<CalendarEvent[]> {
   } catch {
     return calendarCache?.data ?? [];
   }
+}
+
+async function cachedTracker(): Promise<TrackerDaySummary | null> {
+  const today = todayStringSpain();
+  const now = Date.now();
+  if (trackerCache && now - trackerCache.ts < TRACKER_TTL && trackerCache.date === today) {
+    return trackerCache.data;
+  }
+  try {
+    const data = await getTrackerSummary();
+    trackerCache = { data, ts: now, date: today };
+    return data;
+  } catch {
+    return (trackerCache?.date === today) ? trackerCache!.data : null;
+  }
+}
+
+// Invalida el cache de una ciudad (llamar cuando cambia la ubicación)
+export function invalidateCityWeatherCache(city: string): void {
+  weatherByCity.delete(city.toLowerCase().trim());
 }
 
 // ─── Contexto principal ───────────────────────────────────────────────────────
@@ -55,8 +81,8 @@ export async function getAmbientContext(
     `📍 Ubicación actual: ${location}`,
   ];
 
-  // Tiempo — siempre presente, cacheado 30 min
-  const w = await cachedWeather();
+  // Tiempo — cacheado 30 min, específico para la ciudad actual
+  const w = await cachedWeatherForCity(location);
   if (w) {
     parts.push(`🌤 Tiempo en ${w.city}: ${w.current.temp}°C, ${w.current.description}, humedad ${w.current.humidity}%, viento ${w.current.windSpeed} km/h`);
     const hoy    = w.forecast[0];
@@ -67,7 +93,7 @@ export async function getAmbientContext(
     if (pasado) parts.push(`   Pasado: ${pasado.minTemp}–${pasado.maxTemp}°C, ${pasado.description}, lluvia ${pasado.rainProbability}%`);
   }
 
-  // Agenda — siempre presente, cacheada 15 min
+  // Agenda — cacheada 15 min
   const events = await cachedCalendar();
   const hoyStr  = now.toDateString();
   const todayEvents    = events.filter(e => new Date(e.start).toDateString() === hoyStr);
@@ -91,6 +117,19 @@ export async function getAmbientContext(
       return `${e.title} (${d}${h})`;
     }).join(' · ');
     parts.push(`   Próximos: ${list}`);
+  }
+
+  // Tracker Kronoshin — cacheado 5 min, siempre presente
+  const tracker = await cachedTracker();
+  if (tracker && tracker.tasks.length > 0) {
+    const taskStr = tracker.tasks.map(t => {
+      const icon = t.done === true ? '✅' : t.done === false ? '❌' : '⏳';
+      return `${icon} ${t.name}`;
+    }).join(', ');
+    parts.push(`📊 Tracker Kronoshin hoy (${tracker.completedCount}/${tracker.tasks.length} completadas): ${taskStr}`);
+    if (tracker.note) parts.push(`   Nota del día: ${tracker.note}`);
+  } else if (tracker) {
+    parts.push(`📊 Tracker Kronoshin: sin actividades programadas para hoy`);
   }
 
   return `CONTEXTO AMBIENTAL:\n${parts.join('\n')}`;

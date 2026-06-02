@@ -15,8 +15,8 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | Característica | Descripción | Estado BAKO |
 |---|---|---|
 | **Memoria** | Recuerda todo lo que le has dicho. Conoce tu historia, tus bloqueos, tus decisiones | ✅ Implementado |
-| **Ejecución** | No solo informa — actúa. Crea, modifica, cierra, agenda | 🔄 En desarrollo |
-| **Proactividad** | Anticipa necesidades. Habla sin que le preguntes cuando hay algo relevante | ❌ Pendiente |
+| **Ejecución** | No solo informa — actúa. Crea, modifica, cierra, agenda | ✅ Implementado |
+| **Proactividad** | Anticipa necesidades. Habla sin que le preguntes cuando hay algo relevante | 🔄 En desarrollo |
 | **Acceso sin fricción** | Está ahí. Levantas la vista, dices su nombre, ya está | ⚠️ Requiere abrir Telegram + escribir |
 | **Conocimiento vivo** | Aprende y se actualiza. Tu vida evoluciona, él también | ✅ Implementado |
 
@@ -47,7 +47,8 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | Cloudflare D1 — Tracker diario + Blog comments | ✅ |
 | Memoria dinámica — MongoDB Memory collection | ✅ |
 | Seed inicial — 19 memorias sobre Borja cargadas | ✅ |
-| Ejecución — crear tareas Notion + eventos Calendar | 🔄 |
+| Ejecución — crear tareas Notion + eventos Calendar | ✅ |
+| Proactividad — cron briefing, alertas, resumen semanal | 🔄 |
 
 ---
 
@@ -83,26 +84,26 @@ Un mayordomo recuerda todo. BAKO olvida cada conversación al terminar.
 - ✅ Privacidad respetada: sin extracción en mensajes sensibles o `/privado`
 - ✅ Script `seed-memory.ts` con 19 memorias iniciales sobre Borja (vida, proyectos, rutina, metas)
 
-### Gap 2 — Ejecución de acciones ⚡ 🔄 EN DESARROLLO
+### Gap 2 — Ejecución de acciones ⚡ ✅ COMPLETADO (v1)
 BAKO lee pero no actúa. Necesita poder ejecutar órdenes.
 
-- 🔄 **Notion**: crear tareas, cambiar estado, asignar fecha límite
-- 🔄 **Google Calendar**: crear eventos, modificar hora, añadir descripción
-- ❌ **GitHub**: crear issues, añadir comentarios
-- ❌ **Recordatorios**: "Bako, recuérdame esto en 2 horas" (cron interno)
+- ✅ **Notion**: crear tareas, cambiar estado, asignar fecha límite
+- ✅ **Google Calendar**: crear eventos con hora, descripción, ubicación
+- ❌ **GitHub**: crear issues, añadir comentarios (pendiente)
+- ❌ **Recordatorios**: "Bako, recuérdame esto en 2 horas" (pendiente)
 - Confirmación antes de ejecutar acciones irreversibles
 
-### Gap 3 — Proactividad y alertas 📡
+### Gap 3 — Proactividad y alertas 📡 🔄 EN DESARROLLO
 BAKO solo habla cuando le hablas. Necesita iniciativa propia.
 
-- Briefing automático a las 05:45 (cron job en Render)
-- Resumen semanal automático los viernes a las 18:00
-- Alertas inteligentes:
-  - "Llevas 3 días sin commits en Diamadmin — ¿bloqueado?"
-  - "Tienes 2 PRs sin revisar desde hace 4 días"
+- ✅ Briefing automático a las 05:45 (L-V, cron en Render)
+- ✅ Resumen semanal automático los viernes a las 18:00
+- ✅ Alerta Tracker vacío a las 22:00 (L-V)
+- ✅ Alertas inteligentes a las 08:30 (L-V):
+  - "Llevas X días sin commits en Diamadmin — ¿bloqueado?"
+  - "Tienes N PRs sin actividad desde hace 2+ días"
   - "Mañana tienes reunión a las 9 — ¿quieres el briefing antes?"
-  - "Tu Tracker de hoy está vacío y son las 22:00"
-- Motor de reglas configurables por Borja
+- ❌ Motor de reglas configurables por Borja (pendiente)
 
 ### Gap 4 — Acceso sin fricción 🎤
 Reducir al mínimo los pasos para hablar con BAKO.

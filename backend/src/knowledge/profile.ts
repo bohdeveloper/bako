@@ -32,8 +32,17 @@ export const BAKO_PROFILE = {
     bohdeveloper: {
       nombre: "bohdeveloper.com",
       tipo: "Portfolio personal",
-      stack: "Next.js + Cloudflare Pages",
+      stack: "Next.js + Cloudflare Pages + Cloudflare D1",
       estado: "Activo — desarrollo continuo",
+      seccion_admin: "bohdeveloper.com/admin — panel privado con Tracker diario y gestor del blog",
+    },
+    kronoshin: {
+      nombre: "Kronoshin",
+      tipo: "App de tracker diario de hábitos y actividades — dentro de bohdeveloper.com/admin",
+      descripcion: "Herramienta de rutina diaria. Define actividades con franja horaria (meditación, entrenamiento, Biziki, proyectos...). Borja marca si las completó o no, y opcionalmente registra el motivo si no las hizo. Los datos se almacenan en Cloudflare D1 y son accesibles desde BAKO.",
+      como_funciona: "Cada día tiene un conjunto de tareas según el día de la semana. Al final del día Borja registra el estado de cada actividad.",
+      integracion_bako: "BAKO puede consultar las tareas del día, su estado, y marcar actividades como completadas o no completadas.",
+      estado: "En producción — uso diario",
     },
     diamadmin: {
       nombre: "Diamadmin",

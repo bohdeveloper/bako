@@ -9,6 +9,7 @@ export interface AskClaudeOptions {
   maxTokens?: number;
   useCloud?: boolean;
   private?: boolean; // true → solo Ollama local, nunca Groq
+  conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }
 
 interface Message {
@@ -64,10 +65,15 @@ export async function isOllamaAvailable(): Promise<boolean> {
 }
 
 export async function askClaude(prompt: string, options: AskClaudeOptions = {}): Promise<string> {
-  const { systemPrompt, maxTokens, useCloud = false, private: isPrivate = false } = options;
+  const { systemPrompt, maxTokens, useCloud = false, private: isPrivate = false, conversationHistory } = options;
 
   const messages: Message[] = [];
   if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+  if (conversationHistory?.length) {
+    for (const m of conversationHistory) {
+      messages.push({ role: m.role, content: m.content });
+    }
+  }
   messages.push({ role: 'user', content: prompt });
 
   // Modo privado: solo Ollama. Si no está disponible, lanzar PrivacyError.
