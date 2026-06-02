@@ -11,6 +11,7 @@ import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
 import { generateVoiceBuffer } from './tts';
 import { BAKO_PROFILE } from '../knowledge/profile';
 import { saveMemory, getMemories, formatMemoriesForPrompt, forgetMemory, extractAndSaveMemories } from './memory';
+import { tryExecuteAction } from './actions';
 
 function buildSystemPrompt(extraContext = '', memoriesSection = ''): string {
   const now   = nowInSpain();
@@ -322,6 +323,13 @@ export function startTelegramBot(): void {
       const transcription = await transcribeAudio(buffer);
       await bot.sendMessage(chatId, `🗣 _"${transcription}"_`, { parse_mode: 'Markdown' });
 
+      const voiceAction = await tryExecuteAction(transcription);
+      if (voiceAction) {
+        await bot.sendMessage(chatId, voiceAction.text, { parse_mode: 'Markdown' });
+        await sendVoiceReply(chatId, voiceAction.voice);
+        return;
+      }
+
       const memoriesSection = await getMemoriesSection();
       const response = await askClaude(transcription, {
         systemPrompt: buildSystemPrompt('', memoriesSection),
@@ -392,6 +400,14 @@ export function startTelegramBot(): void {
         });
         await sendVoiceReply(chatId, response);
         // Sin extracción en mensajes sensibles — privacidad
+        return;
+      }
+
+      // Intenciones de ejecución (crear/modificar Notion, Calendar...)
+      const action = await tryExecuteAction(text);
+      if (action) {
+        await bot.sendMessage(chatId, action.text, { parse_mode: 'Markdown' });
+        await sendVoiceReply(chatId, action.voice);
         return;
       }
 

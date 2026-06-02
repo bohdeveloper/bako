@@ -72,6 +72,37 @@ export async function getCalendarEvents(days = 2): Promise<CalendarEvent[]> {
   });
 }
 
+export async function createCalendarEvent(
+  titulo: string,
+  inicio: string,
+  fin: string,
+  opciones: { descripcion?: string; ubicacion?: string } = {}
+): Promise<CalendarEvent> {
+  const auth     = getAuth();
+  const calendar = google.calendar({ version: 'v3', auth });
+
+  const { data } = await calendar.events.insert({
+    calendarId:  'primary',
+    requestBody: {
+      summary: titulo,
+      start:   { dateTime: inicio, timeZone: 'Europe/Madrid' },
+      end:     { dateTime: fin,    timeZone: 'Europe/Madrid' },
+      ...(opciones.descripcion ? { description: opciones.descripcion } : {}),
+      ...(opciones.ubicacion   ? { location:    opciones.ubicacion   } : {}),
+    },
+  });
+
+  return {
+    id:          data.id ?? '',
+    title:       data.summary ?? titulo,
+    start:       data.start?.dateTime ?? inicio,
+    end:         data.end?.dateTime   ?? fin,
+    allDay:      false,
+    location:    data.location    ?? undefined,
+    description: data.description ?? undefined,
+  };
+}
+
 export function formatEventsForSpeech(events: CalendarEvent[]): string {
   if (events.length === 0) return 'No tiene eventos próximos en el calendario.';
 

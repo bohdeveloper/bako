@@ -85,6 +85,40 @@ export async function getNotionProjects(): Promise<NotionProject[]> {
   }));
 }
 
+export async function updateNotionTaskStatus(
+  taskId: string,
+  estado: 'Pendiente' | 'En progreso' | 'Completada'
+): Promise<void> {
+  await api.patch(`/pages/${taskId}`, {
+    properties: { Estado: { select: { name: estado } } },
+  });
+}
+
+export async function findNotionTaskByName(nombre: string): Promise<NotionTask | null> {
+  const dbId = process.env.NOTION_TASKS_DB_ID;
+  if (!dbId) throw new Error('NOTION_TASKS_DB_ID no definido en .env');
+
+  const { data } = await api.post(`/databases/${dbId}/query`, {
+    filter: { property: 'Estado', select: { does_not_equal: 'Completada' } },
+  });
+
+  const tasks: NotionTask[] = data.results.map((p: any) => ({
+    id:          p.id,
+    nombre:      extractTitle(p.properties.Nombre),
+    estado:      extractSelect(p.properties.Estado),
+    prioridad:   extractSelect(p.properties.Prioridad),
+    proyecto:    extractText(p.properties.Proyecto),
+    fechaLimite: extractDate(p.properties['Fecha límite']),
+  }));
+
+  const lower = nombre.toLowerCase();
+  return (
+    tasks.find(t => t.nombre.toLowerCase() === lower) ??
+    tasks.find(t => t.nombre.toLowerCase().includes(lower) || lower.includes(t.nombre.toLowerCase())) ??
+    null
+  );
+}
+
 export async function createNotionTask(
   nombre: string,
   opciones: { prioridad?: string; proyecto?: string; fechaLimite?: string } = {}
