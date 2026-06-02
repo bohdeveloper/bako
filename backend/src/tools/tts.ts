@@ -8,14 +8,17 @@ import * as os from 'os';
 const VOICE      = process.env.TTS_VOICE ?? 'es-ES-AlvaroNeural';
 const AUDIO_FILE = path.join(os.tmpdir(), 'bako_speech.mp3');
 
-let _tts: MsEdgeTTS | null = null;
+let _ttsPromise: Promise<MsEdgeTTS> | null = null;
 
 async function getTTS(): Promise<MsEdgeTTS> {
-  if (!_tts) {
-    _tts = new MsEdgeTTS();
-    await _tts.setMetadata(VOICE, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+  if (!_ttsPromise) {
+    _ttsPromise = (async () => {
+      const tts = new MsEdgeTTS();
+      await tts.setMetadata(VOICE, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+      return tts;
+    })();
   }
-  return _tts;
+  return _ttsPromise;
 }
 
 async function generateAudio(text: string): Promise<void> {
@@ -59,17 +62,17 @@ export function stopSpeaking(): void {
 }
 
 // Genera audio OGG/Opus para enviar como nota de voz en Telegram
-let _ttsOgg: MsEdgeTTS | null = null;
+let _ttsOggPromise: Promise<MsEdgeTTS> | null = null;
 
 async function getTTSOgg(): Promise<MsEdgeTTS> {
-  if (!_ttsOgg) {
-    _ttsOgg = new MsEdgeTTS();
-    await _ttsOgg.setMetadata(
-      process.env.TTS_VOICE ?? 'es-ES-AlvaroNeural',
-      OUTPUT_FORMAT.WEBM_24KHZ_16BIT_MONO_OPUS
-    );
+  if (!_ttsOggPromise) {
+    _ttsOggPromise = (async () => {
+      const tts = new MsEdgeTTS();
+      await tts.setMetadata(VOICE, OUTPUT_FORMAT.WEBM_24KHZ_16BIT_MONO_OPUS);
+      return tts;
+    })();
   }
-  return _ttsOgg;
+  return _ttsOggPromise;
 }
 
 export async function generateVoiceBuffer(text: string): Promise<Buffer> {

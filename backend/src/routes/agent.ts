@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { askClaude } from '../llm/claude';
+import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
 import { Task } from '../memory/Task';
 import { runMorningBriefing } from '../agents/MorningBriefingAgent';
 
@@ -8,43 +8,50 @@ const router = Router();
 // POST /api/agent/ask
 // Body: { "prompt": "tu pregunta o tarea" }
 router.post('/ask', async (req: Request, res: Response) => {
-  const { prompt } = req.body;
+  const { prompt, private: isPrivate = false } = req.body;
 
-  if (!prompt || typeof prompt !== 'string') {
-    res.status(400).json({ error: 'El campo prompt es obligatorio' });
+  if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
+    res.status(400).json({ error: 'El campo prompt es obligatorio y no puede estar vacío' });
     return;
   }
 
-  // 1. Crear el registro en MongoDB antes de llamar al LLM
-  const task = await Task.create({ prompt, status: 'pending' });
-  console.log(`📨 Tarea guardada [${task._id}]: ${prompt}`);
+  const task = await Task.create({ prompt, status: 'pending', isPrivate });
+  console.log(`📨 Tarea ${isPrivate ? '🔒 privada' : 'normal'} [${task._id}]: ${prompt}`);
 
   try {
-    const respuesta = await askClaude(prompt);
+    const respuesta = await askClaude(prompt, { private: isPrivate });
 
-    // 2. Marcar como completada con la respuesta
     task.respuesta = respuesta;
     task.status = 'done';
     await task.save();
 
     console.log(`✅ Tarea completada [${task._id}]`);
-
-    res.json({
-      ok: true,
-      taskId: task._id,
-      prompt,
-      respuesta,
-    });
+    res.json({ ok: true, taskId: task._id, prompt, respuesta, private: isPrivate });
 
   } catch (error) {
-    // 3. Si el LLM falla, guardar el error y mantener trazabilidad
     task.status = 'error';
     task.errorMsg = error instanceof Error ? error.message : 'Error desconocido';
     await task.save();
 
+    if (error instanceof PrivacyError) {
+      console.warn(`🔒 Tarea privada bloqueada [${task._id}]: Ollama no disponible`);
+      res.status(503).json({
+        error: 'Ollama no disponible. Tarea privada no procesada.',
+        hint: 'Arranca Ollama en tu PC o envía la tarea sin modo privado.',
+        taskId: task._id,
+      });
+      return;
+    }
+
     console.error(`❌ Tarea fallida [${task._id}]:`, error);
     res.status(500).json({ error: 'Error al procesar la tarea', taskId: task._id });
   }
+});
+
+// GET /api/agent/ollama-status
+router.get('/ollama-status', async (_req: Request, res: Response) => {
+  const available = await isOllamaAvailable();
+  res.json({ ok: true, ollama: available ? 'online' : 'offline' });
 });
 
 // GET /api/agent/tasks — ver el historial de tareas

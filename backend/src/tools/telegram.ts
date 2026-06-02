@@ -4,12 +4,21 @@ import axios from 'axios';
 import { runMorningBriefing } from '../agents/MorningBriefingAgent';
 import { getWeather } from './weather';
 import { fetchGitHubData } from './github';
-import { askClaude } from '../llm/claude';
+import { getNotionTasks, createNotionTask } from './notion';
+import { getCalendarEvents, formatEventsForSpeech } from './calendar';
+import { getTrackerSummary, formatTrackerForSpeech, getBlogComments, formatCommentsForSpeech, nowInSpain } from './cloudflare';
+import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
 import { generateVoiceBuffer } from './tts';
 import { BAKO_PROFILE } from '../knowledge/profile';
 
 function loadProfile(): string {
   return `\n\nPERFIL DE TU SEÑOR:\n${JSON.stringify(BAKO_PROFILE, null, 2)}`;
+}
+
+const SENSITIVE_PATTERN = /inetum|contrato|nómina|sueldo|salario|password|contraseña|token|secret|credencial|dni|seguridad social|banco|cuenta corriente|tarjeta/i;
+
+function isSensitive(text: string): boolean {
+  return SENSITIVE_PATTERN.test(text);
 }
 
 let bot: TelegramBot;
@@ -25,7 +34,10 @@ async function sendVoiceReply(chatId: number, text: string): Promise<void> {
 
 function isAuthorized(chatId: number): boolean {
   const allowed = process.env.TELEGRAM_CHAT_ID;
-  if (!allowed) return true;
+  if (!allowed) {
+    console.warn('⚠️  TELEGRAM_CHAT_ID no definido — denegando acceso a todos los chats');
+    return false;
+  }
   return String(chatId) === allowed;
 }
 
@@ -89,14 +101,108 @@ async function handleCommand(chatId: number, command: string): Promise<void> {
   }
 
   if (command === '/tareas') {
-    const gh = await fetchGitHubData();
-    if (gh.issues.length === 0) {
-      await bot.sendMessage(chatId, '✅ No hay tareas pendientes en GitHub.');
+    const [notionTasks, gh] = await Promise.all([getNotionTasks(), fetchGitHubData()]);
+    let text = '';
+    if (notionTasks.length > 0) {
+      text += '📋 *Tareas Notion:*\n';
+      notionTasks.forEach(t => {
+        const prio = t.prioridad === 'Alta' ? '🔴' : t.prioridad === 'Media' ? '🟡' : '⚪';
+        text += `${prio} ${t.nombre}${t.proyecto ? ` _[${t.proyecto}]_` : ''}\n`;
+      });
+    }
+    if (gh.issues.length > 0) {
+      text += '\n🐙 *Issues GitHub:*\n';
+      gh.issues.forEach(i => { text += `• [${i.repo}] ${i.title}\n`; });
+    }
+    if (!text) text = '✅ No tiene tareas pendientes.';
+    await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+    return;
+  }
+
+  if (command === '/tracker') {
+    await bot.sendMessage(chatId, '📊 Consultando el Tracker...');
+    const summary = await getTrackerSummary();
+    const speech  = formatTrackerForSpeech(summary);
+
+    let text = `📊 *Tracker — ${summary.date}* (${summary.timeInSpain})\n\n`;
+    if (summary.tasks.length === 0) {
+      text += 'No hay actividades trackeadas para hoy.';
+    } else {
+      summary.tasks.forEach(t => {
+        const icon = t.done === true ? '✅' : t.done === false ? '❌' : '⏳';
+        text += `${icon} *${t.name}* — ${t.time}`;
+        if (t.done === false && t.reason) text += `\n   _↳ ${t.reason}_`;
+        text += '\n';
+      });
+      text += `\n✅ ${summary.completedCount}  ❌ ${summary.notDoneCount}  ⏳ ${summary.pendingCount}`;
+    }
+    if (summary.note) text += `\n\n📝 _${summary.note}_`;
+
+    await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+    if (summary.tasks.length > 0) await sendVoiceReply(chatId, speech);
+    return;
+  }
+
+  if (command === '/comentarios') {
+    await bot.sendMessage(chatId, '💬 Revisando el blog...');
+    const comments = await getBlogComments(false);
+    const speech   = formatCommentsForSpeech(comments);
+
+    if (comments.length === 0) {
+      await bot.sendMessage(chatId, '💬 No hay comentarios en el blog todavía.');
       return;
     }
-    let text = '📋 *Tareas pendientes:*\n';
-    gh.issues.forEach(i => { text += `• [${i.repo}] ${i.title}\n`; });
+
+    let text = `💬 *Comentarios del blog* (${comments.length} total)\n\n`;
+    const byPost = new Map<string, typeof comments>();
+    for (const c of comments) {
+      if (!byPost.has(c.post_slug)) byPost.set(c.post_slug, []);
+      byPost.get(c.post_slug)!.push(c);
+    }
+    for (const [, cms] of byPost.entries()) {
+      const shortTitle = cms[0].post_title.length > 45 ? cms[0].post_title.slice(0, 42) + '...' : cms[0].post_title;
+      text += `📝 *${shortTitle}*\n`;
+      cms.forEach(c => {
+        const fecha = c.created_at.slice(0, 10);
+        text += `  👤 ${c.alias} _(${fecha})_\n  "${c.body}"\n\n`;
+      });
+    }
+
     await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+    await sendVoiceReply(chatId, speech);
+    return;
+  }
+
+  if (command === '/agenda') {
+    await bot.sendMessage(chatId, '📅 Un momento...');
+    const events = await getCalendarEvents(2);
+    const speech = formatEventsForSpeech(events);
+    if (events.length === 0) {
+      await bot.sendMessage(chatId, '📅 No tiene eventos próximos.');
+      return;
+    }
+    let text = '📅 *Agenda próxima:*\n\n';
+    const now   = new Date();
+    const today = now.toDateString();
+    const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1);
+    const todayEvents    = events.filter(e => new Date(e.start).toDateString() === today);
+    const tomorrowEvents = events.filter(e => new Date(e.start).toDateString() === tomorrow.toDateString());
+    if (todayEvents.length > 0) {
+      text += '*Hoy:*\n';
+      todayEvents.forEach(e => {
+        const hora = e.allDay ? 'Todo el día' : new Date(e.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        text += `• ${hora} — ${e.title}${e.location ? ` 📍${e.location}` : ''}\n`;
+      });
+    }
+    if (tomorrowEvents.length > 0) {
+      text += '\n*Mañana:*\n';
+      tomorrowEvents.forEach(e => {
+        const hora = e.allDay ? 'Todo el día' : new Date(e.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+        text += `• ${hora} — ${e.title}${e.location ? ` 📍${e.location}` : ''}\n`;
+      });
+    }
+    await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+    await sendVoiceReply(chatId, speech);
     return;
   }
 }
@@ -120,8 +226,34 @@ export function startTelegramBot(): void {
     );
   });
 
+  // /privado <mensaje> — fuerza modo privado (solo Ollama)
+  bot.onText(/^\/privado (.+)$/s, async (msg, match) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(chatId)) return;
+    const text = match![1].trim();
+    try {
+      const ollamaOk = await isOllamaAvailable();
+      if (!ollamaOk) {
+        await bot.sendMessage(chatId, '🔒 Modo privado bloqueado: Ollama no está disponible en tu PC.\nEnciende el PC y asegúrate de que Ollama está corriendo.');
+        return;
+      }
+      await bot.sendMessage(chatId, '🔒 Procesando en modo privado (solo local)...');
+      const response = await askClaude(text, {
+        systemPrompt: `Eres BAKO. Responde en español, máximo 3 frases.${loadProfile()}`,
+        private: true,
+      });
+      await sendVoiceReply(chatId, response);
+    } catch (err) {
+      if (err instanceof PrivacyError) {
+        await bot.sendMessage(chatId, '🔒 Ollama se desconectó durante el procesamiento. Tarea cancelada.');
+      } else {
+        await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`);
+      }
+    }
+  });
+
   // Comandos
-  bot.onText(/^\/(briefing|tiempo|proyectos|tareas)$/, async (msg, match) => {
+  bot.onText(/^\/(briefing|tiempo|proyectos|tareas|agenda|tracker|comentarios)$/, async (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return;
     try {
@@ -155,7 +287,7 @@ export function startTelegramBot(): void {
     }
   });
 
-  // Texto libre → Groq con contexto real según intención
+  // Texto libre → detecta contenido sensible automáticamente
   bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return;
@@ -163,8 +295,29 @@ export function startTelegramBot(): void {
 
     try {
       const text = msg.text;
+
+      // Detección automática de contenido sensible
+      if (isSensitive(text)) {
+        const ollamaOk = await isOllamaAvailable();
+        if (!ollamaOk) {
+          await bot.sendMessage(
+            chatId,
+            '⚠️ He detectado contenido sensible en tu mensaje.\n\n🔒 Para procesarlo necesito Ollama local, pero no está disponible.\n\nEnciende tu PC y asegúrate de que Ollama está corriendo, o reformula el mensaje sin datos confidenciales.'
+          );
+          return;
+        }
+        await bot.sendMessage(chatId, '🔒 Contenido sensible detectado — procesando solo en local...');
+        const response = await askClaude(text, {
+          systemPrompt: `Eres BAKO. Responde en español, máximo 3 frases.${loadProfile()}`,
+          private: true,
+        });
+        await sendVoiceReply(chatId, response);
+        return;
+      }
+
+      const now = nowInSpain();
       const contextParts: string[] = [
-        `Fecha y hora: ${new Date().toLocaleString('es-ES')}`,
+        `Fecha y hora en España: ${now.toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}`,
       ];
 
       if (/tiempo|clima|temperatura|lluvia|sol|nublado|mañana|previsión|meteorolog/i.test(text)) {

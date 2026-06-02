@@ -127,7 +127,8 @@ async function getIssues(owner: string, repo: string): Promise<GitHubIssue[]> {
     return data
       .filter((i: any) => !i.pull_request)
       .map((i: any) => ({ repo, number: i.number, title: i.title }));
-  } catch {
+  } catch (err) {
+    console.warn(`⚠️  No se pudieron obtener issues de ${repo}:`, (err as Error).message);
     return [];
   }
 }

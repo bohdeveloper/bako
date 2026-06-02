@@ -21,16 +21,48 @@
 | Telegram Bot — voz, comandos, texto libre | ✅ |
 | Desplegado en Render (24/7, gratis) | ✅ |
 | Perfil personal cargado en contexto | ✅ |
+| Google Calendar — agenda en briefing y `/agenda` | ✅ |
+| Notion — tareas y proyectos, `/tareas` actualizado | ✅ |
+| Selector de privacidad — `/privado` + detección automática | ✅ |
+
+---
+
+## Pendiente de configuración en PC de casa
+
+| Tarea | Notas |
+|---|---|
+| Ollama como servicio de Windows | Ejecutar `.\scripts\setup-windows-autostart.ps1` como Administrador |
+| PM2 para arranque automático del backend local | Incluido en el mismo script |
 
 ---
 
 ## HORIZONTE 1 — BAKO completo como asistente
 ### Objetivo: BAKO gestiona toda tu vida digital. ~6-12 meses.
 
-### Fase 4 — Calendario y Tareas
+### Fase 4 — Calendario y Tareas ✅ COMPLETADA
 - Google Calendar API → agenda del día en el briefing y por Telegram
 - Notion API → tareas pendientes reales (no solo GitHub issues)
 - `/agenda` en Telegram → eventos de hoy y mañana por voz
+
+### Fase 4.5 — Contexto temporal y Portfolio apps ✅ COMPLETADA
+**Hora y ubicación:**
+- BAKO conoce la hora actual según la ubicación real (zona horaria de Errentería / dónde estés)
+- Respuestas contextuales según momento del día ("son las 14:00, debería estar en Inetum")
+
+**Portfolio apps via Cloudflare D1 (`bohdeveloper-admin`):**
+- **Tracker** — BAKO lee el historial de tareas del día: qué completaste, qué no y por qué
+  - `/tracker` en Telegram → resumen del día con ✅ ❌ ⏳ + voz
+  - Incluido en el morning briefing si hay actividades registradas
+- **Blog (bohdeveloper.com)** — BAKO lee los comentarios nuevos de tus posts
+  - `/comentarios` en Telegram → lista qué posts tienen comentarios y los lee por voz
+  - Morning briefing incluye comentarios de la última semana
+
+### Fase 4.6 — ROADMAPs de proyectos desde GitHub
+- BAKO lee el `ROADMAP.md` de cada repo activo en GitHub
+- Detecta automáticamente qué fases están completadas (✅) y cuáles son las siguientes
+- `/siguiente` en Telegram → BAKO dice cuál es el próximo paso de cada proyecto activo
+- Incluido en el morning briefing si hay fases recién completadas o bloqueadas
+- Proyectos objetivo: Diamadmin, Unyona, bohdeveloper, BAKO
 
 ### Fase 5 — Email inteligente
 - Gmail API → resumen de correos sin leer priorizados
@@ -169,6 +201,7 @@ Agentes especializados trabajando en paralelo:
 |---|---|---|
 | Backend | Express + TypeScript | Express + TypeScript |
 | Base de datos | MongoDB Atlas | MongoDB + vector DB (Qdrant) |
+| Portfolio DB | Cloudflare D1 (Tracker, Blog) | Cloudflare D1 expandido |
 | LLM cloud | Groq (Llama 3.3) | Groq + modelo fine-tuneado |
 | LLM local | Ollama qwen2.5-coder | Llama 3.2 fine-tuneado |
 | Voz salida | msedge-tts AlvaroNeural | Modelo TTS propio |
@@ -191,7 +224,7 @@ Agentes especializados trabajando en paralelo:
 |---|---|
 | Diamadmin en producción con usuarios | PMAgent + DevAgent |
 | Unyona validada con leads reales | ContentAgent + IdeasAgent |
-| Portfolio que consigue clientes | Fase 7 — IA pública |
+| Portfolio que consigue clientes | Fase 7 — IA pública + Blog comments |
 | Aprender ML/IA en profundidad | LearningAgent guía el roadmap |
 | Vivir en Galicia trabajando remoto | Ops integrado con rutina nueva |
 | JARVIS físico funcional | Horizontes 3 y 4 |

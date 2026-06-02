@@ -7,6 +7,7 @@ export interface ITask extends Document {
   respuesta?: string;
   status: TaskStatus;
   errorMsg?: string;
+  isPrivate: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -17,6 +18,7 @@ const TaskSchema = new Schema<ITask>(
     respuesta: { type: String },
     status:    { type: String, enum: ['pending', 'done', 'error'], default: 'pending' },
     errorMsg:  { type: String },
+    isPrivate: { type: Boolean, default: false },
   },
   {
     timestamps: true, // genera createdAt y updatedAt automáticamente

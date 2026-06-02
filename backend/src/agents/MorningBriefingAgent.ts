@@ -1,10 +1,13 @@
 import { fetchGitHubData, GitHubData } from '../tools/github';
 import { getWeather, WeatherData } from '../tools/weather';
 import { getNews, NewsItem } from '../tools/news';
+import { getNotionTasks, NotionTask } from '../tools/notion';
+import { getCalendarEvents, formatEventsForSpeech, CalendarEvent } from '../tools/calendar';
+import { getTrackerSummary, formatTrackerForSpeech, getBlogComments, formatCommentsForSpeech, nowInSpain } from '../tools/cloudflare';
 import { speak } from '../tools/tts';
 
 function buildWeatherText(weather: WeatherData): string {
-  const today = weather.forecast[0];
+  const today    = weather.forecast[0];
   const tomorrow = weather.forecast[1];
   let text = `En ${weather.city} ahora mismo hay ${weather.current.temp} grados y está ${weather.current.description}.`;
   if (today) {
@@ -30,12 +33,10 @@ function buildProjectsText(github: GitHubData): string {
   if (activeRepos.length === 0) return 'No hay actividad reciente en sus proyectos.';
 
   const parts: string[] = [];
-
-  const repoNames = activeRepos.map(r => r.name).join(', ');
-  parts.push(`Sus proyectos activos son ${repoNames}.`);
+  parts.push(`Sus proyectos activos son ${activeRepos.map(r => r.name).join(', ')}.`);
 
   if (github.recentCommits.length > 0) {
-    const count = github.recentCommits.length;
+    const count    = github.recentCommits.length;
     const mainRepo = github.recentCommits[0].repo;
     parts.push(`Ayer realizó ${count} commit${count > 1 ? 's' : ''}, principalmente en ${mainRepo}.`);
   } else {
@@ -50,29 +51,67 @@ function buildProjectsText(github: GitHubData): string {
   return parts.join(' ');
 }
 
-function buildTasksText(github: GitHubData): string {
-  if (github.issues.length === 0) return 'No tiene tareas pendientes en GitHub.';
-  const list = github.issues.slice(0, 5).map(i => i.title).join('. Además, ');
-  return `Sus tareas pendientes: ${list}.`;
+function buildTasksText(notionTasks: NotionTask[], github: GitHubData): string {
+  const parts: string[] = [];
+
+  if (notionTasks.length > 0) {
+    const altas  = notionTasks.filter(t => t.prioridad === 'Alta');
+    const total  = notionTasks.length;
+    if (altas.length > 0) {
+      parts.push(`Tiene ${total} tarea${total > 1 ? 's' : ''} pendiente${total > 1 ? 's' : ''} en Notion, ${altas.length} de alta prioridad: ${altas.slice(0, 2).map(t => t.nombre).join(' y ')}.`);
+    } else {
+      parts.push(`Tiene ${total} tarea${total > 1 ? 's' : ''} pendiente${total > 1 ? 's' : ''} en Notion.`);
+    }
+  }
+
+  if (github.issues.length > 0) {
+    const list = github.issues.slice(0, 3).map(i => i.title).join(', ');
+    parts.push(`En GitHub: ${list}.`);
+  }
+
+  if (parts.length === 0) return 'No tiene tareas pendientes.';
+  return parts.join(' ');
 }
 
 export async function runMorningBriefing(options: { speak?: boolean } = {}): Promise<string> {
-  const [github, weather, news] = await Promise.all([
+  const now = nowInSpain();
+  const hora = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  const fecha = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  const [github, weather, news, notionTasks, calendarEvents, tracker, blogComments] = await Promise.allSettled([
     fetchGitHubData(),
     getWeather(),
     getNews(),
+    getNotionTasks(),
+    getCalendarEvents(2),
+    getTrackerSummary(),
+    getBlogComments(true),
   ]);
 
-  const greeting = 'Buenos días, señor.';
+  const gh           = github.status         === 'fulfilled' ? github.value         : null;
+  const wx           = weather.status        === 'fulfilled' ? weather.value        : null;
+  const nws          = news.status           === 'fulfilled' ? news.value           : [];
+  const tasks        = notionTasks.status    === 'fulfilled' ? notionTasks.value    : [];
+  const events       = calendarEvents.status === 'fulfilled' ? calendarEvents.value : [];
+  const trackerData  = tracker.status        === 'fulfilled' ? tracker.value        : null;
+  const comments     = blogComments.status   === 'fulfilled' ? blogComments.value   : [];
 
-  const briefing = [
-    greeting,
-    'Soy BAKO, a su servicio.',
-    buildWeatherText(weather),
-    buildNewsText(news),
-    buildProjectsText(github),
-    buildTasksText(github),
-  ].join(' ');
+  const sections: string[] = [
+    `Buenos días, señor. Son las ${hora} del ${fecha}. Soy BAKO, a su servicio.`,
+  ];
+
+  if (wx)  sections.push(buildWeatherText(wx));
+  if (events.length > 0 || calendarEvents.status === 'fulfilled') {
+    sections.push(formatEventsForSpeech(events));
+  }
+  sections.push(buildNewsText(nws as NewsItem[]));
+  if (gh)  sections.push(buildProjectsText(gh));
+  if (gh)  sections.push(buildTasksText(tasks, gh));
+  else if (tasks.length > 0) sections.push(buildTasksText(tasks, { repos: [], recentCommits: [], openPRs: [], issues: [], fetchedAt: '' }));
+  if (trackerData && trackerData.tasks.length > 0) sections.push(formatTrackerForSpeech(trackerData));
+  if (comments.length > 0) sections.push(formatCommentsForSpeech(comments));
+
+  const briefing = sections.join(' ');
 
   if (options.speak) {
     speak(briefing).catch(err => console.warn('TTS falló:', err));
