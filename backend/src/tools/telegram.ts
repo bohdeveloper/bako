@@ -6,7 +6,7 @@ import { getWeather } from './weather';
 import { fetchGitHubData } from './github';
 import { getNotionTasks, createNotionTask } from './notion';
 import { getCalendarEvents, formatEventsForSpeech } from './calendar';
-import { getTrackerSummary, formatTrackerForSpeech, getBlogComments, formatCommentsForSpeech, nowInSpain } from './cloudflare';
+import { getTrackerSummary, formatTrackerForSpeech, markTrackerRecord, getBlogComments, formatCommentsForSpeech, nowInSpain } from './cloudflare';
 import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
 import { generateVoiceBuffer } from './tts';
 import { BAKO_PROFILE } from '../knowledge/profile';
@@ -364,6 +364,48 @@ export function startTelegramBot(): void {
         const repos = gh.repos.slice(0, 3).map(r => r.name).join(', ');
         contextParts.push(`Proyectos activos: ${repos}`);
         if (gh.recentCommits.length > 0) contextParts.push(`Commits recientes: ${gh.recentCommits.length}`);
+      }
+
+      if (/tracker|actividad|kronoshin|biziki|tarea.*hoy|hoy.*tarea|completad|completar|marcar|registrar|hice|no hice/i.test(text)) {
+        // Detectar intención de escritura: "marca X como completada/hecha/done"
+        const writeMatch = text.match(/(?:marca|pon|registra|completa|da por completad[ao]|marca como hecha?)\s+(?:la tarea\s+)?(.+?)(?:\s+como\s+(?:completad[ao]|hech[ao]|done|lista?|realizada?))?(?:\s+en tracker)?\.?$/i);
+        const notDoneMatch = text.match(/(?:marca|pon|registra)\s+(?:la tarea\s+)?(.+?)\s+como\s+(?:no completad[ao]|no hech[ao]|pendiente|fallid[ao])(?:\s+(?:porque|por|motivo[:]?)\s+(.+))?\.?$/i);
+
+        if (notDoneMatch) {
+          const taskName = notDoneMatch[1].trim();
+          const reason   = notDoneMatch[2]?.trim();
+          const result   = await markTrackerRecord(taskName, false, reason);
+          await bot.sendMessage(chatId, result.success ? `✅ ${result.message}` : `⚠️ ${result.message}`);
+          if (result.success) await sendVoiceReply(chatId, result.message);
+          return;
+        }
+
+        if (writeMatch) {
+          const taskName = writeMatch[1].trim();
+          const result   = await markTrackerRecord(taskName, true);
+          await bot.sendMessage(chatId, result.success ? `✅ ${result.message}` : `⚠️ ${result.message}`);
+          if (result.success) await sendVoiceReply(chatId, result.message);
+          return;
+        }
+
+        // Solo lectura: inyectar datos del tracker como contexto
+        const summary = await getTrackerSummary();
+        const trackerCtx = summary.tasks.map(t => {
+          const estado = t.done === true ? 'completada' : t.done === false ? `no completada${t.reason ? ` (${t.reason})` : ''}` : 'pendiente';
+          return `${t.name} [${t.time}]: ${estado}`;
+        }).join('\n');
+        contextParts.push(`Tracker de hoy (${summary.date}):\n${trackerCtx}`);
+        contextParts.push(`Resumen: ${summary.completedCount} completadas, ${summary.notDoneCount} no hechas, ${summary.pendingCount} pendientes`);
+      }
+
+      if (/comentario|blog|post/i.test(text)) {
+        const comments = await getBlogComments(false);
+        if (comments.length > 0) {
+          const ctx = comments.map(c => `"${c.body}" — ${c.alias} en "${c.post_title}"`).join('\n');
+          contextParts.push(`Comentarios del blog:\n${ctx}`);
+        } else {
+          contextParts.push('Blog: sin comentarios todavía.');
+        }
       }
 
       const extraContext = contextParts.length > 1 ? `\nDATOS EN TIEMPO REAL:\n${contextParts.join('\n')}\n\n` : '';

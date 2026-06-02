@@ -141,6 +141,53 @@ export async function getTrackerSummary(dateStr?: string): Promise<TrackerDaySum
   };
 }
 
+export async function markTrackerRecord(
+  activityName: string,
+  done: boolean,
+  reason?: string,
+  dateStr?: string
+): Promise<{ success: boolean; taskName: string; message: string }> {
+  const date     = dateStr ?? todayStringSpain();
+  const dayIndex = (() => { const d = new Date(date); return (d.getDay() + 6) % 7; })();
+
+  // Buscar la tarea por nombre aproximado (case-insensitive, búsqueda parcial)
+  const tasks = await query<TrackerTask & { activity_id: string }>(
+    `SELECT activity_id, name, start_min, end_min FROM tracker_tasks
+     WHERE user_id=1 AND day_index=? AND track=1 AND LOWER(name) LIKE LOWER(?)`,
+    [dayIndex, `%${activityName}%`]
+  );
+
+  if (tasks.length === 0) {
+    // Buscar sin filtro de día para dar mejor feedback
+    const allTasks = await query<{ name: string }>(
+      'SELECT DISTINCT name FROM tracker_tasks WHERE user_id=1 AND track=1 ORDER BY name'
+    );
+    const names = allTasks.map(t => t.name).join(', ');
+    return {
+      success: false,
+      taskName: activityName,
+      message: `No encontré ninguna tarea llamada "${activityName}" para hoy. Tareas disponibles: ${names}.`,
+    };
+  }
+
+  const task = tasks[0];
+
+  // UPSERT — insertar o actualizar el registro
+  await query(
+    `INSERT INTO tracker_records (date, activity_id, day_index, done, reason, user_id)
+     VALUES (?, ?, ?, ?, ?, 1)
+     ON CONFLICT(date, activity_id) DO UPDATE SET done=excluded.done, reason=excluded.reason, updated_at=CURRENT_TIMESTAMP`,
+    [date, task.activity_id, dayIndex, done ? 1 : 0, reason ?? null]
+  );
+
+  const estado = done ? 'completada' : 'marcada como no completada';
+  return {
+    success: true,
+    taskName: task.name,
+    message: `${task.name} ${estado} en el Tracker para el ${date}.`,
+  };
+}
+
 export function formatTrackerForSpeech(summary: TrackerDaySummary): string {
   const { tasks, completedCount, pendingCount, notDoneCount, note, timeInSpain } = summary;
 
