@@ -14,11 +14,11 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 
 | Característica | Descripción | Estado BAKO |
 |---|---|---|
-| **Memoria** | Recuerda todo lo que le has dicho. Conoce tu historia, tus bloqueos, tus decisiones | ⚠️ Solo perfil estático |
-| **Ejecución** | No solo informa — actúa. Crea, modifica, cierra, agenda | ⚠️ Solo lectura |
-| **Proactividad** | Anticipa necesidades. Habla sin que le preguntes cuando hay algo relevante | ❌ Completamente reactivo |
+| **Memoria** | Recuerda todo lo que le has dicho. Conoce tu historia, tus bloqueos, tus decisiones | ✅ Implementado |
+| **Ejecución** | No solo informa — actúa. Crea, modifica, cierra, agenda | 🔄 En desarrollo |
+| **Proactividad** | Anticipa necesidades. Habla sin que le preguntes cuando hay algo relevante | ❌ Pendiente |
 | **Acceso sin fricción** | Está ahí. Levantas la vista, dices su nombre, ya está | ⚠️ Requiere abrir Telegram + escribir |
-| **Conocimiento vivo** | Aprende y se actualiza. Tu vida evoluciona, él también | ❌ Perfil hardcodeado |
+| **Conocimiento vivo** | Aprende y se actualiza. Tu vida evoluciona, él también | ✅ Implementado |
 
 **Regla de priorización:** antes de añadir una nueva integración de lectura, pregunta si resuelve uno de estos 5 gaps. Si no, espera.
 
@@ -45,6 +45,9 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | Notion — tareas y proyectos, `/tareas` actualizado | ✅ |
 | Selector de privacidad — `/privado` + detección automática | ✅ |
 | Cloudflare D1 — Tracker diario + Blog comments | ✅ |
+| Memoria dinámica — MongoDB Memory collection | ✅ |
+| Seed inicial — 19 memorias sobre Borja cargadas | ✅ |
+| Ejecución — crear tareas Notion + eventos Calendar | 🔄 |
 
 ---
 
@@ -70,24 +73,23 @@ MEMORIA ──► EJECUCIÓN ──► PROACTIVIDAD
               ACCESO SIN FRICCIÓN (mejora continua)
 ```
 
-### Gap 1 — Memoria persistente y dinámica 🧠 [PRIORITARIO]
+### Gap 1 — Memoria persistente y dinámica 🧠 ✅ COMPLETADO
 Un mayordomo recuerda todo. BAKO olvida cada conversación al terminar.
 
-- Colección `Memory` en MongoDB con hechos extraídos de cada conversación
-- Búsqueda semántica antes de cada respuesta: "¿qué sé de este tema?"
-- Resumen automático al final de cada conversación
-- Memoria a dos niveles:
-  - **Corto plazo**: últimas 10 conversaciones completas
-  - **Largo plazo**: hechos importantes extraídos ("Borja está bloqueado en el login de Diamadmin", "decidió pivotar Unyona al B2B")
-- Actualización manual: "Bako, recuerda que ya no trabajo en Inetum"
+- ✅ Colección `Memory` en MongoDB (schema: tipo, importancia, fuente, tags)
+- ✅ Extracción automática de hechos tras cada conversación (async, no bloquea)
+- ✅ Memoria inyectada en cada system prompt (máx 15 recuerdos: alta importancia + recientes)
+- ✅ Comandos naturales: "Bako, recuerda que..." / "Bako, olvida..." / "Bako, qué recuerdas"
+- ✅ Privacidad respetada: sin extracción en mensajes sensibles o `/privado`
+- ✅ Script `seed-memory.ts` con 19 memorias iniciales sobre Borja (vida, proyectos, rutina, metas)
 
-### Gap 2 — Ejecución de acciones ⚡ [PRIORITARIO]
+### Gap 2 — Ejecución de acciones ⚡ 🔄 EN DESARROLLO
 BAKO lee pero no actúa. Necesita poder ejecutar órdenes.
 
-- **Notion**: crear tareas, cambiar estado, asignar fecha límite
-- **Google Calendar**: crear eventos, modificar hora, añadir descripción
-- **GitHub**: crear issues, añadir comentarios
-- **Telegram propio**: programar recordatorios ("Bako, recuérdame esto en 2 horas")
+- 🔄 **Notion**: crear tareas, cambiar estado, asignar fecha límite
+- 🔄 **Google Calendar**: crear eventos, modificar hora, añadir descripción
+- ❌ **GitHub**: crear issues, añadir comentarios
+- ❌ **Recordatorios**: "Bako, recuérdame esto en 2 horas" (cron interno)
 - Confirmación antes de ejecutar acciones irreversibles
 
 ### Gap 3 — Proactividad y alertas 📡
