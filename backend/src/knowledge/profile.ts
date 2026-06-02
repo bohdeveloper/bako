@@ -1,7 +1,8 @@
 export const BAKO_PROFILE = {
   identidad: {
     nombre: "Borja",
-    edad: 37,
+    edad: 34,
+    cumpleanos: "12 de julio (cumple 35 en 2025)",
     ubicacion: "Errentería, Gipuzkoa, País Vasco, España",
     empleador: "Inetum",
     oficina: "Donostia-San Sebastián",

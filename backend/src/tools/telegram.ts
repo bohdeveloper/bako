@@ -548,6 +548,21 @@ export function startTelegramBot(): void {
         return;
       }
 
+      // Corrección de datos personales: "eso está mal", "te corrijo", "en realidad", etc.
+      const correctionMatch = text.match(
+        /^(?:bako[,.]?\s*)?(?:eso\s+est[aá](?:s)?\s+(?:mal|incorrecto)|est[aá]s\s+equivocado|te\s+corrijo[,:]?|dato\s+incorrecto[,:]?|correcci[oó]n[,:]?|(?:no[,.]\s*)?en\s+realidad\s+(?:tengo|soy|tenemos|me\s+llamo|vivo|cumplo|mi|nací))[,.]?\s*(.+)$/i
+      );
+      if (correctionMatch) {
+        const correctedFact = correctionMatch[1].trim();
+        await saveMemory(`Corrección de Borja: ${correctedFact}`, {
+          type: 'fact', importance: 'high', source: 'manual', tags: ['correccion', 'dato-personal'],
+        });
+        const reply = `✅ Corregido, señor. Recordaré que ${correctedFact}.`;
+        await bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
+        await sendVoiceReply(chatId, `Corregido. Recordaré que ${correctedFact}.`);
+        return;
+      }
+
       // Cambio de modo LLM en lenguaje natural
       const llmSwitchMatch = text.match(/(?:bako[,.]?\s*)?(?:usa|cambia\s+a|activa|cambia\s+al?\s+modo)\s+(ollama|groq|auto)/i);
       if (llmSwitchMatch) {
