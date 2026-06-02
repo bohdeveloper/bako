@@ -134,13 +134,32 @@ El perfil deja de ser un archivo que editas a mano.
 - Cola de posts en MongoDB → BAKO genera y publica con confirmación
 - Modo automático: calendario editorial definido por ti
 
-### Fase 7 — Portfolio Integration
+### Fase 7 — Portfolio Integration + Panel de administración BAKO
+
 **Modo público** — visitantes de bohdeveloper.com hablan con BAKO:
 - Widget de chat embebido
 - Conoce tus proyectos, stack, experiencia y formas de contacto
 - Responde preguntas reales sobre ti
 
-**Modo privado** — tú, autenticado, con acceso completo al asistente
+**Modo privado — Panel admin en bohdeveloper.com/admin** — tú, autenticado, gestionas a BAKO desde una interfaz web:
+
+*Gestión del conocimiento:*
+- Editor de perfil dinámico — modifica quién es Borja sin tocar `profile.ts`
+- Visor y editor de memorias — ve, edita o elimina lo que BAKO recuerda
+- Historial de conversaciones con búsqueda y filtros
+
+*Configuración:*
+- Activa o desactiva tools individuales (GitHub, Notion, Calendar...)
+- Ajusta parámetros: voz, idioma, nivel de detalle del briefing, hora del cron
+- Gestión de reglas de privacidad y palabras sensibles
+
+*Seguimiento y evolución:*
+- Estadísticas de uso: conversaciones por día, tools más usadas, temas frecuentes
+- Log de acciones ejecutadas (tareas creadas, eventos agendados, issues abiertos)
+- Línea de tiempo del aprendizaje — cómo ha crecido la memoria de BAKO
+- Estado del sistema: Ollama online/offline, Groq, cada tool con su estado
+
+*Stack:* Next.js (ya existe en bohdeveloper) + API REST de BAKO + MongoDB + autenticación existente
 
 ### Fase 8 — Wake Word
 - **OpenWakeWord** — escucha el micrófono en background, sin internet
