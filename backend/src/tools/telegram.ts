@@ -276,6 +276,15 @@ async function handleCommand(chatId: number, command: string): Promise<void> {
     return;
   }
 
+  if (command === '/servicio') {
+    const ollamaOk = await isOllamaAvailable();
+    const text = ollamaOk
+      ? '🏠 Estoy en modo local — Ollama en su PC. Procesamiento privado, sin coste de API.'
+      : '☁️ Estoy en modo nube — Groq. Su PC no está disponible o Ollama no responde.';
+    await sendVoiceReply(chatId, text);
+    return;
+  }
+
   if (command === '/comentarios') {
     await bot.sendMessage(chatId, '💬 Revisando el blog...');
     const comments = await getBlogComments(false);
@@ -387,7 +396,7 @@ export function startTelegramBot(): void {
   });
 
   // Comandos
-  bot.onText(/^\/(briefing|tiempo|proyectos|tareas|agenda|tracker|comentarios)$/, async (msg, match) => {
+  bot.onText(/^\/(briefing|tiempo|proyectos|tareas|agenda|tracker|comentarios|servicio)$/, async (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return;
     try {
@@ -455,6 +464,16 @@ export function startTelegramBot(): void {
           type: 'fact', importance: 'high', source: 'manual', tags: ['ubicacion', 'ubicacion-actual'],
         });
         await bot.sendMessage(chatId, `📍 Ubicación actualizada: *${loc}*\nConsultaré el tiempo de ${loc} desde ahora.`, { parse_mode: 'Markdown' });
+        return;
+      }
+
+      // Consulta de servicio activo
+      if (/qu[eé]\s+(servicio|modelo|llm|ia)\s+(est[aá]s\s+usando|usas|funciona)|est[aá]s\s+en\s+(local|nube|cloud)|ollama\s+o\s+groq|groq\s+o\s+ollama|desde\s+(d[oó]nde|qu[eé])\s+(est[aá]s|funciona|sirves)/i.test(text)) {
+        const ollamaOk = await isOllamaAvailable();
+        const reply = ollamaOk
+          ? '🏠 Estoy en modo local — Ollama en su PC. Procesamiento privado, sin coste de API.'
+          : '☁️ Estoy en modo nube — Groq. Su PC no está disponible o Ollama no responde.';
+        await sendVoiceReply(chatId, reply);
         return;
       }
 

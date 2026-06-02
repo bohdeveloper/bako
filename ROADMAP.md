@@ -55,12 +55,12 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 
 ---
 
-## Pendiente de configuración en PC de casa
+## Configuración PC de casa
 
-| Tarea | Notas |
+| Tarea | Estado |
 |---|---|
-| Ollama como servicio de Windows | Ejecutar `.\scripts\setup-windows-autostart.ps1` como Administrador |
-| PM2 para arranque automático del backend local | Incluido en el mismo script |
+| Ollama autostart en inicio de sesión | ✅ Vía Ollama.lnk en carpeta Startup |
+| PM2 bako-backend arranque automático | ✅ Registrado en HKCU\Run vía pm2-windows-startup |
 
 ---
 
