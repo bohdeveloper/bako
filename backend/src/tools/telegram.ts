@@ -440,7 +440,8 @@ export function startTelegramBot(): void {
       appendToSession(chatId, transcription, response);
       extractAndSaveMemories(transcription, response).catch(() => {});
     } catch (err) {
-      await bot.sendMessage(chatId, '❌ No pude procesar el audio.');
+      console.error('❌ Voice handler error:', (err as Error).message, (err as Error).stack);
+      await bot.sendMessage(chatId, `❌ No pude procesar el audio.\n_Error: ${(err as Error).message}_`, { parse_mode: 'Markdown' });
     }
   });
 
