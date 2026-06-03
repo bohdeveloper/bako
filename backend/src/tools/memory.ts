@@ -19,25 +19,26 @@ export async function saveMemory(
   });
 }
 
-export async function getMemories(): Promise<IMemory[]> {
-  // Selección en dos bloques:
-  // 1) Datos personales (familia, amigos, salud, valores, etc.) — siempre presentes
-  // 2) Técnico reciente (proyectos, reglas, XMLs) — los más recientes hasta completar cap
-  // Total ~50 memorias (~10KB) + profile.ts compacto (~5KB) = dentro del límite Groq.
-  const PERSONAL_TAGS = [
-    'familia', 'amigos', 'familia-politica', 'pareja', 'salud', 'gustos',
-    'historia', 'motivacion', 'valores', 'objetivos', 'finanzas', 'caracter',
-    'rutina', 'entrenamiento', 'lae', 'correccion', 'judicial', 'psicologo',
-  ];
+const PERSONAL_TAGS = [
+  'familia', 'amigos', 'familia-politica', 'pareja', 'salud', 'gustos',
+  'historia', 'motivacion', 'valores', 'objetivos', 'finanzas', 'caracter',
+  'rutina', 'entrenamiento', 'lae', 'correccion', 'judicial', 'psicologo',
+];
+
+export async function getMemories(totalLimit = 30): Promise<IMemory[]> {
+  // 70% datos personales (siempre presentes) + 30% técnico reciente.
+  // totalLimit varía según LLM: Ollama ~25 (contexto 4096), Groq ~50 (contexto 128K).
+  const personalLimit  = Math.round(totalLimit * 0.70);
+  const technicalLimit = Math.round(totalLimit * 0.30);
 
   const personal = await Memory.find({ tags: { $in: PERSONAL_TAGS } })
     .sort({ updatedAt: -1 })
-    .limit(20);
+    .limit(personalLimit);
 
   const personalIds = personal.map(m => (m as any)._id);
   const technical = await Memory.find({ _id: { $nin: personalIds } })
     .sort({ updatedAt: -1 })
-    .limit(10);
+    .limit(technicalLimit);
 
   return [...personal, ...technical];
 }

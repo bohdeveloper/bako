@@ -30,7 +30,7 @@ async function askOllama(messages: Message[], maxTokens?: number): Promise<strin
     messages,
     stream: false,
     options: {
-      num_ctx: 8192,
+      num_ctx: 4096,
       ...(maxTokens ? { num_predict: maxTokens } : {}),
     },
   });
