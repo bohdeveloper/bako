@@ -81,8 +81,10 @@ export async function getAmbientContext(
     `📍 Ubicación actual: ${location}`,
   ];
 
-  // Tiempo — cacheado 30 min, específico para la ciudad actual
-  const w = await cachedWeatherForCity(location);
+  // Tiempo — usar solo la ciudad para geocodificar (ej: "Inetum, Donostia" → "Donostia")
+  const commaIdx = location.indexOf(',');
+  const weatherCity = commaIdx > -1 ? location.slice(commaIdx + 1).trim() : location;
+  const w = await cachedWeatherForCity(weatherCity);
   if (w) {
     parts.push(`🌤 Tiempo en ${w.city}: ${w.current.temp}°C, ${w.current.description}, humedad ${w.current.humidity}%, viento ${w.current.windSpeed} km/h`);
     const hoy    = w.forecast[0];

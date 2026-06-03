@@ -56,8 +56,7 @@ function inferLocationFromRoutine(): string {
   const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
   const hora = now.getHours();
   const isWeekend = now.getDay() === 0 || now.getDay() === 6;
-  // Jornada laboral presencial en Inetum, Donostia
-  if (!isWeekend && hora >= 7 && hora < 15) return 'Donostia';
+  if (!isWeekend && hora >= 7 && hora < 15) return 'Inetum, Donostia';
   return process.env.WEATHER_CITY ?? 'Errentería';
 }
 
