@@ -102,11 +102,11 @@ Proceso para importar XMLs de roles, proyectos e información personal a la memo
 | `prompt_estilo_vida` | Rutina semanal completa, estoicismo-shaolin, horario desde tracker | ✅ Asimilado |
 | `prompt_ingresos_pasivos` | Estrategia ingresos pasivos, criterios, validación, plataformas | ✅ Asimilado |
 | `prompt_operacion_galicia` | Mudanza Galicia, vivienda, Yaimy, laboral, proceso judicial | ✅ Asimilado |
-| `prompt_piloto_drones` | Pendiente de revisar | ⏳ Pendiente |
+| `prompt_piloto_drones` | Hobby FPV post-Galicia, locaciones, ruta AESA A2, presupuesto | ✅ Asimilado |
 
 **Cómo continuar:** Abrir Claude Code, decir "vamos a continuar con los XMLs" y pegar el siguiente. Claude tiene el contexto completo del proceso.
 
-> Progreso: 9/10 completados
+> Progreso: 10/10 completados ✅
 
 ---
 
