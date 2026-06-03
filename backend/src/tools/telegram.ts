@@ -385,6 +385,27 @@ async function transcribeAudio(buffer: Buffer): Promise<string> {
   return fixTranscription(data.text as string);
 }
 
+// Detecta si el texto expresa intención de consultar datos en tiempo real.
+// Devuelve el comando correspondiente o null si no hay intención clara.
+function detectDataIntent(text: string): string | null {
+  const t = text.toLowerCase();
+  // Agenda / Calendario
+  if (/\b(mi\s+agenda|mis?\s+eventos?|qu[eé]\s+(tengo\s+)?(hoy|ma[nñ]ana|esta\s+semana)|eventos?\s+(de\s+)?hoy|citas?\s+(de\s+)?hoy|calendario|tengo\s+algo\s+(hoy|ma[nñ]ana))\b/.test(t)) return '/agenda';
+  // Tareas / Notion
+  if (/\b(mis?\s+tareas?|qu[eé]\s+tareas?\s+tengo|tareas?\s+pendientes?|pendientes?\s+(en\s+)?notion|qu[eé]\s+tengo\s+pendiente)\b/.test(t)) return '/tareas';
+  // Tiempo / Clima
+  if (/\b(qu[eé]\s+tiempo\s+(hace|tenemos?)|c[oó]mo\s+est[aá]\s+el\s+(tiempo|clima)|va\s+a\s+(llover|nevar)|temperatura\s+(de\s+)?(hoy|ahora)|hace\s+(fr[ií]o|calor|sol|viento)|cielo\s+(est[aá]|anda))\b/.test(t)) return '/tiempo';
+  // Tracker / Kronoshin
+  if (/\b(mi\s+tracker|c[oó]mo\s+(va|est[aá])\s+(el\s+)?tracker|actividades?\s+(de\s+)?hoy|qu[eé]\s+he?\s+hecho\s+hoy|kronoshin)\b/.test(t)) return '/tracker';
+  // Proyectos / GitHub
+  if (/\b(mis?\s+proyectos?\s+activos?|commits?\s+(de\s+)?(hoy|últimos?)|pull\s+requests?\s+(abiertos?|pendientes?)|issues?\s+(abiertos?|pendientes?)|actividad\s+en\s+github)\b/.test(t)) return '/proyectos';
+  // Briefing
+  if (/\b(dame\s+(un\s+)?briefing|resumen\s+(de\s+)?(hoy|mi\s+d[ií]a|la\s+ma[nñ]ana)|c[oó]mo\s+(est[aá]|va)\s+todo\s+(hoy|el\s+d[ií]a))\b/.test(t)) return '/briefing';
+  // Comentarios blog
+  if (/\b(comentarios?\s+(del\s+)?blog|qu[eé]\s+comentarios?\s+(hay|tengo)|alguien\s+ha\s+comentado)\b/.test(t)) return '/comentarios';
+  return null;
+}
+
 async function handleCommand(chatId: number, command: string): Promise<void> {
   if (command === '/briefing') {
     await bot.sendMessage(chatId, '⏳ Un momento, señor...');
@@ -858,6 +879,14 @@ export function startTelegramBot(): void {
         return;
       }
 
+      // Intención de datos en tiempo real por voz
+      const voiceIntent = detectDataIntent(transcription);
+      if (voiceIntent) {
+        await handleCommand(chatId, voiceIntent);
+        appendToSession(chatId, transcription, '[datos en tiempo real obtenidos]');
+        return;
+      }
+
       const voiceLocation = await getCurrentLocation();
       const [memoriesSection, ambientCtx] = await Promise.all([
         getMemoriesSection(),
@@ -916,6 +945,13 @@ export function startTelegramBot(): void {
         const reply = `✅ Corregido, señor. Recordaré que ${correctedFact}.`;
         await bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
         await sendVoiceReply(chatId, `Corregido. Recordaré que ${correctedFact}.`);
+        return;
+      }
+
+      // Detección de intención → comandos de datos en tiempo real
+      const intentCommand = detectDataIntent(text);
+      if (intentCommand) {
+        await handleCommand(chatId, intentCommand);
         return;
       }
 

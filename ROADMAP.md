@@ -186,18 +186,21 @@ BAKO solo habla cuando le hablas. Necesita iniciativa propia.
   - "Mañana tienes reunión a las 9 — ¿quieres el briefing antes?"
 - ✅ Motor de reglas configurables: `/regla [condición]` · `/reglas` · `/borrarregla [id]` — evaluadas por LLM cada día a las 08:30
 
-### Gap 4 — Acceso sin fricción 🎤 ⚠️ EN PROGRESO
+### Gap 4 — Acceso sin fricción 🎤 ✅ COMPLETADO (v1)
 Reducir al mínimo los pasos para hablar con BAKO.
 
 - ✅ Texto libre natural sin necesidad de comandos `/comando`
-- ✅ BAKO detecta la intención en lenguaje natural: ubicación ("estoy en Madrid"), correcciones de datos, modo LLM, memoria, personalidad
-- ❌ Wake word en PC: di "Bako" → responde sin tocar el teclado (pendiente — OpenWakeWord, Horizonte 1)
-- ⚠️ Respuestas en menos de 2 segundos (Ollama local: ~1s ✅ · Groq cloud: ~2-3s según carga)
+- ✅ Detección de intención completa en lenguaje natural:
+  - Ubicación: "estoy en Madrid" → actualiza contexto
+  - Correcciones: "en realidad tengo 34 años" → guarda en memoria
+  - Modo LLM, personalidad, memoria: detección automática
+  - **Datos en tiempo real**: "mi agenda", "qué tareas tengo", "cómo está el tiempo", "mi tracker", "mis proyectos", "dame un briefing", "comentarios del blog" → llama al tool correspondiente y devuelve datos reales (texto y voz)
 - ✅ **Personalidad configurable** — 9 parámetros (0-10) inyectados en system prompt:
   - `sinceridad` · `sarcasmo` · `simpatía` · `empatía` · `discreción` · `lealtad` · `precisión` · `detallista` · `anticipación`
   - Presets: `mayordomo clásico` (default) / `colega directo` / `modo Jarvis`
-  - Comandos: `/personalidad` (ver config actual) · `/personalidad [preset]` (cambiar)
-  - Lenguaje natural: "modo Jarvis", "ponte en modo colega"
+  - Comandos: `/personalidad` · lenguaje natural: "modo Jarvis", "ponte en modo colega"
+- ✅ Respuestas en menos de 2 segundos (Ollama local: ~1s · Groq: ~2-3s)
+- ❌ Wake word en PC — diferido a Horizonte 1 (requiere OpenWakeWord + setup local)
 
 ### Gap 5 — Conocimiento vivo 📚
 El perfil deja de ser un archivo que editas a mano.
