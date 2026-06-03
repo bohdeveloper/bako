@@ -20,19 +20,16 @@ export async function saveMemory(
 }
 
 export async function getMemories(): Promise<IMemory[]> {
-  // Top 50 high-importance + top 10 medium, ordenadas por más reciente primero.
-  // Cap 50+10=60: ~9KB de memorias, seguro bajo el límite de Groq (era 413 con 90+).
-  // Sin filtros de fecha — evita el bug de ventana deslizante.
-  const high   = await Memory.find({ importance: 'high' }).sort({ updatedAt: -1 }).limit(50);
-  const medium = await Memory.find({ importance: 'medium' }).sort({ updatedAt: -1 }).limit(10);
+  // Top 60 high + top 20 medium, cap 80. Memorias concisas (~100 chars) = ~12KB total, seguro en Groq.
+  const high   = await Memory.find({ importance: 'high' }).sort({ updatedAt: -1 }).limit(60);
+  const medium = await Memory.find({ importance: 'medium' }).sort({ updatedAt: -1 }).limit(20);
 
   const seen = new Set<string>();
   const merged: IMemory[] = [];
   for (const m of [...high, ...medium]) {
     if (!seen.has(m.id)) { seen.add(m.id); merged.push(m); }
   }
-  // Cap de seguridad: máx 60 memorias (~10KB) para no exceder límite de payload Groq
-  return merged.slice(0, 40);
+  return merged.slice(0, 80);
 }
 
 export async function searchMemories(query: string): Promise<IMemory[]> {

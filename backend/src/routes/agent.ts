@@ -96,6 +96,14 @@ router.get('/memories', async (req: Request, res: Response) => {
   res.json({ ok: true, total: memories.length, memories });
 });
 
+// DELETE /api/agent/memories/:id — eliminar memoria por ID
+router.delete('/memories/:id', async (req: Request, res: Response) => {
+  const { Memory } = await import('../memory/Memory');
+  const memory = await Memory.findByIdAndDelete(req.params.id);
+  if (!memory) { res.status(404).json({ error: 'Memoria no encontrada' }); return; }
+  res.json({ ok: true, deleted: req.params.id });
+});
+
 // POST /api/agent/memories/import — importar memorias en batch
 router.post('/memories/import', async (req: Request, res: Response) => {
   const { memories } = req.body;
