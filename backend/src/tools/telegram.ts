@@ -16,7 +16,7 @@ import { Rule } from '../memory/Rule';
 import { tryExecuteAction } from './actions';
 import { getAmbientContext, invalidateCityWeatherCache } from './context';
 
-function buildSystemPrompt(extraContext = '', memoriesSection = '', dynamicProfileSection = ''): string {
+export function buildSystemPrompt(extraContext = '', memoriesSection = '', dynamicProfileSection = ''): string {
   const now   = nowInSpain();
   const hora  = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
   const fecha = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -65,7 +65,7 @@ PERFIL BASE (estructura, proyectos, rutina — los DATOS DE PERFIL ACTUALIZADOS 
 ${JSON.stringify(BAKO_PROFILE, null, 2)}`;
 }
 
-async function getMemoriesSection(): Promise<string> {
+export async function getMemoriesSection(): Promise<string> {
   try {
     const memories = await getMemories();
     return formatMemoriesForPrompt(memories);
@@ -74,7 +74,7 @@ async function getMemoriesSection(): Promise<string> {
   }
 }
 
-async function getDynamicProfileSection(): Promise<string> {
+export async function getDynamicProfileSection(): Promise<string> {
   try { return await buildDynamicProfileContext(); }
   catch { return ''; }
 }

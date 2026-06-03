@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BAKO">
+  <meta name="theme-color" content="#0a0a0a">
+  <link rel="manifest" href="/bako-client/manifest.json">
+  <link rel="apple-touch-icon" href="/bako-client/icon-192.png">
+  <title>BAKO</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background: #0a0a0a;
+      color: #e8e8e8;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      padding: 40px 24px 48px;
+      overflow: hidden;
+    }
+
+    .header { text-align: center; }
+    .header h1 { font-size: 28px; font-weight: 700; letter-spacing: 6px; color: #fff; }
+    .header p  { font-size: 13px; color: #555; margin-top: 4px; letter-spacing: 2px; }
+
+    .status-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .transcription {
+      font-size: 15px;
+      color: #888;
+      font-style: italic;
+      text-align: center;
+      min-height: 24px;
+      transition: color 0.3s;
+    }
+
+    .response {
+      font-size: 17px;
+      color: #e8e8e8;
+      text-align: center;
+      line-height: 1.6;
+      min-height: 60px;
+    }
+
+    .wave {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+      height: 40px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .wave.active { opacity: 1; }
+    .wave span {
+      display: block;
+      width: 4px;
+      border-radius: 2px;
+      background: #4a9eff;
+      animation: wave 0.8s infinite ease-in-out;
+    }
+    .wave span:nth-child(1) { height: 12px; animation-delay: 0s; }
+    .wave span:nth-child(2) { height: 28px; animation-delay: 0.1s; }
+    .wave span:nth-child(3) { height: 40px; animation-delay: 0.2s; }
+    .wave span:nth-child(4) { height: 28px; animation-delay: 0.3s; }
+    .wave span:nth-child(5) { height: 12px; animation-delay: 0.4s; }
+    @keyframes wave {
+      0%, 100% { transform: scaleY(0.4); }
+      50%       { transform: scaleY(1); }
+    }
+
+    .mic-container { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+
+    .mic-btn {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      background: #1a1a1a;
+      border: 2px solid #333;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      user-select: none;
+      -webkit-user-select: none;
+      position: relative;
+      overflow: visible;
+    }
+    .mic-btn:active, .mic-btn.recording {
+      background: #4a9eff22;
+      border-color: #4a9eff;
+      transform: scale(0.95);
+    }
+    .mic-btn.recording::before {
+      content: '';
+      position: absolute;
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: 2px solid #4a9eff44;
+      animation: pulse 1.2s infinite;
+    }
+    .mic-btn.processing { border-color: #f59e0b; background: #f59e0b11; }
+    .mic-btn.playing   { border-color: #10b981; background: #10b98111; }
+
+    @keyframes pulse {
+      0%   { transform: scale(1);   opacity: 1; }
+      100% { transform: scale(1.4); opacity: 0; }
+    }
+
+    .mic-icon { font-size: 38px; pointer-events: none; }
+
+    .mic-label {
+      font-size: 13px;
+      color: #555;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .state-idle       .mic-icon::before { content: '🎤'; }
+    .state-recording  .mic-icon::before { content: '🎤'; }
+    .state-processing .mic-icon::before { content: '⏳'; }
+    .state-playing    .mic-icon::before { content: '🔊'; }
+    .state-error      .mic-icon::before { content: '⚠️'; }
+
+    .hint {
+      font-size: 12px;
+      color: #444;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>BAKO</h1>
+  <p>MAYORDOMO PERSONAL</p>
+</div>
+
+<div class="status-area">
+  <div class="wave" id="wave">
+    <span></span><span></span><span></span><span></span><span></span>
+  </div>
+  <div class="transcription" id="transcription"></div>
+  <div class="response" id="response">¿En qué puedo ayudarle, señor?</div>
+</div>
+
+<div class="mic-container">
+  <button class="mic-btn state-idle" id="micBtn" ontouchstart="onTouchStart(event)" ontouchend="onTouchEnd(event)">
+    <span class="mic-icon"></span>
+  </button>
+  <div class="mic-label" id="micLabel">Mantén para hablar</div>
+</div>
+
+<div class="hint" id="hint">Toca y mantén el botón mientras hablas</div>
+
+<script>
+  const BAKO_URL = window.location.origin;
+  const DESKTOP_TOKEN = '';  // Configura si usas DESKTOP_TOKEN en el servidor
+
+  let mediaRecorder = null;
+  let audioChunks = [];
+  let isRecording = false;
+  let stream = null;
+  let currentAudio = null;
+
+  const micBtn     = document.getElementById('micBtn');
+  const micLabel   = document.getElementById('micLabel');
+  const transcDiv  = document.getElementById('transcription');
+  const responseDiv= document.getElementById('response');
+  const wave       = document.getElementById('wave');
+  const hint       = document.getElementById('hint');
+
+  function setState(state, msg) {
+    micBtn.className = `mic-btn state-${state}`;
+    if (state === 'recording') {
+      micBtn.classList.add('recording');
+      wave.classList.add('active');
+      micLabel.textContent = 'Suelta para enviar';
+      hint.textContent = '';
+    } else if (state === 'processing') {
+      micBtn.classList.add('processing');
+      wave.classList.remove('active');
+      micLabel.textContent = 'Procesando...';
+    } else if (state === 'playing') {
+      micBtn.classList.add('playing');
+      micLabel.textContent = 'BAKO está respondiendo';
+    } else if (state === 'error') {
+      wave.classList.remove('active');
+      micLabel.textContent = msg || 'Error';
+      hint.textContent = 'Toca de nuevo para reintentar';
+      setTimeout(() => setState('idle'), 3000);
+    } else {
+      wave.classList.remove('active');
+      micLabel.textContent = 'Mantén para hablar';
+      hint.textContent = 'Toca y mantén el botón mientras hablas';
+    }
+  }
+
+  async function startRecording() {
+    if (isRecording) return;
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1 } });
+      audioChunks = [];
+      mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+      mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+      mediaRecorder.start(100);
+      isRecording = true;
+      setState('recording');
+      transcDiv.textContent = '';
+    } catch (err) {
+      setState('error', 'Sin acceso al micrófono');
+    }
+  }
+
+  async function stopRecordingAndSend() {
+    if (!isRecording || !mediaRecorder) return;
+    isRecording = false;
+    setState('processing');
+
+    mediaRecorder.stop();
+    stream.getTracks().forEach(t => t.stop());
+
+    await new Promise(r => { mediaRecorder.onstop = r; });
+
+    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+    if (blob.size < 1000) { setState('idle'); return; }
+
+    const formData = new FormData();
+    formData.append('audio', blob, 'voice.webm');
+
+    try {
+      const headers = {};
+      if (DESKTOP_TOKEN) headers['x-desktop-token'] = DESKTOP_TOKEN;
+
+      const res = await fetch(`${BAKO_URL}/api/desktop/voice`, { method: 'POST', headers, body: formData });
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || 'Error del servidor');
+
+      transcDiv.textContent = `"${data.transcription}"`;
+      responseDiv.textContent = data.response;
+
+      if (data.audio) {
+        setState('playing');
+        const audioData = atob(data.audio);
+        const arr = new Uint8Array(audioData.length);
+        for (let i = 0; i < audioData.length; i++) arr[i] = audioData.charCodeAt(i);
+        const audioBlob = new Blob([arr], { type: 'audio/webm' });
+        const url = URL.createObjectURL(audioBlob);
+        currentAudio = new Audio(url);
+        currentAudio.onended = () => { URL.revokeObjectURL(url); setState('idle'); };
+        currentAudio.onerror  = () => setState('idle');
+        await currentAudio.play();
+      } else {
+        setState('idle');
+      }
+    } catch (err) {
+      setState('error', 'No pude conectar con BAKO');
+      console.error(err);
+    }
+  }
+
+  // Touch events para móvil (más fiables que mouse)
+  function onTouchStart(e) { e.preventDefault(); startRecording(); }
+  function onTouchEnd(e)   { e.preventDefault(); stopRecordingAndSend(); }
+
+  // Mouse events para PC
+  micBtn.addEventListener('mousedown', startRecording);
+  micBtn.addEventListener('mouseup',   stopRecordingAndSend);
+  micBtn.addEventListener('mouseleave', () => { if (isRecording) stopRecordingAndSend(); });
+
+  // Solicitar permisos al cargar
+  window.addEventListener('load', () => {
+    if (navigator.mediaDevices) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(s => s.getTracks().forEach(t => t.stop()))
+        .catch(() => {});
+    }
+  });
+</script>
+</body>
+</html>

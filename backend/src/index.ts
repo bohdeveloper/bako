@@ -2,7 +2,10 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import agentRoutes from './routes/agent';
+import desktopRoutes from './routes/desktop';
+import bakoClientRoutes from './routes/bakoClient';
 import { startTelegramBot } from './tools/telegram';
 import { startProactivityService } from './services/ProactivityService';
 
@@ -20,7 +23,12 @@ app.get('/ping', (_req, res) => {
   res.json({ ok: true, ts: Date.now() });
 });
 
-app.use('/api/agent', agentRoutes); 
+// Archivos estáticos del cliente web
+app.use('/bako-client', express.static(path.join(__dirname, '../public/bako-client')));
+
+app.use('/api/agent', agentRoutes);
+app.use('/api/desktop', desktopRoutes);
+app.use('/bako-client', bakoClientRoutes);
 
 mongoose.connect(process.env.MONGODB_URI!)
   .then(() => console.log('✅ MongoDB conectado'))
