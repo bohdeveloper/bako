@@ -323,6 +323,8 @@ const WHISPER_PROMPT = [
   'Inetum',
   // Localización — actual y futura (Galicia)
   'Errentería, Donostia, Gipuzkoa, Euskadi, País Vasco, Galicia, Pontevedra, Caldas de Reis, Arramendi',
+  // Personas — pareja, familia, amigos
+  'Yaimy, Yosiel, Enara, Gen, Paula, Elena, Nati, Julen, Ibon, Sofi, Osvaldo',
   // Hobbies, rutina y vida diaria
   'Shaolin, Kronoshin, Running, BIZIKI, Estoicismo, Meditación, Insight Timer, Marcus Aurelius',
   // Stack técnico
@@ -344,10 +346,18 @@ const TRANSCRIPTION_FIXES: Array<[RegExp, string]> = [
   [/\bkronosín\b/gi,     'Kronoshin'],
   [/\bcronosín\b/gi,     'Kronoshin'],
   [/\bkronochin\b/gi,    'Kronoshin'],
-  // Asistente
+  // Asistente — "Paco" es el error más frecuente de BAKO
   [/\bvako\b/gi,         'BAKO'],
   [/\bbaco\b/gi,         'BAKO'],
   [/\bvack[oa]\b/gi,     'BAKO'],
+  [/\bpaco\b/gi,         'BAKO'],
+  [/\bpako\b/gi,         'BAKO'],
+  // Personas
+  [/\bjosiel\b/gi,       'Yosiel'],
+  [/\byosiel\b/gi,       'Yosiel'],
+  [/\byaimi\b/gi,        'Yaimy'],
+  [/\byaimí\b/gi,        'Yaimy'],
+  [/\bjaimi\b/gi,        'Yaimy'],
   // Hobbies
   [/\bchaolin\b/gi,      'Shaolin'],
   [/\bchaolín\b/gi,      'Shaolin'],
