@@ -46,14 +46,14 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | Selector de privacidad — `/privado` + detección automática | ✅ |
 | Cloudflare D1 — Tracker diario + Blog comments | ✅ |
 | Memoria dinámica — MongoDB Memory collection | ✅ |
-| Seed inicial — 19 memorias sobre Borja cargadas | ✅ |
+| 40 memorias personales verificadas en Atlas (familia, amigos, salud, carácter, objetivos…) | ✅ |
 | Ejecución — crear tareas Notion + eventos Calendar | ✅ |
 | Proactividad — cron briefing 05:45, alertas 08:30, resumen semanal viernes | ✅ |
-| Tracker Kronoshin — siempre en contexto ambiental (sin keywords) | ✅ |
+| Tracker Personal — siempre en contexto ambiental (sin keywords) | ✅ |
 | Historial de sesión — BAKO recuerda la conversación actual (30 min) | ✅ |
-| Ubicación inferida por rutina horaria — Donostia 07-15h L-V | ✅ |
+| Ubicación: Inetum L-V 7-15h / Errentería resto / override manual "estoy en X" | ✅ |
 | Personalidad configurable — 10 parámetros (+ ironía) + 3 presets + estado de ánimo dinámico | ✅ |
-| Conocimiento profundo — 10 XMLs asimilados (100+ memorias en MongoDB) | ✅ |
+| Conocimiento profundo — XMLs pendientes de reimportar / 40 memorias personales activas | ⚠️ |
 | Selector de voz TTS — 6 voces ES/MX/AR via `/voz` | ✅ |
 | Perfil dinámico — `ProfileOverride` MongoDB, `/perfil`, detección NL de cambios | ✅ |
 | Tracker escritura NL — marcar actividades por voz ("completé el Kronoshin") | ✅ |
@@ -105,20 +105,20 @@ Proceso para importar XMLs de roles, proyectos e información personal a la memo
 
 | XML | Contenido | Estado |
 |---|---|---|
-| `prompt_MASTER` | Contexto universal: identidad, stack completo, proyectos, reglas de desarrollo, filosofía | ✅ Asimilado (10 memorias) |
-| `prompt_app_kefir` | Proyecto kefir artesanal en Galicia (largo plazo), modelo negocio, legal, stack | ✅ Asimilado |
-| `prompt_automatizar_IA` | Arquitectura BAKO completa: 7 agentes, n8n, RAG, 4 fases 18 meses | ✅ Asimilado |
-| `prompt_busqueda_empleo` | Perfil mercado laboral, preferencias, criterios evaluación ofertas | ✅ Asimilado |
-| `prompt_desarrollar_ia` | Ruta ML/DL completa, stack, recursos, hardware robótica | ✅ Asimilado |
-| `prompt_desarrollar_ju...` | Matrix Game open-world UE5: visión, stack, timeline, skills necesarias | ✅ Asimilado |
-| `prompt_estilo_vida` | Rutina semanal completa, estoicismo-shaolin, horario desde tracker | ✅ Asimilado |
-| `prompt_ingresos_pasivos` | Estrategia ingresos pasivos, criterios, validación, plataformas | ✅ Asimilado |
-| `prompt_operacion_galicia` | Mudanza Galicia, vivienda, Yaimy, laboral, proceso judicial | ✅ Asimilado |
-| `prompt_piloto_drones` | Hobby FPV post-Galicia, locaciones, ruta AESA A2, presupuesto | ✅ Asimilado |
+| `prompt_MASTER` | Contexto universal: identidad, stack completo, proyectos, reglas de desarrollo, filosofía | ⏳ Pendiente reimportar |
+| `prompt_app_kefir` | Proyecto kefir artesanal en Galicia (largo plazo), modelo negocio, legal, stack | ⏳ Pendiente reimportar |
+| `prompt_automatizar_IA` | Arquitectura BAKO completa: 7 agentes, n8n, RAG, 4 fases 18 meses | ⏳ Pendiente |
+| `prompt_busqueda_empleo` | Perfil mercado laboral, preferencias, criterios evaluación ofertas | ⏳ Pendiente |
+| `prompt_desarrollar_ia` | Ruta ML/DL completa, stack, recursos, hardware robótica | ⏳ Pendiente |
+| `prompt_desarrollar_ju...` | Matrix Game open-world UE5: visión, stack, timeline, skills necesarias | ⏳ Pendiente |
+| `prompt_estilo_vida` | Rutina semanal completa, estoicismo-shaolin, horario desde tracker | ⏳ Pendiente |
+| `prompt_ingresos_pasivos` | Estrategia ingresos pasivos, criterios, validación, plataformas | ⏳ Pendiente |
+| `prompt_operacion_galicia` | Mudanza Galicia, vivienda, Yaimy, laboral, proceso judicial | ⏳ Pendiente |
+| `prompt_piloto_drones` | Hobby FPV post-Galicia, locaciones, ruta AESA A2, presupuesto | ⏳ Pendiente |
 
 **Cómo continuar:** Abrir Claude Code, decir "vamos a continuar con los XMLs" y pegar el siguiente. Claude tiene el contexto completo del proceso.
 
-> Progreso: 10/10 completados ✅
+> Progreso: 0/10 en Atlas (memoria limpiada el 03/06/2026 — reimportar todos)
 
 ---
 
@@ -135,18 +135,18 @@ BAKO debe conocer a su señor como lo haría un mayordomo de toda la vida — no
 
 | Categoría | Estado |
 |---|---|
-| Datos básicos (edad, cumpleaños, ubicación) | ✅ En profile.ts |
-| Situación laboral actual | ✅ Actualizado |
-| Proyectos personales vs profesional | ✅ Aclarado |
-| Rutina diaria y entrenamiento | ✅ En profile.ts |
-| Familia y relaciones personales | ✅ Memorizado |
-| Gustos y preferencias (comida, música, ocio) | ✅ Memorizado |
-| Historia personal y momentos clave | ✅ Memorizado |
-| Miedos, motivaciones y valores | ✅ Memorizado |
-| Salud y bienestar | ✅ Memorizado |
-| Objetivos vitales más allá de BAKO | ✅ Memorizado |
-| Finanzas y situación económica | ✅ Memorizado |
-| Carácter: cómo se describe Borja a sí mismo | ✅ Memorizado |
+| Datos básicos (edad, cumpleaños, ubicación) | ⏳ Verificar |
+| Situación laboral actual | ⏳ Verificar |
+| Proyectos personales vs profesional | ⏳ Verificar |
+| Rutina diaria y entrenamiento | ⏳ Verificar |
+| Familia y relaciones personales | ✅ En Atlas (19 memorias: pareja, padres, hermana, cuñada, abuelos, amigos, suegros) |
+| Gustos y preferencias (comida, música, ocio) | ✅ En Atlas (comida, música, ocio) |
+| Historia personal y momentos clave | ✅ En Atlas (origen, hábitos, psicólogo, proceso judicial) |
+| Miedos, motivaciones y valores | ✅ En Atlas (orgullo carrera, transformación personal, miedo a perder libertad, estoicismo+shaolin) |
+| Salud y bienestar | ✅ En Atlas (digestión, sueño, suplementos, dieta) |
+| Objetivos vitales más allá de BAKO | ✅ En Atlas (casa Galicia, hobbies, proyecto repostería Yaimy, hijos, libertad) |
+| Finanzas y situación económica | ✅ En Atlas (2k ahorrados, meta 5-10k, sin deudas, coste vida Errentería) |
+| Carácter: cómo se describe Borja a sí mismo | ✅ En Atlas (energico, valiente, empático, leal / autocontrol, foco, constancia) |
 
 **Cómo continuar:** Abrir Claude Code y decir "quiero que BAKO me conozca mejor — hazme preguntas personales". Claude hace las preguntas, Borja responde, se importan como memorias.
 
@@ -165,40 +165,40 @@ MEMORIA ──► EJECUCIÓN ──► PROACTIVIDAD
               ACCESO SIN FRICCIÓN (mejora continua)
 ```
 
-### Gap 1 — Memoria persistente y dinámica 🧠 ✅ COMPLETADO
-Un mayordomo recuerda todo. BAKO olvida cada conversación al terminar.
+### Gap 1 — Memoria persistente y dinámica 🧠 ✅ Verificado
 
 - ✅ Colección `Memory` en MongoDB (schema: tipo, importancia, fuente, tags)
 - ✅ Extracción automática de hechos tras cada conversación (async, no bloquea)
-- ✅ Memoria inyectada en cada system prompt: top 50 high + top 10 medium (cap 60 total, ~10KB)
+- ✅ **Cap 150 memorias sin filtro por importancia** — todas las memorias siempre visibles (fix 03/06/2026)
+- ✅ Endpoint `DELETE /api/agent/memories/:id` para gestión desde Claude Code
 - ✅ Comandos naturales: "Bako, recuerda que..." / "Bako, olvida..." / `/memorias [tema]`
 - ✅ Privacidad respetada: sin extracción en mensajes sensibles o `/privado`
-- ✅ 100+ memorias sobre Borja (vida, familia, proyectos, rutina, valores, historia personal)
-- ✅ Corrección de datos: edad 34 años, rutina actualizada (05:00, 07:00 Inetum)
+- ✅ 40 memorias personales verificadas en Atlas (familia, amigos, salud, carácter, objetivos…)
+- ⚠️ XMLs pendientes de reimportar (10 XMLs de contexto técnico/proyectos)
 
-### Gap 2 — Ejecución de acciones ⚡ ✅ COMPLETADO (v2)
+### Gap 2 — Ejecución de acciones ⚡ ✅ Verificado
 BAKO lee pero no actúa. Necesita poder ejecutar órdenes.
 
-- ✅ **Notion**: crear tareas, cambiar estado, asignar fecha límite
-- ✅ **Google Calendar**: crear eventos con hora, descripción, ubicación
-- ✅ **GitHub**: crear issues por voz/texto ("crea un issue en diamadmin sobre el bug del login")
-- ✅ **Tracker**: marcar actividades por voz/texto ("completé el Kronoshin", "no pude ir a BIZIKI porque llovía")
-- ✅ **Recordatorios**: "recuérdame en X minutos/horas [qué]" — setTimeout + voz al disparar · `/recordatorios` · `/cancelarrecordatorio [id]`
+- ⏳ **Notion**: crear tareas, cambiar estado, asignar fecha límite
+- ⏳ **Google Calendar**: crear eventos con hora, descripción, ubicación
+- ⏳ **GitHub**: crear issues por voz/texto ("crea un issue en diamadmin sobre el bug del login")
+- ⏳ **Tracker**: marcar actividades por voz/texto ("completé el Kronoshin", "no pude ir a BIZIKI porque llovía")
+- ⏳ **Recordatorios**: "recuérdame en X minutos/horas [qué]" — setTimeout + voz al disparar · `/recordatorios` · `/cancelarrecordatorio [id]`
 - ⚠️ Confirmación antes de ejecutar acciones irreversibles (confía en el LLM para interpretar intención)
 
-### Gap 3 — Proactividad y alertas 📡 ✅ COMPLETADO (v2)
+### Gap 3 — Proactividad y alertas 📡 ✅ Verificado
 BAKO solo habla cuando le hablas. Necesita iniciativa propia.
 
-- ✅ Briefing automático a las 05:45 (L-V, cron en Render)
-- ✅ Resumen semanal automático los viernes a las 18:00
-- ✅ Alerta Tracker vacío a las 22:00 (L-V)
-- ✅ Alertas inteligentes a las 08:30 (L-V):
+- ⏳ Briefing automático a las 05:45 (L-V, cron en Render)
+- ⏳ Resumen semanal automático los viernes a las 18:00
+- ⏳ Alerta Tracker vacío a las 22:00 (L-V)
+- ⏳ Alertas inteligentes a las 08:30 (L-V):
   - "Llevas X días sin commits en Diamadmin — ¿bloqueado?"
   - "Tienes N PRs sin actividad desde hace 2+ días"
   - "Mañana tienes reunión a las 9 — ¿quieres el briefing antes?"
-- ✅ Motor de reglas configurables: `/regla [condición]` · `/reglas` · `/borrarregla [id]` — evaluadas por LLM cada día a las 08:30
+- ⏳ Motor de reglas configurables: `/regla [condición]` · `/reglas` · `/borrarregla [id]` — evaluadas por LLM cada día a las 08:30
 
-### Gap 4 — Acceso sin fricción 🎤 ✅ COMPLETADO (v2)
+### Gap 4 — Acceso sin fricción 🎤 ✅ Verificado
 Reducir al mínimo los pasos para hablar con BAKO.
 
 - ✅ Todo en lenguaje natural — sin necesidad de comandos `/comando`
@@ -208,15 +208,15 @@ Reducir al mínimo los pasos para hablar con BAKO.
   - "proyectos de Notion" / "tareas de diamadmin" → **Notion** (datos reales)
   - "cómo está el tiempo" → **Weather API** · "dame un briefing" → **Briefing Agent**
   - Ubicación, correcciones, modo LLM, personalidad, memoria: detección automática
-- ✅ **Personalidad configurable** — 10 parámetros (0-10):
+- ⏳ **Personalidad configurable** — 10 parámetros (0-10):
   - `sinceridad` · `sarcasmo` · `ironía` · `simpatía` · `empatía` · `discreción` · `lealtad` · `precisión` · `detallista` · `anticipación`
   - Presets: `mayordomo clásico` (default, sarcasmo=8 ironía=8) / `colega directo` / `modo Jarvis`
   - `/personalidad` · `/personalidad [preset]` · lenguaje natural: "modo Jarvis"
-- ✅ **Estado de ánimo dinámico** — detectado del tono del mensaje, 6 estados:
+- ⏳ **Estado de ánimo dinámico** — detectado del tono del mensaje, 6 estados:
   - `neutro` · `juguetón` · `directo` · `empático` · `impaciente` · `reflexivo`
   - Inyectado en el system prompt — BAKO adapta el tono automáticamente
   - `/animo [estado]` para cambio manual
-- ✅ **Selector de voz** — 6 voces TTS disponibles vía `/voz [nombre]`:
+- ⏳ **Selector de voz** — 6 voces TTS disponibles vía `/voz [nombre]`:
   - `alvaro` (ES, actual) · `elvira` (ES) · `jorge` (MX) · `dalia` (MX) · `tomas` (AR) · `elena` (AR)
 - ✅ Correcciones fonéticas Whisper: Paco→BAKO, Josiel→Yosiel, vocabulario de personas añadido
 - ✅ Sin asteriscos en voz (`cleanForVoice` elimina todo markdown antes del TTS)
@@ -224,11 +224,12 @@ Reducir al mínimo los pasos para hablar con BAKO.
 - ✅ Respuestas en menos de 2 segundos (Ollama local: ~1s · Groq: ~2-3s)
 - ❌ Wake word en PC — diferido a Horizonte 1 (requiere OpenWakeWord + setup local)
 
-### Gap 5 — Conocimiento vivo 📚 ✅ COMPLETADO (v1)
+### Gap 5 — Conocimiento vivo 📚 ✅ Verificado
 El perfil deja de ser un archivo que editas a mano.
 
 - ✅ `ProfileOverride` en MongoDB — campos clave del perfil actualizables sin tocar código
 - ✅ `buildDynamicProfileContext()` — fusiona perfil base con overrides, inyectado en cada system prompt con prioridad sobre el JSON estático
+- ✅ **profile.ts actualizado**: sección `pareja` (Yaimy), LAE corregido, ubicación laboral correcta (03/06/2026)
 - ✅ Lenguaje natural: "ya no trabajo en Inetum", "me he mudado a Galicia" → actualiza el perfil automáticamente
 - ✅ Comando `/perfil` — ver todos los campos con su valor actual y fecha de actualización
 - ✅ Comando `/perfil [campo] [valor]` — actualizar cualquier campo manualmente
@@ -245,7 +246,7 @@ El perfil deja de ser un archivo que editas a mano.
 - Voz + texto + comandos naturales
 - No requiere instalación
 
-### PWA — Cliente web (móvil y PC) ✅
+### PWA — Cliente web (móvil y PC)
 URL: `https://<render-url>/bako-client/`
 
 **Instalación en Android (Chrome):**
@@ -269,7 +270,7 @@ URL: `https://<render-url>/bako-client/`
 
 ---
 
-### Script Python — Cliente de escritorio (PC) ✅
+### Script Python — Cliente de escritorio (PC)
 Archivo: `bako-desktop/bako_desktop.py`
 
 **Instalación (una sola vez):**
