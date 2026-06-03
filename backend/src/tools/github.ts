@@ -133,6 +133,22 @@ async function getIssues(owner: string, repo: string): Promise<GitHubIssue[]> {
   }
 }
 
+export async function createGitHubIssue(
+  repo: string,
+  title: string,
+  body?: string
+): Promise<{ number: number; url: string; title: string }> {
+  const username = process.env.GITHUB_USERNAME;
+  if (!username) throw new Error('GITHUB_USERNAME no está definido en .env');
+
+  const { data } = await getClient().post(`/repos/${username}/${repo}/issues`, {
+    title,
+    body: body ?? '',
+  });
+
+  return { number: data.number, url: data.html_url, title: data.title };
+}
+
 export async function fetchGitHubData(): Promise<GitHubData> {
   const username = process.env.GITHUB_USERNAME;
   if (!username) throw new Error('GITHUB_USERNAME no está definido en .env');

@@ -15,6 +15,8 @@ import { getCalendarEvents } from '../tools/calendar';
 import { getTrackerSummary, nowInSpain } from '../tools/cloudflare';
 import { getNotionTasks } from '../tools/notion';
 import { sendSystemMessage } from '../tools/telegram';
+import { Rule } from '../memory/Rule';
+import { askClaude } from '../llm/claude';
 
 const WATCHED_REPOS = (process.env.PROACTIVITY_REPOS ?? 'diamadmin,unyona,ai-personal-os')
   .split(',')
@@ -145,6 +147,79 @@ async function buildSmartAlerts(): Promise<{ text: string; voice: string }[]> {
   return alerts;
 }
 
+// ─── Motor de reglas configurables ───────────────────────────────────────────
+
+async function evaluateCustomRules(): Promise<{ text: string; voice: string }[]> {
+  const rules = await Rule.find({ active: true });
+  if (rules.length === 0) return [];
+
+  const now = nowInSpain();
+  const [repos, tasks, events] = await Promise.allSettled([
+    getUserRepos(),
+    getNotionTasks(),
+    getCalendarEvents(3),
+  ]);
+
+  const context = {
+    fechaHora: now.toLocaleString('es-ES', { timeZone: 'Europe/Madrid' }),
+    repos: repos.status === 'fulfilled'
+      ? repos.value.map(r => ({
+          nombre: r.name,
+          diasSinCommit: Math.floor((now.getTime() - new Date(r.lastPushed).getTime()) / 86_400_000),
+        }))
+      : [],
+    tareas: tasks.status === 'fulfilled'
+      ? tasks.value.map(t => ({ nombre: t.nombre, prioridad: t.prioridad }))
+      : [],
+    eventos: events.status === 'fulfilled'
+      ? events.value.slice(0, 5).map(e => ({ titulo: e.title, inicio: e.start }))
+      : [],
+  };
+
+  const rulesList = rules.map((r, i) => `${i + 1}. ${r.description}`).join('\n');
+
+  let raw: string;
+  try {
+    raw = await askClaude(
+      `Evalúa estas reglas contra el contexto actual y determina cuáles se cumplen.\n\nReglas:\n${rulesList}\n\nContexto:\n${JSON.stringify(context, null, 2)}`,
+      {
+        systemPrompt: `Eres un motor de evaluación de reglas. Responde SOLO con JSON válido, sin texto adicional:
+[{"index":1,"triggered":true,"mensaje":"Mensaje breve de alerta en español"},{"index":2,"triggered":false,"mensaje":""}]`,
+        maxTokens: 400,
+        useCloud: true,
+      }
+    );
+  } catch {
+    return [];
+  }
+
+  const match = raw.match(/\[[\s\S]*\]/);
+  if (!match) return [];
+
+  let evaluations: Array<{ index: number; triggered: boolean; mensaje: string }>;
+  try {
+    evaluations = JSON.parse(match[0]);
+  } catch {
+    return [];
+  }
+
+  const alerts: { text: string; voice: string }[] = [];
+  for (const result of evaluations) {
+    if (result.triggered && result.mensaje) {
+      const rule = rules[result.index - 1];
+      if (rule) {
+        alerts.push({
+          text:  `🔔 *Regla:* ${result.mensaje}`,
+          voice: result.mensaje,
+        });
+        await Rule.findByIdAndUpdate(rule._id, { lastTriggered: new Date() });
+      }
+    }
+  }
+
+  return alerts;
+}
+
 // ─── Servicio principal ───────────────────────────────────────────────────────
 
 export function startProactivityService(): void {
@@ -162,12 +237,19 @@ export function startProactivityService(): void {
     }
   }, { timezone: tz });
 
-  // 08:30 L-V — Alertas inteligentes
+  // 08:30 L-V — Alertas inteligentes + reglas configurables
   cron.schedule('30 8 * * 1-5', async () => {
     console.log('⏰ CRON: Alertas inteligentes (08:30)');
     try {
-      const alerts = await buildSmartAlerts();
-      for (const a of alerts) {
+      const [smartAlerts, ruleAlerts] = await Promise.allSettled([
+        buildSmartAlerts(),
+        evaluateCustomRules(),
+      ]);
+      const allAlerts = [
+        ...(smartAlerts.status === 'fulfilled' ? smartAlerts.value : []),
+        ...(ruleAlerts.status  === 'fulfilled' ? ruleAlerts.value  : []),
+      ];
+      for (const a of allAlerts) {
         await sendSystemMessage(a.text, a.voice);
       }
     } catch (err) {

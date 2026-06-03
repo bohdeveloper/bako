@@ -11,6 +11,7 @@ import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
 import { generateVoiceBuffer } from './tts';
 import { BAKO_PROFILE } from '../knowledge/profile';
 import { saveMemory, getMemories, formatMemoriesForPrompt, forgetMemory, extractAndSaveMemories, getCurrentLocation } from './memory';
+import { Rule } from '../memory/Rule';
 import { tryExecuteAction } from './actions';
 import { getAmbientContext, invalidateCityWeatherCache } from './context';
 
@@ -171,6 +172,65 @@ interface SessionHistory {
 const sessionHistories = new Map<number, SessionHistory>();
 const SESSION_TTL_MS   = 30 * 60 * 1000; // 30 min de inactividad → sesión nueva
 const MAX_HISTORY_TURNS = 10;             // últimos 10 intercambios (20 mensajes)
+
+// ─── Recordatorios ────────────────────────────────────────────────────────────
+
+interface Reminder {
+  id:    number;
+  text:  string;
+  timer: ReturnType<typeof setTimeout>;
+  firesAt: Date;
+}
+
+let nextReminderId = 1;
+const activeReminders: Reminder[] = [];
+
+function parseReminderDelay(text: string): { ms: number; label: string } | null {
+  // "en X minutos/horas/segundos"
+  const m = text.match(/en\s+(\d+(?:[.,]\d+)?)\s*(minuto[s]?|min|hora[s]?|h\b|segundo[s]?|seg)/i);
+  if (m) {
+    const n = parseFloat(m[1].replace(',', '.'));
+    const unit = m[2].toLowerCase();
+    if (/^(min|minuto)/.test(unit)) return { ms: n * 60_000, label: `${n} minuto${n !== 1 ? 's' : ''}` };
+    if (/^(h|hora)/.test(unit))    return { ms: n * 3_600_000, label: `${n} hora${n !== 1 ? 's' : ''}` };
+    if (/^(seg|segundo)/.test(unit)) return { ms: n * 1_000, label: `${n} segundo${n !== 1 ? 's' : ''}` };
+  }
+  // "en media hora"
+  if (/en\s+media\s+hora/i.test(text)) return { ms: 30 * 60_000, label: '30 minutos' };
+  // "en una hora y media" / "en 1 hora y media"
+  if (/en\s+una?\s+hora\s+y\s+media/i.test(text)) return { ms: 90 * 60_000, label: '1 hora y media' };
+  return null;
+}
+
+function extractReminderMessage(text: string): string {
+  // "recuérdame en X tiempo [que/] mensaje"
+  const m = text.match(/recuérdame?\s+(?:en\s+\S+\s+(?:\S+\s+)?)?(?:que\s+)?(.+)/i);
+  return m ? m[1].trim() : text;
+}
+
+async function scheduleReminder(chatId: number, text: string): Promise<string | null> {
+  const delay = parseReminderDelay(text);
+  if (!delay) return null;
+
+  const message = extractReminderMessage(text);
+  const id = nextReminderId++;
+  const firesAt = new Date(Date.now() + delay.ms);
+
+  const timer = setTimeout(async () => {
+    const idx = activeReminders.findIndex(r => r.id === id);
+    if (idx !== -1) activeReminders.splice(idx, 1);
+    const reminderText = `⏰ *Recordatorio:* ${message}`;
+    try {
+      await bot.sendMessage(chatId, reminderText, { parse_mode: 'Markdown' });
+      await sendVoiceReply(chatId, `Recordatorio: ${message}`);
+    } catch {
+      console.warn(`⚠️  No se pudo enviar recordatorio #${id}`);
+    }
+  }, delay.ms);
+
+  activeReminders.push({ id, text: message, timer, firesAt });
+  return `✅ Recordatorio #${id} en ${delay.label}: "${message}"`;
+}
 
 function getSessionHistory(chatId: number): Array<{ role: 'user' | 'assistant'; content: string }> {
   const session = sessionHistories.get(chatId);
@@ -417,6 +477,93 @@ async function handleCommand(chatId: number, command: string): Promise<void> {
     return;
   }
 
+  if (command === '/reglas') {
+    const rules = await Rule.find().sort({ createdAt: -1 });
+    if (rules.length === 0) {
+      await bot.sendMessage(chatId,
+        '📋 No hay reglas configuradas.\n\nUsa `/regla [condición]` para añadir una.\n_Ejemplo: /regla Avísame si llevo más de 4 días sin commits en diamadmin_',
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+    let text = `📋 *Reglas configuradas (${rules.length}):*\n\n`;
+    rules.forEach(r => {
+      const icon = r.active ? '🟢' : '🔴';
+      const last = r.lastTriggered
+        ? `· última alerta: ${new Date(r.lastTriggered).toLocaleDateString('es-ES')}`
+        : '';
+      text += `${icon} \`${String(r._id).slice(-6)}\` — ${r.description} ${last}\n`;
+    });
+    text += `\nPara borrar: /borrarregla [id]`;
+    await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+    return;
+  }
+
+  if (command.startsWith('/regla ')) {
+    const description = command.slice(7).trim();
+    if (!description) {
+      await bot.sendMessage(chatId, '⚠️ Escribe la condición después del comando.\n_Ejemplo: /regla Avísame si llevo más de 4 días sin commits en diamadmin_', { parse_mode: 'Markdown' });
+      return;
+    }
+    const rule = await Rule.create({ description });
+    const id = String(rule._id).slice(-6);
+    await bot.sendMessage(chatId,
+      `✅ Regla añadida (\`${id}\`):\n_"${description}"_\n\nSe evaluará cada día a las 08:30.`,
+      { parse_mode: 'Markdown' }
+    );
+    return;
+  }
+
+  if (command.startsWith('/borrarregla')) {
+    const idSuffix = command.split(' ')[1]?.trim();
+    if (!idSuffix) {
+      await bot.sendMessage(chatId, '⚠️ Indica el id de la regla. Usa /reglas para ver los ids.', { parse_mode: 'Markdown' });
+      return;
+    }
+    const rules = await Rule.find();
+    const rule = rules.find(r => String(r._id).endsWith(idSuffix));
+    if (!rule) {
+      await bot.sendMessage(chatId, `⚠️ No encontré ninguna regla con id \`${idSuffix}\`.`, { parse_mode: 'Markdown' });
+      return;
+    }
+    await Rule.findByIdAndDelete(rule._id);
+    await bot.sendMessage(chatId, `✅ Regla eliminada: _"${rule.description}"_`, { parse_mode: 'Markdown' });
+    return;
+  }
+
+  if (command === '/recordatorios') {
+    if (activeReminders.length === 0) {
+      await bot.sendMessage(chatId, '⏰ No hay recordatorios activos.');
+      return;
+    }
+    const now = Date.now();
+    let text = `⏰ *Recordatorios activos (${activeReminders.length}):*\n\n`;
+    activeReminders.forEach(r => {
+      const mins = Math.round((r.firesAt.getTime() - now) / 60_000);
+      const label = mins < 60
+        ? `en ${mins} min`
+        : `en ${Math.round(mins / 60 * 10) / 10}h`;
+      text += `#${r.id} (${label}) — "${r.text}"\n`;
+    });
+    text += `\nPara cancelar: /cancelarrecordatorio [id]`;
+    await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+    return;
+  }
+
+  if (command.startsWith('/cancelarrecordatorio')) {
+    const idStr = command.split(' ')[1];
+    const id = parseInt(idStr ?? '', 10);
+    const idx = activeReminders.findIndex(r => r.id === id);
+    if (idx === -1) {
+      await bot.sendMessage(chatId, `⚠️ No existe el recordatorio #${id}.`);
+    } else {
+      clearTimeout(activeReminders[idx].timer);
+      activeReminders.splice(idx, 1);
+      await bot.sendMessage(chatId, `✅ Recordatorio #${id} cancelado.`);
+    }
+    return;
+  }
+
   if (command.startsWith('/personalidad')) {
     const arg = command.split(' ').slice(1).join(' ').toLowerCase().trim();
 
@@ -575,7 +722,28 @@ export function startTelegramBot(): void {
     catch (err) { await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`); }
   });
 
-  bot.onText(/^\/(briefing|tiempo|proyectos|tareas|agenda|tracker|comentarios|servicio|limites)$/, async (msg, match) => {
+  bot.onText(/^\/(regla\s+.+)$/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(chatId)) return;
+    try { await handleCommand(chatId, `/${match![1]}`); }
+    catch (err) { await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`); }
+  });
+
+  bot.onText(/^\/(borrarregla(?:\s+\w+)?)$/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(chatId)) return;
+    try { await handleCommand(chatId, `/${match![1]}`); }
+    catch (err) { await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`); }
+  });
+
+  bot.onText(/^\/(cancelarrecordatorio(?:\s+\d+)?)$/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(chatId)) return;
+    try { await handleCommand(chatId, `/${match![1]}`); }
+    catch (err) { await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`); }
+  });
+
+  bot.onText(/^\/(briefing|tiempo|proyectos|tareas|agenda|tracker|comentarios|servicio|limites|recordatorios|reglas)$/, async (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return;
     try {
@@ -663,6 +831,16 @@ export function startTelegramBot(): void {
         await bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
         await sendVoiceReply(chatId, `Corregido. Recordaré que ${correctedFact}.`);
         return;
+      }
+
+      // Recordatorios: "recuérdame en X [que] mensaje"
+      if (/^(?:bako[,.]?\s*)?recu[eé]rdame?\s+en\s+/i.test(text)) {
+        const reply = await scheduleReminder(chatId, text);
+        if (reply) {
+          await bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
+          await sendVoiceReply(chatId, reply.replace(/[✅⏰*#]/g, '').trim());
+          return;
+        }
       }
 
       // Cambio de personalidad en lenguaje natural

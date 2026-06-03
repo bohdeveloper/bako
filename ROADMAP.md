@@ -165,16 +165,16 @@ Un mayordomo recuerda todo. BAKO olvida cada conversación al terminar.
 - ✅ Privacidad respetada: sin extracción en mensajes sensibles o `/privado`
 - ✅ Script `seed-memory.ts` con 19 memorias iniciales sobre Borja (vida, proyectos, rutina, metas)
 
-### Gap 2 — Ejecución de acciones ⚡ ✅ COMPLETADO (v1)
+### Gap 2 — Ejecución de acciones ⚡ ✅ COMPLETADO (v2)
 BAKO lee pero no actúa. Necesita poder ejecutar órdenes.
 
 - ✅ **Notion**: crear tareas, cambiar estado, asignar fecha límite
 - ✅ **Google Calendar**: crear eventos con hora, descripción, ubicación
-- ❌ **GitHub**: crear issues, añadir comentarios (pendiente)
-- ❌ **Recordatorios**: "Bako, recuérdame esto en 2 horas" (pendiente)
-- Confirmación antes de ejecutar acciones irreversibles
+- ✅ **GitHub**: crear issues por voz/texto ("crea un issue en diamadmin")
+- ✅ **Recordatorios**: "recuérdame en X minutos/horas [qué]" — setTimeout + voz al disparar · `/recordatorios` · `/cancelarrecordatorio [id]`
+- ⚠️ Confirmación antes de ejecutar acciones irreversibles (confía en el LLM para interpretar intención)
 
-### Gap 3 — Proactividad y alertas 📡 ✅ COMPLETADO (v1)
+### Gap 3 — Proactividad y alertas 📡 ✅ COMPLETADO (v2)
 BAKO solo habla cuando le hablas. Necesita iniciativa propia.
 
 - ✅ Briefing automático a las 05:45 (L-V, cron en Render)
@@ -184,7 +184,7 @@ BAKO solo habla cuando le hablas. Necesita iniciativa propia.
   - "Llevas X días sin commits en Diamadmin — ¿bloqueado?"
   - "Tienes N PRs sin actividad desde hace 2+ días"
   - "Mañana tienes reunión a las 9 — ¿quieres el briefing antes?"
-- ❌ Motor de reglas configurables por Borja (pendiente)
+- ✅ Motor de reglas configurables: `/regla [condición]` · `/reglas` · `/borrarregla [id]` — evaluadas por LLM cada día a las 08:30
 
 ### Gap 4 — Acceso sin fricción 🎤 ⚠️ EN PROGRESO
 Reducir al mínimo los pasos para hablar con BAKO.

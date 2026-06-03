@@ -10,6 +10,7 @@
 
 import { createNotionTask, updateNotionTaskStatus, findNotionTaskByName } from './notion';
 import { createCalendarEvent } from './calendar';
+import { createGitHubIssue } from './github';
 import { askClaude } from '../llm/claude';
 import { nowInSpain } from './cloudflare';
 
@@ -121,11 +122,44 @@ Si no se especifica duración, el evento dura 1 hora. Usa horario de España (Eu
   return lines.join('\n');
 }
 
+// ─── GITHUB: Crear issue ─────────────────────────────────────────────────────
+
+async function executeCreateGitHubIssue(text: string): Promise<string> {
+  const repos = (process.env.GITHUB_USERNAME
+    ? (process.env.PROACTIVITY_REPOS ?? 'diamadmin,unyona,ai-personal-os')
+    : 'diamadmin,unyona,ai-personal-os'
+  ).split(',').map(r => r.trim());
+
+  const raw = await askClaude(text, {
+    systemPrompt: `Extrae los datos de esta petición de creación de issue en GitHub.
+Repositorios disponibles: ${repos.join(', ')}
+
+Responde SOLO con JSON válido:
+{"repo":"nombre exacto del repo","titulo":"...","descripcion":"... o null"}
+
+Si el repo no se menciona explícitamente, elige el más probable según el contexto.`,
+    maxTokens: 200,
+    useCloud: true,
+  });
+
+  const match = raw.match(/\{[\s\S]*?\}/);
+  if (!match) throw new Error('No pude interpretar los datos del issue.');
+
+  const p = JSON.parse(match[0]);
+  if (!p.repo || !p.titulo) throw new Error('Faltan datos del issue (repo o título).');
+
+  const issue = await createGitHubIssue(p.repo, p.titulo, p.descripcion !== 'null' ? p.descripcion : undefined);
+
+  return `🐛 Issue #${issue.number} creado en *${p.repo}*: "${issue.title}"\n🔗 ${issue.url}`;
+}
+
 // ─── DETECTOR PRINCIPAL ──────────────────────────────────────────────────────
 
 const NOTION_TASK_CREATE = /crea[r]?\s+(una?\s+)?tarea|añade?\s+(una?\s+)?tarea|nueva\s+tarea|agrega[r]?\s+(una?\s+)?tarea/i;
 
 const CALENDAR_CREATE = /crea[r]?\s+(un[ao]?\s+)?evento|añade?\s+(un[ao]?\s+)?evento|nuevo\s+evento|agenda[r]?\s+(una?\s+)?(reuni[oó]n|cita|evento)|programa[r]?\s+(una?\s+)?(reuni[oó]n|cita)|bloquea[r]?\s+(tiempo|horas?)\s+en/i;
+
+const GITHUB_ISSUE_CREATE = /crea[r]?\s+(un[ao]?\s+)?issue|abre?\s+(un[ao]?\s+)?issue|nuevo\s+issue|reporta[r]?\s+(un[ao]?\s+)?(bug|error|problema|issue)/i;
 
 const NOTION_TASK_UPDATE = /marca[r]?\s+.+\s+(?:como\s+)?(?:completada?|hecha?|lista?|done|terminada?|en\s+progreso|empezada?)/i;
 const TRACKER_KEYWORDS   = /tracker|kronoshin|actividad\s+del\s+d[ií]a/i;
@@ -144,6 +178,11 @@ export async function tryExecuteAction(userText: string): Promise<ExecutionResul
 
     if (CALENDAR_CREATE.test(userText)) {
       const text = await executeCreateCalendarEvent(userText);
+      return { text, voice: stripMarkdown(text) };
+    }
+
+    if (GITHUB_ISSUE_CREATE.test(userText)) {
+      const text = await executeCreateGitHubIssue(userText);
       return { text, voice: stripMarkdown(text) };
     }
 
