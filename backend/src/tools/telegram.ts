@@ -1115,13 +1115,10 @@ export function startTelegramBot(): void {
       else autoShiftMood();
     } catch (err) {
       console.error('❌ Voice handler error:', (err as Error).message);
-      if (is429(err)) {
-        await bot.sendMessage(chatId, MSG_429, { parse_mode: 'Markdown' });
-      } else if (is413(err)) {
-        await bot.sendMessage(chatId, MSG_413, { parse_mode: 'Markdown' });
-      } else {
-        await bot.sendMessage(chatId, `❌ No pude procesar el audio.\n_${(err as Error).message}_`, { parse_mode: 'Markdown' });
-      }
+      const msg = is429(err) ? MSG_429
+                : is413(err) ? MSG_413
+                : `❌ No pude procesar el audio. ${(err as Error).message ?? 'Error desconocido'}`;
+      try { await bot.sendMessage(chatId, msg, { parse_mode: 'Markdown' }); } catch { /* red no disponible */ }
     }
   });
 
@@ -1364,13 +1361,10 @@ export function startTelegramBot(): void {
       else autoShiftMood();
     } catch (err) {
       console.error('❌ Message handler error:', (err as Error).message);
-      if (is429(err)) {
-        await bot.sendMessage(chatId, MSG_429, { parse_mode: 'Markdown' });
-      } else if (is413(err)) {
-        await bot.sendMessage(chatId, MSG_413, { parse_mode: 'Markdown' });
-      } else {
-        await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`);
-      }
+      const msg = is429(err) ? MSG_429
+                : is413(err) ? MSG_413
+                : `❌ Error: ${(err as Error).message ?? 'Error desconocido'}`;
+      try { await bot.sendMessage(chatId, msg); } catch { /* red no disponible */ }
     }
   });
 
