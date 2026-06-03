@@ -315,7 +315,8 @@ function cleanForVoice(text: string): string {
     .replace(/#{1,6}\s+/g, '')                    // # headers
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')      // [link](url) → link
     .replace(/https?:\/\/\S+/g, '')               // URLs sueltas
-    .replace(/[_~|>]/g, '')                       // otros chars markdown
+    .replace(/[_~|>`]/g, '')                      // otros chars markdown sueltos
+    .replace(/\*/g, '')                            // asteriscos sueltos que queden (catch-all)
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
