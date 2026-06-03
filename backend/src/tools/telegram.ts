@@ -158,14 +158,14 @@ async function downloadFile(fileId: string): Promise<Buffer> {
 // Vocabulario propio inyectado en Whisper para mejorar reconocimiento de nombres.
 // Incluye proyectos, lugares, personas, hobbies y stack técnico de Borja.
 const WHISPER_PROMPT = [
-  // Proyectos personales
-  'BAKO, Unyona, Diamadmin, Nitflex, Kronoshin, bohdeveloper',
+  // Proyectos personales (todos son proyectos propios de Borja, NO de Inetum)
+  'BAKO, Unyona, Diamadmin, Nitflex, bohdeveloper',
   // Trabajo
   'Inetum',
   // Localización — actual y futura (Galicia)
   'Errentería, Donostia, Gipuzkoa, Euskadi, País Vasco, Galicia, Pontevedra, Caldas de Reis, Arramendi',
-  // Hobbies y vida diaria
-  'Shaolin, Running, BIZIKI, Estoicismo, Meditación, Insight Timer, Marcus Aurelius',
+  // Hobbies, rutina y vida diaria
+  'Shaolin, Kronoshin, Running, BIZIKI, Estoicismo, Meditación, Insight Timer, Marcus Aurelius',
   // Stack técnico
   'Cloudflare, MongoDB, PostgreSQL, TypeScript, React, Angular, Next.js, Spring Boot, Node.js',
   'GitHub, Notion, Telegram, Render, Groq, Ollama, Whisper, AlvaroNeural, Tailwind, Docker, Wrangler',

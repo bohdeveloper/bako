@@ -1,9 +1,10 @@
 {
   "identidad": {
     "nombre": "Borja",
-    "edad": 37,
+    "edad": 34,
     "ubicacion": "Errentería, Gipuzkoa, País Vasco, España",
     "empleador": "Inetum",
+    "situacion_laboral": "En el centro de empleabilidad de Inetum — sin proyecto asignado. A la espera de entrar en un equipo o buscando nuevo empleo.",
     "oficina": "Donostia-San Sebastián"
   },
 

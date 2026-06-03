@@ -94,17 +94,49 @@ Proceso para importar XMLs de roles, proyectos e información personal a la memo
 | XML | Contenido | Estado |
 |---|---|---|
 | `prompt_MASTER` | Contexto universal: identidad, stack completo, proyectos, reglas de desarrollo, filosofía | ✅ Asimilado (10 memorias) |
-| `prompt_app_kefir` | Pendiente de revisar | ⏳ Pendiente |
-| `prompt_automatizar_IA` | Pendiente de revisar | ⏳ Pendiente |
-| `prompt_busqueda_empleo` | Pendiente de revisar | ⏳ Pendiente |
-| `prompt_desarrollar_ia` | Pendiente de revisar | ⏳ Pendiente |
-| `prompt_desarrollar_ju...` | Pendiente de revisar | ⏳ Pendiente |
-| `prompt_estilo_vida` | Pendiente de revisar | ⏳ Pendiente |
-| `prompt_ingresos_pasivos` | Pendiente de revisar | ⏳ Pendiente |
-| `prompt_operacion_galicia` | Pendiente de revisar | ⏳ Pendiente |
+| `prompt_app_kefir` | Proyecto kefir artesanal en Galicia (largo plazo), modelo negocio, legal, stack | ✅ Asimilado |
+| `prompt_automatizar_IA` | Arquitectura BAKO completa: 7 agentes, n8n, RAG, 4 fases 18 meses | ✅ Asimilado |
+| `prompt_busqueda_empleo` | Perfil mercado laboral, preferencias, criterios evaluación ofertas | ✅ Asimilado |
+| `prompt_desarrollar_ia` | Ruta ML/DL completa, stack, recursos, hardware robótica | ✅ Asimilado |
+| `prompt_desarrollar_ju...` | Matrix Game open-world UE5: visión, stack, timeline, skills necesarias | ✅ Asimilado |
+| `prompt_estilo_vida` | Rutina semanal completa, estoicismo-shaolin, horario desde tracker | ✅ Asimilado |
+| `prompt_ingresos_pasivos` | Estrategia ingresos pasivos, criterios, validación, plataformas | ✅ Asimilado |
+| `prompt_operacion_galicia` | Mudanza Galicia, vivienda, Yaimy, laboral, proceso judicial | ✅ Asimilado |
 | `prompt_piloto_drones` | Pendiente de revisar | ⏳ Pendiente |
 
 **Cómo continuar:** Abrir Claude Code, decir "vamos a continuar con los XMLs" y pegar el siguiente. Claude tiene el contexto completo del proceso.
+
+> Progreso: 9/10 completados
+
+---
+
+## Conocimiento Personal Profundo de Borja
+
+BAKO debe conocer a su señor como lo haría un mayordomo de toda la vida — no solo su stack técnico, sino quién es como persona.
+
+**Fuentes de conocimiento:**
+- Sesiones de preguntas con Claude Code → memorias importadas en MongoDB
+- XMLs de contexto personal asimilados
+- Conversaciones diarias que BAKO extrae y recuerda automáticamente
+
+**Categorías a cubrir:**
+
+| Categoría | Estado |
+|---|---|
+| Datos básicos (edad, cumpleaños, ubicación) | ✅ En profile.ts |
+| Situación laboral actual | ✅ Actualizado |
+| Proyectos personales vs profesional | ✅ Aclarado |
+| Rutina diaria y entrenamiento | ✅ En profile.ts |
+| Familia y relaciones personales | ✅ Memorizado |
+| Gustos y preferencias (comida, música, ocio) | ✅ Memorizado |
+| Historia personal y momentos clave | ✅ Memorizado |
+| Miedos, motivaciones y valores | ✅ Memorizado |
+| Salud y bienestar | ✅ Memorizado |
+| Objetivos vitales más allá de BAKO | ✅ Memorizado |
+| Finanzas y situación económica | ✅ Memorizado |
+| Carácter: cómo se describe Borja a sí mismo | ✅ Memorizado |
+
+**Cómo continuar:** Abrir Claude Code y decir "quiero que BAKO me conozca mejor — hazme preguntas personales". Claude hace las preguntas, Borja responde, se importan como memorias.
 
 ---
 
@@ -163,6 +195,12 @@ Reducir al mínimo los pasos para hablar con BAKO.
   - `sinceridad` (0-10): cuánto te dice las verdades incómodas sin filtros
   - `sarcasmo` (0-10): ironía y humor seco al estilo Alfred/Jarvis
   - `simpatía` (0-10): calidez y empatía en las respuestas
+  - `empatía` (0-10): reconoce el estado emocional del señor y adapta el tono
+  - `discreción` (0-10): nivel de cautela con información sensible o privada
+  - `lealtad` (0-10): prioriza siempre los intereses del señor, sin neutralidad artificial
+  - `precisión` (0-10): exactitud y detalle técnico en las respuestas, sin ambigüedad
+  - `detallista` (0-10): nivel de profundidad y completitud en cada respuesta
+  - `anticipación` (0-10): proactividad para prever necesidades antes de que se expresen
   - Presets: `mayordomo clásico` / `colega directo` / `modo Jarvis`
   - Configurable vía `/personalidad <preset>` o desde el futuro panel admin
 
@@ -217,7 +255,17 @@ El perfil deja de ser un archivo que editas a mano.
 
 *Stack:* Next.js (ya existe en bohdeveloper) + API REST de BAKO + MongoDB + autenticación existente
 
-### Fase 8 — Wake Word
+### Fase 8 — Automatización n8n
+- **n8n self-hosted** como capa de automatización externa (Railway/VPS)
+- Bridge n8n ↔ BAKO backend vía webhooks propios
+- Workflows pendientes de implementar:
+  - ❌ **PR Review automático** — cada push en GitHub → Dev Agent analiza el diff → comentario estructurado como senior dev
+  - ❌ **Tech Radar semanal** (lunes 09:00) — RSS feeds JS Weekly, Node Weekly, AI newsletters → Research Agent filtra → 5 novedades relevantes para el stack de Borja
+  - ✅ Morning Briefing (05:45) — ya implementado en ProactivityService
+  - ✅ Weekly Summary (viernes 18:00) — ya implementado
+  - ✅ Alerta Tracker vacío (22:00) — ya implementado
+
+### Fase 9 — Wake Word
 - **OpenWakeWord** — escucha el micrófono en background, sin internet
 - Dices "Bako" → detecta → ejecuta briefing → responde por voz
 - Sin tocar el teclado, sin abrir el móvil
@@ -230,6 +278,27 @@ El perfil deja de ser un archivo que editas a mano.
 
 ---
 
+## Ruta de Aprendizaje IA/ML
+### Prerequisito para HORIZONTE 2+. Punto de partida: IA/ML nivel cero. Base fullstack sólida.
+
+| Fase | Contenido | Duración | Recursos clave |
+|---|---|---|---|
+| **A — Fundamentos** | Álgebra lineal, cálculo, probabilidad + Python científico (NumPy, Pandas, Matplotlib) | Meses 1-3 | 3Blue1Brown (YouTube), Andrew Ng ML Coursera (audit gratis), StatQuest, Kaggle micro-courses |
+| **B — ML clásico + NN básicas** | scikit-learn, regresión/clasificación, primera red Keras en MNIST | Meses 3-6 | Andrew Ng ML Specialization, Hands-On ML with Scikit-Learn book (caps. 1-4) |
+| **C — Deep Learning + NLP** | CNN, Transformers, fine-tune BERT, chatbot intent-based corriendo en Pi | Meses 6-18 | FastAI (top-down), Hugging Face NLP Course (gratuito), Stanford CS224N (vídeos) |
+| **D — Visión + Robótica** | OpenCV, YOLOv8, SLAM, ROS2, sim-to-real con Gazebo | Meses 18-48 | Ultralytics docs, Stanford CS231N, ROS2 docs oficiales |
+
+**Hitos concretos:**
+- Mes 6: modelo ML clásico entrenado + primera red neuronal funcionando (MNIST)
+- Mes 14: chatbot conversacional corriendo en Raspberry Pi — MVP1 IA local
+- Mes 24: detector YOLOv8 custom + reconocimiento facial en tiempo real en Pi
+- Mes 36: navegación autónoma completa sin teleoperación
+- Mes 48+: sistema JARVIS-like integrado — conversación + visión + autonomía
+
+**Presupuesto aprendizaje:** 0-150€ (GPU cloud: Google Colab Pro o Lambda Labs para entrenamientos DL pesados)
+
+---
+
 ## HORIZONTE 2 — BAKO inteligente
 ### Objetivo: BAKO aprende de ti y actúa sin instrucciones. ~1-2 años.
 
@@ -239,13 +308,21 @@ El perfil deja de ser un archivo que editas a mano.
 - Adapta el briefing según tu energía histórica por día de la semana
 
 ### Fase 11 — Orquestación multi-agente
-Agentes especializados trabajando en paralelo:
-- **DevAgent** — revisa PRs, sugiere refactors, detecta bugs en commits
-- **PMAgent** — gestiona sprints de Diamadmin y Unyona
-- **ContentAgent** — genera posts, copy, docs para tus proyectos
-- **ResearchAgent** — investiga tecnologías y sintetiza en 5 bullets
-- **LearningAgent** — tutor personal de IA/ML, sigue tu roadmap de aprendizaje
-- **IdeasAgent** — valida features nuevas para Unyona y Diamadmin
+Agentes especializados trabajando en paralelo. Patrón ReAct (Reason + Act) — cada agente piensa antes de actuar e itera si falla:
+
+| Agente | Rol | Herramientas clave |
+|---|---|---|
+| **Dev Agent** | Analiza código, genera componentes, revisa PRs, detecta bugs, genera tests | github_read/write, code_analyzer, code_generator, file_read |
+| **PM Agent** | Gestiona sprints de Diamadmin y Unyona, prioriza tareas, detecta deuda técnica | github_read, notion_read/write, code_analyzer |
+| **Research Agent** | Investiga tecnologías, compara librerías, sintetiza docs y papers | web_search, web_fetch, scraper, rss_reader, doc_summarizer |
+| **Learning Agent** | Tutor personal de IA/ML, guía fases del proyecto JARVIS, genera ejercicios | web_search, web_fetch, code_analyzer, file_read |
+| **Content Agent** | Genera posts para bohdeveloper, copy para landings, READMEs, SEO | web_search, file_read/write, scraper |
+| **Ops Agent** | Monitoriza deployments Cloudflare/Vercel, analiza logs, audita seguridad | cloudflare_api, vercel_api, web_fetch, custom_webhook |
+| **Ideas Agent** | Valida ideas de micro-SaaS, analiza competencia, estima esfuerzo de features | web_search, scraper, web_fetch |
+
+- Agente orquestador: divide tarea compleja entre sub-agentes en paralelo
+- Verificador: agente que valida outputs de otros agentes antes de ejecutar
+- Patrón propio (sin dependencias externas de CrewAI u otras librerías)
 
 ### Fase 12 — Fine-tuning con tus datos
 - Entrenar un modelo pequeño (Llama 3.2 3B o Mistral 7B) con:
@@ -260,9 +337,14 @@ Agentes especializados trabajando en paralelo:
 ### Objetivo: BAKO es único, no un wrapper de otro modelo. ~2-3 años.
 
 ### Fase 13 — Visión computacional
-- Cámara conectada → BAKO ve lo que tienes en pantalla
+- Cámara conectada → BAKO ve lo que tienes en pantalla y el entorno físico
 - "BAKO, revisa este código" → captura pantalla → analiza → responde
-- Reconocimiento de documentos físicos (facturas, notas)
+- Reconocimiento de documentos físicos (facturas, notas manuscritas)
+- Detección de objetos en tiempo real: **YOLOv8** (Ultralytics) fine-tuneado para objetos del hogar/oficina
+- Reconocimiento facial y de emociones básicas: **MediaPipe** (Google) + FaceNet embeddings
+- SLAM visual (ORB-SLAM2): construcción de mapa del entorno para navegación robótica
+- Fusión de sensores: cámara + ultrasónico + IMU con filtro de Kalman
+- *Stack:* OpenCV · YOLOv8 · MediaPipe · ROS2
 
 ### Fase 14 — BAKO en todos tus dispositivos
 - App móvil nativa (React Native) → BAKO siempre en el bolsillo
@@ -281,21 +363,27 @@ Agentes especializados trabajando en paralelo:
 ### Objetivo: BAKO tiene cuerpo. ~3-5 años.
 
 ### Fase 16 — Plataforma robótica básica
-- Raspberry Pi 4/5 como cerebro central
-- Arduino para control de motores y sensores
-- Movimiento básico: seguimiento de persona, navegación de habitación
-- Presupuesto incremental: ~500€ de hardware
+- Raspberry Pi 4/5 (8GB) como cerebro central + Arduino para control de motores
+- Chasis wheeled base (~500€) con encoders + controladores motor
+- Prototipado CAD + impresión 3D para piezas custom (Fusion 360 / Cura)
+- Movimiento básico: seguimiento de persona, navegación de habitación con control remoto
+- *Hardware:* Pi 4/5 8GB (~100€) · wheeled base (~300-400€) · Arduino + sensores (~100€)
 
 ### Fase 17 — Percepción del entorno
-- Cámara estéreo → profundidad y reconocimiento de objetos
-- Micrófono de campo amplio → escucha sin necesidad de wake word
-- Sensores de proximidad y temperatura
+- Cámara Pi estéreo → profundidad y detección de objetos en tiempo real
+- Micrófono de campo amplio → wake word sin tocar el móvil
+- Sensores: ultrasónico (distancia), IMU (orientación), LiDAR básico (opcional)
+- Fusión sensores: filtro de Kalman para estimación de posición robusta
+- *Hardware adicional:* cámara Pi (~25-50€) · sensores (~100-150€) · LiDAR (~150€)
 
 ### Fase 18 — Autonomía completa
-- BAKO toma decisiones sin instrucción directa
-- Integra ROS (Robot Operating System) para navegación
-- Aprendizaje por refuerzo: mejora con cada interacción
+- **ROS2 + nav2**: stack de navegación estándar industria — planificación de rutas, obstacle avoidance
+- **Gazebo**: simulador 3D para entrenar comportamientos antes de transferir al robot real (sim-to-real)
+- **Stable-Baselines3**: algoritmos RL (PPO, SAC) para aprendizaje de tareas motoras
+- **Jetson Nano/Orin** (~200-500€): GPU edge para inference en tiempo real sin depender de cloud
+- BAKO toma decisiones sin instrucción directa — navega, percibe, responde, aprende
 - Sincronización con todos los sistemas digitales en tiempo real
+- *Presupuesto fase robótica completa:* 1.500-3.000€ incremental
 
 ---
 
@@ -343,8 +431,12 @@ Agentes especializados trabajando en paralelo:
 | Wake word | — | OpenWakeWord |
 | Móvil | Telegram Bot | App React Native |
 | Frontend | — | Next.js dashboard |
-| Visión | — | OpenCV + YOLO |
-| Robótica | — | Raspberry Pi + ROS |
+| Visión | — | OpenCV + YOLOv8 + MediaPipe |
+| Robótica | — | ROS2 + nav2 + Gazebo (sim-to-real) |
+| Edge compute | — | Raspberry Pi 4/5 8GB → Jetson Nano/Orin |
+| RL robótica | — | Stable-Baselines3 + OpenAI Gym |
+| Automatización | ProactivityService (cron) | n8n self-hosted + webhooks |
+| Cache/colas | — | Redis (Upstash) |
 | Infra | Render (free) | Render + Raspberry Pi hub |
 
 **Coste infraestructura digital: $0/mes**
