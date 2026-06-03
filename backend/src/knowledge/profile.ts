@@ -5,7 +5,7 @@ export const BAKO_PROFILE = {
     cumpleanos: "12 de julio (cumple 35 el 12 de julio de 2026)",
     ubicacion: "Errentería, Gipuzkoa, País Vasco, España",
     empleador: "Inetum",
-    situacion_laboral: "En el centro de empleabilidad de Inetum — sin proyecto asignado actualmente. Inetum ya fue informado de la intención de mudarse a Galicia y están buscando un equipo allí. A la espera de asignación en Galicia. Si no hay equipo disponible, buscará nuevo empleo. NO está trabajando en ningún proyecto de Inetum.",
+    situacion_laboral: "En el centro de empleabilidad de Inetum — sin proyecto asignado. En búsqueda activa de empleo. LAE es la empresa donde trabaja su pareja Yaimy, NO la empresa de Borja.",
     oficina: "Donostia-San Sebastián",
   },
 
@@ -94,6 +94,18 @@ export const BAKO_PROFILE = {
       ventaja: "Borja es productor Y desarrollador — coste tech cero, cultivo propio, margen alto",
       estado: "Idea definida — pendiente de asentarse en Galicia para arrancar",
     },
+  },
+
+  pareja: {
+    nombre: "Yaimy",
+    origen: "Cubana",
+    edad: 36,
+    cumpleanos: "2 de enero",
+    vive: "Errentería (con Borja)",
+    trabaja: "LAE — empresa en Galicia (NO es el empleador de Borja)",
+    aniversario: "9 de junio — 2 años en 2026",
+    plan: "Mudarse juntos a Galicia a finales de 2026. La mudanza es un proyecto de vida conjunto motivado por el trabajo de Yaimy en LAE.",
+    familia: "Padres cubanos (Sofi y Osvaldo) viven en Lezo. Yosiel (cuñado colombiano) vive en Lezo.",
   },
 
   vida_personal: {
