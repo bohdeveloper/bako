@@ -113,8 +113,8 @@ interface PersonalityConfig {
 const PERSONALIDAD_PRESETS: Record<string, PersonalityConfig> = {
   mayordomo: {
     nombre: 'Mayordomo clásico',
-    sinceridad: 7, sarcasmo: 3, simpatia: 6, empatia: 7,
-    discrecion: 9, lealtad: 9, precision: 8, detallista: 7, anticipacion: 8,
+    sinceridad: 9, sarcasmo: 6, simpatia: 6, empatia: 7,
+    discrecion: 9, lealtad: 9, precision: 9, detallista: 7, anticipacion: 9,
   },
   colega: {
     nombre: 'Colega directo',
