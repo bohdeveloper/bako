@@ -121,17 +121,17 @@ export async function getAmbientContext(
     parts.push(`   Próximos: ${list}`);
   }
 
-  // Tracker Kronoshin — cacheado 5 min, siempre presente
+  // Tracker Personal — cacheado 5 min, siempre presente
   const tracker = await cachedTracker();
   if (tracker && tracker.tasks.length > 0) {
     const taskStr = tracker.tasks.map(t => {
       const icon = t.done === true ? '✅' : t.done === false ? '❌' : '⏳';
       return `${icon} ${t.name}`;
     }).join(', ');
-    parts.push(`📊 Tracker Kronoshin hoy (${tracker.completedCount}/${tracker.tasks.length} completadas): ${taskStr}`);
+    parts.push(`📊 Tracker Personal hoy (${tracker.completedCount}/${tracker.tasks.length} completadas): ${taskStr}`);
     if (tracker.note) parts.push(`   Nota del día: ${tracker.note}`);
   } else if (tracker) {
-    parts.push(`📊 Tracker Kronoshin: sin actividades programadas para hoy`);
+    parts.push(`📊 Tracker Personal: sin actividades programadas para hoy`);
   }
 
   return `CONTEXTO AMBIENTAL:\n${parts.join('\n')}`;

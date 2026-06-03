@@ -46,14 +46,14 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | Selector de privacidad — `/privado` + detección automática | ✅ |
 | Cloudflare D1 — Tracker diario + Blog comments | ✅ |
 | Memoria dinámica — MongoDB Memory collection | ✅ |
-| 40 memorias personales verificadas en Atlas (familia, amigos, salud, carácter, objetivos…) | ✅ |
+| Memoria Atlas — 101 registros verificados (10 XMLs + conocimiento personal, nunca borrar) | ✅ |
 | Ejecución — crear tareas Notion + eventos Calendar | ✅ |
 | Proactividad — cron briefing 05:45, alertas 08:30, resumen semanal viernes | ✅ |
 | Tracker Personal — siempre en contexto ambiental (sin keywords) | ✅ |
 | Historial de sesión — BAKO recuerda la conversación actual (30 min) | ✅ |
 | Ubicación: Inetum L-V 7-15h / Errentería resto / override manual "estoy en X" | ✅ |
 | Personalidad configurable — 10 parámetros (+ ironía) + 3 presets + estado de ánimo dinámico | ✅ |
-| Conocimiento profundo — XMLs pendientes de reimportar / 40 memorias personales activas | ⚠️ |
+| Conocimiento profundo — 101 memorias en Atlas (10/10 XMLs + conocimiento personal) | ✅ |
 | Selector de voz TTS — 6 voces ES/MX/AR via `/voz` | ✅ |
 | Perfil dinámico — `ProfileOverride` MongoDB, `/perfil`, detección NL de cambios | ✅ |
 | Tracker escritura NL — marcar actividades por voz ("completé el Kronoshin") | ✅ |
@@ -173,30 +173,29 @@ MEMORIA ──► EJECUCIÓN ──► PROACTIVIDAD
 - ✅ Endpoint `DELETE /api/agent/memories/:id` para gestión desde Claude Code
 - ✅ Comandos naturales: "Bako, recuerda que..." / "Bako, olvida..." / `/memorias [tema]`
 - ✅ Privacidad respetada: sin extracción en mensajes sensibles o `/privado`
-- ✅ 40 memorias personales verificadas en Atlas (familia, amigos, salud, carácter, objetivos…)
-- ⚠️ XMLs pendientes de reimportar (10 XMLs de contexto técnico/proyectos)
+- ✅ 101 memorias en Atlas (10/10 XMLs + conocimiento personal) — solo evolucionar, nunca borrar
 
 ### Gap 2 — Ejecución de acciones ⚡ ✅ Verificado
 BAKO lee pero no actúa. Necesita poder ejecutar órdenes.
 
-- ⏳ **Notion**: crear tareas, cambiar estado, asignar fecha límite
-- ⏳ **Google Calendar**: crear eventos con hora, descripción, ubicación
-- ⏳ **GitHub**: crear issues por voz/texto ("crea un issue en diamadmin sobre el bug del login")
-- ⏳ **Tracker**: marcar actividades por voz/texto ("completé el Kronoshin", "no pude ir a BIZIKI porque llovía")
-- ⏳ **Recordatorios**: "recuérdame en X minutos/horas [qué]" — setTimeout + voz al disparar · `/recordatorios` · `/cancelarrecordatorio [id]`
+- ✅ **Notion**: crear tareas, cambiar estado, asignar fecha límite
+- ✅ **Google Calendar**: crear eventos con hora, descripción, ubicación
+- ✅ **GitHub**: crear issues por voz/texto ("crea un issue en diamadmin sobre el bug del login")
+- ✅ **Tracker Personal**: marcar actividades por voz/texto ("completé el Kronoshin", "no pude ir a BIZIKI porque llovía")
+- ✅ **Recordatorios**: "recuérdame en X minutos/horas [qué]" — setTimeout + voz al disparar · `/recordatorios` · `/cancelarrecordatorio [id]`
 - ⚠️ Confirmación antes de ejecutar acciones irreversibles (confía en el LLM para interpretar intención)
 
 ### Gap 3 — Proactividad y alertas 📡 ✅ Verificado
 BAKO solo habla cuando le hablas. Necesita iniciativa propia.
 
-- ⏳ Briefing automático a las 05:45 (L-V, cron en Render)
-- ⏳ Resumen semanal automático los viernes a las 18:00
-- ⏳ Alerta Tracker vacío a las 22:00 (L-V)
-- ⏳ Alertas inteligentes a las 08:30 (L-V):
+- ✅ Briefing automático a las 05:45 (L-V, cron en Render)
+- ✅ Resumen semanal automático los viernes a las 18:00
+- ✅ Alerta Tracker vacío a las 22:00 (L-V)
+- ✅ Alertas inteligentes a las 08:30 (L-V):
   - "Llevas X días sin commits en Diamadmin — ¿bloqueado?"
   - "Tienes N PRs sin actividad desde hace 2+ días"
   - "Mañana tienes reunión a las 9 — ¿quieres el briefing antes?"
-- ⏳ Motor de reglas configurables: `/regla [condición]` · `/reglas` · `/borrarregla [id]` — evaluadas por LLM cada día a las 08:30
+- ✅ Motor de reglas configurables: `/regla [condición]` · `/reglas` · `/borrarregla [id]` — evaluadas por LLM cada día a las 08:30
 
 ### Gap 4 — Acceso sin fricción 🎤 ✅ Verificado
 Reducir al mínimo los pasos para hablar con BAKO.
@@ -208,15 +207,15 @@ Reducir al mínimo los pasos para hablar con BAKO.
   - "proyectos de Notion" / "tareas de diamadmin" → **Notion** (datos reales)
   - "cómo está el tiempo" → **Weather API** · "dame un briefing" → **Briefing Agent**
   - Ubicación, correcciones, modo LLM, personalidad, memoria: detección automática
-- ⏳ **Personalidad configurable** — 10 parámetros (0-10):
+- ✅ **Personalidad configurable** — 10 parámetros (0-10):
   - `sinceridad` · `sarcasmo` · `ironía` · `simpatía` · `empatía` · `discreción` · `lealtad` · `precisión` · `detallista` · `anticipación`
   - Presets: `mayordomo clásico` (default, sarcasmo=8 ironía=8) / `colega directo` / `modo Jarvis`
   - `/personalidad` · `/personalidad [preset]` · lenguaje natural: "modo Jarvis"
-- ⏳ **Estado de ánimo dinámico** — detectado del tono del mensaje, 6 estados:
+- ✅ **Estado de ánimo dinámico** — detectado del tono del mensaje, 6 estados:
   - `neutro` · `juguetón` · `directo` · `empático` · `impaciente` · `reflexivo`
   - Inyectado en el system prompt — BAKO adapta el tono automáticamente
   - `/animo [estado]` para cambio manual
-- ⏳ **Selector de voz** — 6 voces TTS disponibles vía `/voz [nombre]`:
+- ✅ **Selector de voz** — 6 voces TTS disponibles vía `/voz [nombre]`:
   - `alvaro` (ES, actual) · `elvira` (ES) · `jorge` (MX) · `dalia` (MX) · `tomas` (AR) · `elena` (AR)
 - ✅ Correcciones fonéticas Whisper: Paco→BAKO, Josiel→Yosiel, vocabulario de personas añadido
 - ✅ Sin asteriscos en voz (`cleanForVoice` elimina todo markdown antes del TTS)
