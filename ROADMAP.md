@@ -47,6 +47,7 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | Cloudflare D1 — Tracker diario + Blog comments | ✅ |
 | Memoria dinámica — MongoDB Memory collection | ✅ |
 | Memoria Atlas — 101 registros verificados (10 XMLs + conocimiento personal, nunca borrar) | ✅ |
+| Carga adaptativa — todas las personales siempre + técnicas por LLM (Ollama=5, Groq=20) | ✅ |
 | Ejecución — crear tareas Notion + eventos Calendar | ✅ |
 | Proactividad — cron briefing 05:45, alertas 08:30, resumen semanal viernes | ✅ |
 | Tracker Personal — siempre en contexto ambiental (sin keywords) | ✅ |
@@ -169,7 +170,9 @@ MEMORIA ──► EJECUCIÓN ──► PROACTIVIDAD
 
 - ✅ Colección `Memory` en MongoDB (schema: tipo, importancia, fuente, tags)
 - ✅ Extracción automática de hechos tras cada conversación (async, no bloquea)
-- ✅ **Cap 150 memorias sin filtro por importancia** — todas las memorias siempre visibles (fix 03/06/2026)
+- ✅ **Carga adaptativa por tipo y LLM** — todas las personales siempre (~44, limit 60) + técnicas según LLM: Ollama=5, Groq=20 (fix 03/06/2026)
+  - Antes: ratio 70/30 del total (Ollama=25 → 18 personal + 7 técnico) — datos personales podían quedar fuera
+  - Ahora: padre, familia, salud, historia… siempre en contexto independientemente del modo LLM
 - ✅ Endpoint `DELETE /api/agent/memories/:id` para gestión desde Claude Code
 - ✅ Comandos naturales: "Bako, recuerda que..." / "Bako, olvida..." / `/memorias [tema]`
 - ✅ Privacidad respetada: sin extracción en mensajes sensibles o `/privado`
