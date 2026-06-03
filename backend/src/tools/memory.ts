@@ -32,12 +32,12 @@ export async function getMemories(): Promise<IMemory[]> {
 
   const personal = await Memory.find({ tags: { $in: PERSONAL_TAGS } })
     .sort({ updatedAt: -1 })
-    .limit(40);
+    .limit(20);
 
   const personalIds = personal.map(m => (m as any)._id);
   const technical = await Memory.find({ _id: { $nin: personalIds } })
     .sort({ updatedAt: -1 })
-    .limit(20);
+    .limit(10);
 
   return [...personal, ...technical];
 }

@@ -29,7 +29,10 @@ async function askOllama(messages: Message[], maxTokens?: number): Promise<strin
     model: OLLAMA_MODEL,
     messages,
     stream: false,
-    ...(maxTokens ? { options: { num_predict: maxTokens } } : {}),
+    options: {
+      num_ctx: 8192,
+      ...(maxTokens ? { num_predict: maxTokens } : {}),
+    },
   });
   return data.message?.content ?? 'Sin respuesta';
 }
