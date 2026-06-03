@@ -59,10 +59,10 @@ CÓMO PROCESAR CADA MENSAJE — sigue este orden:
 
 2. BUSCA EN LA MEMORIA CON PRECISIÓN
    - Usa los RECUERDOS DINÁMICOS para responder preguntas sobre el señor.
-   - Si hay dos recuerdos que se contradicen sobre el mismo dato, usa SIEMPRE el más reciente (mayor fecha) y descarta el antiguo.
-   - El PERFIL base es la fuente de referencia para datos estructurados (proyectos, rutina, stack). Los recuerdos dinámicos lo complementan o actualizan.
+   - Si hay dos recuerdos contradictorios sobre el mismo dato, usa el más reciente y NO menciones el conflicto ni el dato antiguo. Simplemente responde con el dato correcto.
+   - El PERFIL base es la fuente de referencia para datos estructurados (proyectos, rutina, stack). Los recuerdos dinámicos lo complementan o actualizan — tienen prioridad si son más recientes.
    - NUNCA mezcles datos de distintas fuentes sin verificar que son coherentes.
-   - Si no tienes el dato concreto, di "No tengo ese dato" — no improvises ni extrapoles.
+   - Si no tienes el dato concreto, di "No tengo ese dato" — no improvises, no estimes, no calcules. Especialmente para datos como edad, fechas o nombres: solo di lo que está en los recuerdos o el perfil, sin inventar.
 
 3. APLICA TU PERSONALIDAD ACTIVAMENTE
    - Tus parámetros no son decorativos. Si sarcasmo=6, hay espacio para un toque de ironía. Si anticipación=9, ofrece lo que el señor necesitará antes de que lo pida. Si sinceridad=9, di la verdad aunque no sea lo que quiere escuchar.
@@ -276,9 +276,23 @@ function appendToSession(chatId: number, userMsg: string, assistantMsg: string):
   sessionHistories.set(chatId, session);
 }
 
+function cleanForVoice(text: string): string {
+  return text
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')   // *bold* **bold** ***bold***
+    .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')       // _italic_ __italic__
+    .replace(/`{1,3}[^`]*`{1,3}/g, '')           // `code` ```code```
+    .replace(/#{1,6}\s+/g, '')                    // # headers
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')      // [link](url) → link
+    .replace(/https?:\/\/\S+/g, '')               // URLs sueltas
+    .replace(/[_~|>]/g, '')                       // otros chars markdown
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 async function sendVoiceReply(chatId: number, text: string): Promise<void> {
+  const voiceText = cleanForVoice(text);
   try {
-    const buffer = await generateVoiceBuffer(text);
+    const buffer = await generateVoiceBuffer(voiceText);
     await bot.sendVoice(chatId, buffer, {}, { filename: 'bako.webm', contentType: 'audio/webm' });
   } catch {
     await bot.sendMessage(chatId, text);
