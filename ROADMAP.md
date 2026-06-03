@@ -202,13 +202,17 @@ Reducir al mínimo los pasos para hablar con BAKO.
 - ✅ Respuestas en menos de 2 segundos (Ollama local: ~1s · Groq: ~2-3s)
 - ❌ Wake word en PC — diferido a Horizonte 1 (requiere OpenWakeWord + setup local)
 
-### Gap 5 — Conocimiento vivo 📚
+### Gap 5 — Conocimiento vivo 📚 ✅ COMPLETADO (v1)
 El perfil deja de ser un archivo que editas a mano.
 
-- Las conversaciones alimentan el perfil automáticamente
-- `profile.ts` se convierte en base de datos dinámica
-- BAKO pregunta cuando necesita actualizar algo importante
-- Historial de cambios de vida: trabajo, ciudad, proyectos, rutina
+- ✅ `ProfileOverride` en MongoDB — campos clave del perfil actualizables sin tocar código
+- ✅ `buildDynamicProfileContext()` — fusiona perfil base con overrides, inyectado en cada system prompt con prioridad sobre el JSON estático
+- ✅ Lenguaje natural: "ya no trabajo en Inetum", "me he mudado a Galicia" → actualiza el perfil automáticamente
+- ✅ Comando `/perfil` — ver todos los campos con su valor actual y fecha de actualización
+- ✅ Comando `/perfil [campo] [valor]` — actualizar cualquier campo manualmente
+- ✅ Historial de cambios: `prevValue` almacenado en cada override
+- ✅ Alerta proactiva lunes 09:00 — avisa si algún campo lleva 90+ días sin actualizarse
+- ⚠️ Campos actualizables en v1: edad, ubicación, empleador, situación laboral, oficina. Proyectos y rutina siguen en `profile.ts` (v2 con panel admin)
 
 ---
 

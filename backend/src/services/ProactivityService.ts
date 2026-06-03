@@ -17,6 +17,7 @@ import { getNotionTasks } from '../tools/notion';
 import { sendSystemMessage } from '../tools/telegram';
 import { Rule } from '../memory/Rule';
 import { askClaude } from '../llm/claude';
+import { checkStaleFields } from '../tools/profileDynamic';
 
 const WATCHED_REPOS = (process.env.PROACTIVITY_REPOS ?? 'diamadmin,unyona,ai-personal-os')
   .split(',')
@@ -234,6 +235,22 @@ export function startProactivityService(): void {
       await sendSystemMessage(briefing, briefing);
     } catch (err) {
       console.error('❌ CRON Briefing:', (err as Error).message);
+    }
+  }, { timezone: tz });
+
+  // Lunes 09:00 — Verificación de perfil desactualizado (semanal)
+  cron.schedule('0 9 * * 1', async () => {
+    console.log('⏰ CRON: Verificación perfil dinámico (lunes 09:00)');
+    try {
+      const staleAlerts = await checkStaleFields(90);
+      for (const alert of staleAlerts) {
+        await sendSystemMessage(
+          `🔄 *Perfil posiblemente desactualizado:* ${alert}\nPuedes actualizar con \`/perfil\` o diciéndome el cambio directamente.`,
+          alert
+        );
+      }
+    } catch (err) {
+      console.error('❌ CRON Perfil staleness:', (err as Error).message);
     }
   }, { timezone: tz });
 

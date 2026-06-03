@@ -11,11 +11,12 @@ import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
 import { generateVoiceBuffer, setVoice, getCurrentVoiceKey, VOCES_DISPONIBLES } from './tts';
 import { BAKO_PROFILE } from '../knowledge/profile';
 import { saveMemory, getMemories, searchMemories, formatMemoriesForPrompt, forgetMemory, extractAndSaveMemories, getCurrentLocation } from './memory';
+import { buildDynamicProfileContext, updateProfileField, detectProfileUpdate, PROFILE_FIELDS } from './profileDynamic';
 import { Rule } from '../memory/Rule';
 import { tryExecuteAction } from './actions';
 import { getAmbientContext, invalidateCityWeatherCache } from './context';
 
-function buildSystemPrompt(extraContext = '', memoriesSection = ''): string {
+function buildSystemPrompt(extraContext = '', memoriesSection = '', dynamicProfileSection = ''): string {
   const now   = nowInSpain();
   const hora  = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
   const fecha = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -58,8 +59,9 @@ CONTEXTO ACTUAL:
 - Fecha y hora: ${fecha} — ${hora} (hora de España, Europe/Madrid)
 - Situación probable: ${situacion}
 ${extraContext}
-${memoriesSection ? `\nRECUERDOS DINÁMICOS (lo que sabes sobre el señor — fuente de verdad):\n${memoriesSection}\n` : ''}
-PERFIL BASE (estructura, proyectos, rutina):
+${dynamicProfileSection ? `\n${dynamicProfileSection}\n` : ''}
+${memoriesSection ? `RECUERDOS DINÁMICOS (lo que sabes sobre el señor — fuente de verdad):\n${memoriesSection}\n` : ''}
+PERFIL BASE (estructura, proyectos, rutina — los DATOS DE PERFIL ACTUALIZADOS tienen prioridad si hay conflicto):
 ${JSON.stringify(BAKO_PROFILE, null, 2)}`;
 }
 
@@ -70,6 +72,11 @@ async function getMemoriesSection(): Promise<string> {
   } catch {
     return '';
   }
+}
+
+async function getDynamicProfileSection(): Promise<string> {
+  try { return await buildDynamicProfileContext(); }
+  catch { return ''; }
 }
 
 const SENSITIVE_PATTERN = /inetum|contrato|nómina|sueldo|salario|password|contraseña|token|secret|credencial|dni|seguridad social|banco|cuenta corriente|tarjeta/i;
@@ -724,6 +731,53 @@ async function handleCommand(chatId: number, command: string): Promise<void> {
     return;
   }
 
+  if (command.startsWith('/perfil')) {
+    const arg = command.slice(7).trim(); // "/perfil campo valor"
+
+    if (!arg) {
+      // Mostrar campos actuales
+      const { ProfileOverride } = await import('../memory/ProfileOverride');
+      const overrides = await ProfileOverride.find();
+      const overrideMap = Object.fromEntries(overrides.map(o => [o.key, o]));
+      const { BAKO_PROFILE: profile } = await import('../knowledge/profile');
+
+      let text = `👤 *Perfil dinámico — campos actualizables:*\n\n`;
+      for (const [key, meta] of Object.entries(PROFILE_FIELDS)) {
+        const override = overrideMap[key];
+        const baseVal = meta.path.reduce((a: any, k) => a?.[k], profile as any) ?? '—';
+        if (override) {
+          const fecha = new Date(override.updatedAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+          text += `🔄 \`${key}\`\n   _${override.value}_ _(actualizado ${fecha})_\n`;
+        } else {
+          text += `📌 \`${key}\`\n   _${baseVal}_ _(perfil base)_\n`;
+        }
+      }
+      text += `\n_Para actualizar: /perfil [campo] [nuevo valor]_\n_Ejemplo: /perfil identidad.empleador NuevaEmpresa S.L._`;
+      await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+      return;
+    }
+
+    // /perfil campo valor
+    const spaceIdx = arg.indexOf(' ');
+    if (spaceIdx === -1) {
+      await bot.sendMessage(chatId, '⚠️ Formato: `/perfil [campo] [valor]`\nEjemplo: `/perfil identidad.empleador NuevaEmpresa`', { parse_mode: 'Markdown' });
+      return;
+    }
+    const key   = arg.slice(0, spaceIdx).trim();
+    const value = arg.slice(spaceIdx + 1).trim();
+    const result = await updateProfileField(key, value, 'manual');
+    if (result.ok) {
+      await bot.sendMessage(chatId,
+        `✅ *${result.label}* actualizado:\n_"${result.prev}"_ → _"${result.current}"_`,
+        { parse_mode: 'Markdown' }
+      );
+    } else {
+      const validKeys = Object.keys(PROFILE_FIELDS).map(k => `\`${k}\``).join(' · ');
+      await bot.sendMessage(chatId, `⚠️ Campo no reconocido. Campos disponibles:\n${validKeys}`, { parse_mode: 'Markdown' });
+    }
+    return;
+  }
+
   if (command.startsWith('/voz')) {
     const arg = command.split(' ')[1]?.toLowerCase().trim();
     if (arg) {
@@ -918,6 +972,13 @@ export function startTelegramBot(): void {
     catch (err) { await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`); }
   });
 
+  bot.onText(/^\/(perfil(?:\s+.+)?)$/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(chatId)) return;
+    try { await handleCommand(chatId, `/${match![1]}`); }
+    catch (err) { await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`); }
+  });
+
   bot.onText(/^\/(voz(?:\s+\w+)?)$/, async (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return;
@@ -1005,13 +1066,14 @@ export function startTelegramBot(): void {
       }
 
       const voiceLocation = await getCurrentLocation();
-      const [memoriesSection, ambientCtx] = await Promise.all([
+      const [memoriesSection, ambientCtx, dynProfile] = await Promise.all([
         getMemoriesSection(),
         getAmbientContext(voiceLocation),
+        getDynamicProfileSection(),
       ]);
       const voiceHistory = getSessionHistory(chatId);
       const response = await askClaude(transcription, await resolveLlmOptions({
-        systemPrompt: buildSystemPrompt(ambientCtx, memoriesSection),
+        systemPrompt: buildSystemPrompt(ambientCtx, memoriesSection, dynProfile),
         conversationHistory: voiceHistory,
       }));
       await sendVoiceReply(chatId, response);
@@ -1073,6 +1135,18 @@ export function startTelegramBot(): void {
       if (intentCommand) {
         await handleCommand(chatId, intentCommand);
         return;
+      }
+
+      // Actualización de perfil en lenguaje natural
+      const profileUpdate = await detectProfileUpdate(text);
+      if (profileUpdate) {
+        const result = await updateProfileField(profileUpdate.key, profileUpdate.value, 'conversation');
+        if (result.ok) {
+          const reply = `✅ Perfil actualizado — ${result.label}: _"${result.current}"_`;
+          await bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
+          await sendVoiceReply(chatId, `Perfil actualizado, señor. ${result.label} registrado como ${result.current}.`);
+          return;
+        }
       }
 
       // Recordatorios: "recuérdame en X [que] mensaje"
@@ -1184,9 +1258,10 @@ export function startTelegramBot(): void {
 
       // Contexto ambiental siempre activo: tiempo (ciudad actual), ubicación, agenda, tracker
       const currentLocation = await getCurrentLocation();
-      const [memoriesSection, ambientCtx] = await Promise.all([
+      const [memoriesSection, ambientCtx, dynProfile] = await Promise.all([
         getMemoriesSection(),
         getAmbientContext(currentLocation),
+        getDynamicProfileSection(),
       ]);
 
       // Contexto adicional según keywords específicos
@@ -1245,7 +1320,7 @@ export function startTelegramBot(): void {
       const conversationHistory = getSessionHistory(chatId);
 
       const response = await askClaude(text, await resolveLlmOptions({
-        systemPrompt: buildSystemPrompt(extraContext, memoriesSection),
+        systemPrompt: buildSystemPrompt(extraContext, memoriesSection, dynProfile),
         conversationHistory,
       }));
       await sendVoiceReply(chatId, response);
