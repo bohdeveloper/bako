@@ -1,6 +1,5 @@
 import { ProfileOverride } from '../memory/ProfileOverride';
 import { BAKO_PROFILE } from '../knowledge/profile';
-import { askClaude } from '../llm/claude';
 
 // Campos del perfil que pueden actualizarse dinámicamente
 export const PROFILE_FIELDS: Record<string, { label: string; path: string[]; example: string }> = {

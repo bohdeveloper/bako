@@ -454,22 +454,35 @@ async function transcribeAudio(buffer: Buffer): Promise<string> {
 
 // Detecta si el texto expresa intención de consultar datos en tiempo real.
 // Devuelve el comando correspondiente o null si no hay intención clara.
+//
+// MAPEO SEMÁNTICO:
+//  "eventos" / "reuniones" / "citas" / "calendario"  → Google Calendar (/agenda)
+//  "tareas" / "horario" / "actividades" / "rutina"   → Tracker diario (/tracker)
+//  "proyectos" / "Notion" / "tareas de [proyecto]"   → Notion (/tareas)
 function detectDataIntent(text: string): string | null {
   const t = text.toLowerCase();
-  // Agenda / Calendario
-  if (/\b(mi\s+agenda|mis?\s+eventos?|qu[eé]\s+(tengo\s+)?(hoy|ma[nñ]ana|esta\s+semana)|eventos?\s+(de\s+)?hoy|citas?\s+(de\s+)?hoy|calendario|tengo\s+algo\s+(hoy|ma[nñ]ana))\b/.test(t)) return '/agenda';
-  // Tareas / Notion
-  if (/\b(mis?\s+tareas?|qu[eé]\s+tareas?\s+tengo|tareas?\s+pendientes?|pendientes?\s+(en\s+)?notion|qu[eé]\s+tengo\s+pendiente)\b/.test(t)) return '/tareas';
+
+  // Google Calendar — eventos, reuniones, citas
+  if (/\b(eventos?\s+(de\s+)?(hoy|ma[nñ]ana|esta\s+semana)|reuniones?\s+(de\s+)?(hoy|ma[nñ]ana)|citas?\s+(de\s+)?(hoy|ma[nñ]ana)|qu[eé]\s+tengo\s+en\s+el\s+calendario|calendario\s+(de\s+)?hoy|tengo\s+(algo|alguna?\s+reuni[oó]n)\s+(hoy|ma[nñ]ana))\b/.test(t)) return '/agenda';
+
+  // Tracker diario — tareas del día, horario, actividades, rutina
+  if (/\b(mis?\s+tareas?\s+(de\s+)?hoy|c[oó]mo\s+va\s+mi\s+(d[ií]a|rutina)|mi\s+horario\s+(de\s+)?hoy|qu[eé]\s+(tareas?|actividades?|cosas?)\s+tengo\s+(para\s+)?hoy|actividades?\s+(de\s+)?hoy|qu[eé]\s+he?\s+(hecho|completado)\s+hoy|mi\s+tracker|kronoshin|c[oó]mo\s+(va|est[aá])\s+(el\s+)?tracker|rutina\s+(de\s+)?hoy)\b/.test(t)) return '/tracker';
+
+  // Notion — proyectos, tareas de proyecto, pendientes de trabajo
+  if (/\b(mis?\s+proyectos?\s+pendientes?|tareas?\s+(en|de)\s+notion|tareas?\s+de\s+(diamadmin|unyona|bohdeveloper)|pendientes?\s+(en\s+)?notion|qu[eé]\s+proyecto[s]?\s+tengo\s+pendientes?)\b/.test(t)) return '/tareas';
+
   // Tiempo / Clima
-  if (/\b(qu[eé]\s+tiempo\s+(hace|tenemos?)|c[oó]mo\s+est[aá]\s+el\s+(tiempo|clima)|va\s+a\s+(llover|nevar)|temperatura\s+(de\s+)?(hoy|ahora)|hace\s+(fr[ií]o|calor|sol|viento)|cielo\s+(est[aá]|anda))\b/.test(t)) return '/tiempo';
-  // Tracker / Kronoshin
-  if (/\b(mi\s+tracker|c[oó]mo\s+(va|est[aá])\s+(el\s+)?tracker|actividades?\s+(de\s+)?hoy|qu[eé]\s+he?\s+hecho\s+hoy|kronoshin)\b/.test(t)) return '/tracker';
-  // Proyectos / GitHub
-  if (/\b(mis?\s+proyectos?\s+activos?|commits?\s+(de\s+)?(hoy|últimos?)|pull\s+requests?\s+(abiertos?|pendientes?)|issues?\s+(abiertos?|pendientes?)|actividad\s+en\s+github)\b/.test(t)) return '/proyectos';
+  if (/\b(qu[eé]\s+tiempo\s+(hace|tenemos?)|c[oó]mo\s+est[aá]\s+el\s+(tiempo|clima)|va\s+a\s+(llover|nevar)|temperatura\s+(de\s+)?(hoy|ahora)|hace\s+(fr[ií]o|calor|sol|viento))\b/.test(t)) return '/tiempo';
+
+  // GitHub — proyectos activos, commits, PRs
+  if (/\b(mis?\s+proyectos?\s+activos?|commits?\s+(de\s+)?(hoy|[uú]ltimos?)|pull\s+requests?\s+(abiertos?|pendientes?)|issues?\s+(abiertos?|pendientes?)|actividad\s+en\s+github)\b/.test(t)) return '/proyectos';
+
   // Briefing
   if (/\b(dame\s+(un\s+)?briefing|resumen\s+(de\s+)?(hoy|mi\s+d[ií]a|la\s+ma[nñ]ana)|c[oó]mo\s+(est[aá]|va)\s+todo\s+(hoy|el\s+d[ií]a))\b/.test(t)) return '/briefing';
+
   // Comentarios blog
   if (/\b(comentarios?\s+(del\s+)?blog|qu[eé]\s+comentarios?\s+(hay|tengo)|alguien\s+ha\s+comentado)\b/.test(t)) return '/comentarios';
+
   return null;
 }
 

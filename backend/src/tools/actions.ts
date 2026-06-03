@@ -11,6 +11,7 @@
 import { createNotionTask, updateNotionTaskStatus, findNotionTaskByName } from './notion';
 import { createCalendarEvent } from './calendar';
 import { createGitHubIssue } from './github';
+import { markTrackerRecord } from './cloudflare';
 import { askClaude } from '../llm/claude';
 import { nowInSpain } from './cloudflare';
 
@@ -153,6 +154,38 @@ Si el repo no se menciona explícitamente, elige el más probable según el cont
   return `🐛 Issue #${issue.number} creado en *${p.repo}*: "${issue.title}"\n🔗 ${issue.url}`;
 }
 
+// ─── TRACKER: Marcar actividad ───────────────────────────────────────────────
+
+async function executeMarkTracker(text: string): Promise<string> {
+  const raw = await askClaude(text, {
+    systemPrompt: `Extrae los datos de esta petición de marcar una actividad del Tracker diario.
+El Tracker registra actividades de la rutina diaria (Kronoshin, BIZIKI, meditación, gym, lectura, etc.).
+
+Responde SOLO con JSON válido:
+{"actividad":"nombre aproximado de la actividad","hecho":true|false,"motivo":"razón si no se hizo o null"}
+
+Ejemplos de interpretación:
+- "completé el Kronoshin" → {"actividad":"Kronoshin","hecho":true,"motivo":null}
+- "no pude ir a BIZIKI porque llovía" → {"actividad":"BIZIKI","hecho":false,"motivo":"llovía"}
+- "hice la meditación" → {"actividad":"meditación","hecho":true,"motivo":null}`,
+    maxTokens: 150,
+    useCloud: true,
+  });
+
+  const match = raw.match(/\{[\s\S]*?\}/);
+  if (!match) throw new Error('No pude interpretar la actividad a registrar.');
+
+  const p = JSON.parse(match[0]);
+  if (!p.actividad) throw new Error('No se especificó qué actividad registrar.');
+
+  const result = await markTrackerRecord(p.actividad, p.hecho, p.motivo ?? undefined);
+
+  if (!result.success) return `⚠️ ${result.message}`;
+
+  const icon = p.hecho ? '✅' : '❌';
+  return `${icon} *${result.taskName}* registrada en el Tracker.${p.motivo ? `\n📝 Motivo: ${p.motivo}` : ''}`;
+}
+
 // ─── DETECTOR PRINCIPAL ──────────────────────────────────────────────────────
 
 const NOTION_TASK_CREATE = /crea[r]?\s+(una?\s+)?tarea|añade?\s+(una?\s+)?tarea|nueva\s+tarea|agrega[r]?\s+(una?\s+)?tarea/i;
@@ -161,8 +194,11 @@ const CALENDAR_CREATE = /crea[r]?\s+(un[ao]?\s+)?evento|añade?\s+(un[ao]?\s+)?e
 
 const GITHUB_ISSUE_CREATE = /crea[r]?\s+(un[ao]?\s+)?issue|abre?\s+(un[ao]?\s+)?issue|nuevo\s+issue|reporta[r]?\s+(un[ao]?\s+)?(bug|error|problema|issue)/i;
 
+// Marcar actividad del Tracker: "completé X", "hice X", "no pude hacer X", "X no completada"
+const TRACKER_MARK = /(?:complet[eé]|hice|he?\s+hecho|hiciste?\s+el|ya\s+hice?|ya\s+complet[eé]|registra[r]?\s+que|marca[r]?\s+como|no\s+(?:pude?|hice?|fui?)\s+(?:a\s+)?|no\s+(?:he?\s+)?(?:hecho|completado))\s+.+/i;
+
 const NOTION_TASK_UPDATE = /marca[r]?\s+.+\s+(?:como\s+)?(?:completada?|hecha?|lista?|done|terminada?|en\s+progreso|empezada?)/i;
-const TRACKER_KEYWORDS   = /tracker|kronoshin|actividad\s+del\s+d[ií]a/i;
+const TRACKER_KEYWORDS   = /tracker|kronoshin|biziki|meditaci[oó]n|gym|shaolin|rutina\s+del\s+d[ií]a/i;
 
 export interface ExecutionResult {
   text:  string;
@@ -183,6 +219,12 @@ export async function tryExecuteAction(userText: string): Promise<ExecutionResul
 
     if (GITHUB_ISSUE_CREATE.test(userText)) {
       const text = await executeCreateGitHubIssue(userText);
+      return { text, voice: stripMarkdown(text) };
+    }
+
+    // Tracker: marcar actividad (antes que Notion para evitar falsos positivos)
+    if (TRACKER_MARK.test(userText) && TRACKER_KEYWORDS.test(userText)) {
+      const text = await executeMarkTracker(userText);
       return { text, voice: stripMarkdown(text) };
     }
 
