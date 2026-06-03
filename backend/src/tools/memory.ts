@@ -20,9 +20,10 @@ export async function saveMemory(
 }
 
 export async function getMemories(): Promise<IMemory[]> {
-  // Sin filtro por importancia — ningún dato se pierde por tener prioridad baja.
-  // Cap 150: memorias concisas (~100 chars) = ~5K tokens, dentro del límite de Groq.
-  return Memory.find().sort({ updatedAt: -1 }).limit(150);
+  // Las 50 más recientes. Con profile.ts (~8KB) + prompt base + contexto ambiental,
+  // 50 memorias (~10KB) mantiene el payload total bajo el límite de Groq (413 con 90+).
+  // Todas las memorias siguen en Atlas — nunca se borran. Solo se limita lo que se inyecta.
+  return Memory.find().sort({ updatedAt: -1 }).limit(50);
 }
 
 export async function searchMemories(query: string): Promise<IMemory[]> {
