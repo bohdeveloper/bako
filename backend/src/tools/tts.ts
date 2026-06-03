@@ -5,7 +5,31 @@ import { pipeline } from 'stream/promises';
 import * as path from 'path';
 import * as os from 'os';
 
-const VOICE      = process.env.TTS_VOICE ?? 'es-ES-AlvaroNeural';
+export const VOCES_DISPONIBLES: Record<string, { id: string; descripcion: string }> = {
+  alvaro:  { id: 'es-ES-AlvaroNeural',   descripcion: 'Álvaro — hombre, España (actual)' },
+  elvira:  { id: 'es-ES-ElviraNeural',   descripcion: 'Elvira — mujer, España' },
+  jorge:   { id: 'es-MX-JorgeNeural',    descripcion: 'Jorge — hombre, México' },
+  dalia:   { id: 'es-MX-DaliaNeural',    descripcion: 'Dalia — mujer, México' },
+  tomas:   { id: 'es-AR-TomasNeural',    descripcion: 'Tomás — hombre, Argentina' },
+  elena:   { id: 'es-AR-ElenaNeural',    descripcion: 'Elena — mujer, Argentina' },
+};
+
+let currentVoiceKey = process.env.TTS_VOICE_KEY ?? 'alvaro';
+
+export function getCurrentVoiceKey(): string { return currentVoiceKey; }
+
+export function setVoice(key: string): boolean {
+  if (!VOCES_DISPONIBLES[key]) return false;
+  currentVoiceKey = key;
+  _ttsOggPromise = null; // forzar reinicio con nueva voz
+  _ttsPromise    = null;
+  return true;
+}
+
+function getVoiceId(): string {
+  return VOCES_DISPONIBLES[currentVoiceKey]?.id ?? 'es-ES-AlvaroNeural';
+}
+
 const AUDIO_FILE = path.join(os.tmpdir(), 'bako_speech.mp3');
 
 let _ttsPromise: Promise<MsEdgeTTS> | null = null;
@@ -14,7 +38,7 @@ async function getTTS(): Promise<MsEdgeTTS> {
   if (!_ttsPromise) {
     _ttsPromise = (async () => {
       const tts = new MsEdgeTTS();
-      await tts.setMetadata(VOICE, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+      await tts.setMetadata(getVoiceId(), OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
       return tts;
     })();
   }
@@ -68,7 +92,7 @@ async function getTTSOgg(): Promise<MsEdgeTTS> {
   if (!_ttsOggPromise) {
     _ttsOggPromise = (async () => {
       const tts = new MsEdgeTTS();
-      await tts.setMetadata(VOICE, OUTPUT_FORMAT.WEBM_24KHZ_16BIT_MONO_OPUS);
+      await tts.setMetadata(getVoiceId(), OUTPUT_FORMAT.WEBM_24KHZ_16BIT_MONO_OPUS);
       return tts;
     })();
   }

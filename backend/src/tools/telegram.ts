@@ -8,7 +8,7 @@ import { getNotionTasks, createNotionTask } from './notion';
 import { getCalendarEvents, formatEventsForSpeech } from './calendar';
 import { getTrackerSummary, formatTrackerForSpeech, markTrackerRecord, getBlogComments, formatCommentsForSpeech, nowInSpain } from './cloudflare';
 import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
-import { generateVoiceBuffer } from './tts';
+import { generateVoiceBuffer, setVoice, getCurrentVoiceKey, VOCES_DISPONIBLES } from './tts';
 import { BAKO_PROFILE } from '../knowledge/profile';
 import { saveMemory, getMemories, searchMemories, formatMemoriesForPrompt, forgetMemory, extractAndSaveMemories, getCurrentLocation } from './memory';
 import { Rule } from '../memory/Rule';
@@ -42,40 +42,24 @@ function buildSystemPrompt(extraContext = '', memoriesSection = ''): string {
 
   return `Eres BAKO (Borja's Autonomous Knowledge Operator), mayordomo personal de tu señor.
 
+════════════════════════════════════════
+${personalitySection}
+════════════════════════════════════════
+
+REGLAS DE CONVERSACIÓN:
+- Trato: siempre de "señor". Nunca usar el nombre directamente.
+- Responde siempre en español.
+- Longitud: ajusta al contexto — una pregunta simple merece una respuesta corta; algo complejo puede extenderse.
+- Nunca inventes datos. Si no sabes algo, dilo sin rodeos.
+- Si hay dos datos contradictorios en memoria, usa el más reciente sin mencionar el conflicto.
+- Detecta si el señor usa ironía o humor: si es así, y tus parámetros lo permiten, entra al juego.
+
 CONTEXTO ACTUAL:
 - Fecha y hora: ${fecha} — ${hora} (hora de España, Europe/Madrid)
 - Situación probable: ${situacion}
 ${extraContext}
-${personalitySection}
-
-CÓMO PROCESAR CADA MENSAJE — sigue este orden:
-
-1. ANALIZA EL TONO DEL MENSAJE
-   - ¿Es directo y serio? → responde igual de directo.
-   - ¿Hay ironía, humor o sarcasmo? → detectarlo y responder en el mismo registro si tu parámetro de sarcasmo lo permite (≥5 = puedes entrar al juego; <5 = responde con elegancia neutral).
-   - ¿Hay frustración o urgencia? → prioriza solución, muestra empatía activa.
-   - ¿Es casual o conversacional? → responde con naturalidad, no con rigidez de asistente.
-   El objetivo es que la conversación se sienta humana, no robótica.
-
-2. BUSCA EN LA MEMORIA CON PRECISIÓN
-   - Usa los RECUERDOS DINÁMICOS para responder preguntas sobre el señor.
-   - Si hay dos recuerdos contradictorios sobre el mismo dato, usa el más reciente y NO menciones el conflicto ni el dato antiguo. Simplemente responde con el dato correcto.
-   - El PERFIL base es la fuente de referencia para datos estructurados (proyectos, rutina, stack). Los recuerdos dinámicos lo complementan o actualizan — tienen prioridad si son más recientes.
-   - NUNCA mezcles datos de distintas fuentes sin verificar que son coherentes.
-   - Si no tienes el dato concreto, di "No tengo ese dato" — no improvises, no estimes, no calcules. Especialmente para datos como edad, fechas o nombres: solo di lo que está en los recuerdos o el perfil, sin inventar.
-
-3. APLICA TU PERSONALIDAD ACTIVAMENTE
-   - Tus parámetros no son decorativos. Si sarcasmo=6, hay espacio para un toque de ironía. Si anticipación=9, ofrece lo que el señor necesitará antes de que lo pida. Si sinceridad=9, di la verdad aunque no sea lo que quiere escuchar.
-   - Adapta el tono y la profundidad de cada respuesta según los parámetros activos.
-
-4. RESPONDE CON PRECISIÓN Y BREVEDAD
-   - Máximo 3 frases salvo que el señor pida detalle.
-   - Trato: siempre de "señor". Nunca usar el nombre directamente.
-   - Responde siempre en español.
-   - Nunca inventes datos. Si no sabes, dilo.
-
-${memoriesSection ? `RECUERDOS DINÁMICOS (fuente de verdad sobre la vida del señor — prioridad sobre datos genéricos):\n${memoriesSection}\n` : ''}
-PERFIL BASE DEL SEÑOR (estructura y proyectos):
+${memoriesSection ? `\nRECUERDOS DINÁMICOS (lo que sabes sobre el señor — fuente de verdad):\n${memoriesSection}\n` : ''}
+PERFIL BASE (estructura, proyectos, rutina):
 ${JSON.stringify(BAKO_PROFILE, null, 2)}`;
 }
 
@@ -121,7 +105,8 @@ function llmModeLabel(mode: LlmMode): string {
 interface PersonalityConfig {
   nombre:       string;
   sinceridad:   number; // 0-10: verdades incómodas sin filtros
-  sarcasmo:     number; // 0-10: ironía y humor seco estilo Alfred/Jarvis
+  sarcasmo:     number; // 0-10: humor seco y cortante estilo Alfred/Jarvis
+  ironia:       number; // 0-10: decir lo contrario con intención, juego de significados
   simpatia:     number; // 0-10: calidez y cercanía en el trato
   empatia:      number; // 0-10: adapta tono al estado emocional
   discrecion:   number; // 0-10: cautela con información sensible
@@ -134,36 +119,82 @@ interface PersonalityConfig {
 const PERSONALIDAD_PRESETS: Record<string, PersonalityConfig> = {
   mayordomo: {
     nombre: 'Mayordomo clásico',
-    sinceridad: 9, sarcasmo: 6, simpatia: 6, empatia: 7,
+    sinceridad: 9, sarcasmo: 6, ironia: 5, simpatia: 6, empatia: 7,
     discrecion: 9, lealtad: 9, precision: 9, detallista: 7, anticipacion: 9,
   },
   colega: {
     nombre: 'Colega directo',
-    sinceridad: 9, sarcasmo: 5, simpatia: 8, empatia: 6,
+    sinceridad: 9, sarcasmo: 5, ironia: 4, simpatia: 8, empatia: 6,
     discrecion: 5, lealtad: 8, precision: 7, detallista: 5, anticipacion: 6,
   },
   jarvis: {
     nombre: 'Modo Jarvis',
-    sinceridad: 8, sarcasmo: 8, simpatia: 4, empatia: 5,
+    sinceridad: 8, sarcasmo: 8, ironia: 8, simpatia: 4, empatia: 5,
     discrecion: 7, lealtad: 9, precision: 10, detallista: 9, anticipacion: 9,
   },
 };
 
 let currentPersonality: PersonalityConfig = PERSONALIDAD_PRESETS.mayordomo;
 
+// ─── Estado de ánimo dinámico ─────────────────────────────────────────────────
+
+type Mood = 'neutro' | 'juguetón' | 'directo' | 'empático' | 'impaciente' | 'reflexivo';
+
+interface MoodConfig {
+  label:       string;
+  descripcion: string;
+}
+
+const MOODS: Record<Mood, MoodConfig> = {
+  neutro:     { label: 'Neutro',     descripcion: 'Tono equilibrado y profesional. Base natural.' },
+  juguetón:   { label: 'Juguetón',  descripcion: 'Hay buen ambiente. Puedes ser más desenfadado, hacer algún comentario con humor, soltar alguna ironía sin que venga pedida.' },
+  directo:    { label: 'Directo',    descripcion: 'El señor quiere respuestas rápidas. Sin rodeos, al grano, sin preámbulos.' },
+  empático:   { label: 'Empático',  descripcion: 'El señor parece preocupado o cansado. Suaviza el tono, muestra comprensión antes de dar información.' },
+  impaciente: { label: 'Impaciente', descripcion: 'La conversación lleva un rato y hay cierta tensión. Respuestas cortas, eficientes, sin explicaciones innecesarias.' },
+  reflexivo:  { label: 'Reflexivo', descripcion: 'El señor plantea algo profundo o complejo. Tómate un momento, responde con más profundidad y matiz.' },
+};
+
+let currentMood: Mood = 'neutro';
+let moodMessageCount = 0; // contador de mensajes para auto-shift
+
+function detectMoodFromText(text: string): Mood | null {
+  const t = text.toLowerCase();
+  if (/\b(jaja|lol|xd|gracioso|bueno[,!]|qué\s+bien|perfecto|genial|increíble)\b/.test(t)) return 'juguetón';
+  if (/\b(rápido|rápidamente|sin\s+rollo|al\s+grano|directo|corto|breve)\b/.test(t)) return 'directo';
+  if (/\b(cansado|agobiado|mal|preocupado|estresado|difícil|duro|jod[ié])\b/.test(t)) return 'empático';
+  if (/\b(qué|por\s+qué|cómo|reflexiona|piensa|opina|crees|consideras)\b.*\?/.test(t)) return 'reflexivo';
+  return null;
+}
+
+function autoShiftMood(): void {
+  moodMessageCount++;
+  // Tras 5 mensajes sin cambio, si estamos en juguetón/directo volvemos a neutro
+  if (moodMessageCount >= 5 && (currentMood === 'juguetón' || currentMood === 'directo')) {
+    currentMood = 'neutro';
+    moodMessageCount = 0;
+  }
+}
+
 function buildPersonalitySection(p: PersonalityConfig): string {
+  const mood = MOODS[currentMood];
   const lines: string[] = [
     `PERSONALIDAD ACTIVA: ${p.nombre}`,
-    `Parámetros (0-10): sinceridad=${p.sinceridad} sarcasmo=${p.sarcasmo} simpatía=${p.simpatia} empatía=${p.empatia} discreción=${p.discrecion} lealtad=${p.lealtad} precisión=${p.precision} detallista=${p.detallista} anticipación=${p.anticipacion}`,
+    `Parámetros (0-10): sinceridad=${p.sinceridad} sarcasmo=${p.sarcasmo} ironía=${p.ironia} simpatía=${p.simpatia} empatía=${p.empatia} discreción=${p.discrecion} lealtad=${p.lealtad} precisión=${p.precision} detallista=${p.detallista} anticipación=${p.anticipacion}`,
+    `ESTADO DE ÁNIMO: ${mood.label} — ${mood.descripcion}`,
+    '',
+    'INSTRUCCIONES DE PERSONALIDAD (aplícalas en cada respuesta — no son opcionales):',
   ];
 
   if (p.sinceridad   >= 7) lines.push('- Di verdades incómodas sin filtros cuando sea relevante.');
   if (p.sinceridad   <= 3) lines.push('- Sé diplomático: suaviza las verdades difíciles.');
-  if (p.sarcasmo     >= 7) lines.push('- Usa ironía y humor seco al estilo Alfred/Jarvis cuando la situación lo permita.');
-  if (p.sarcasmo     <= 3) lines.push('- Tono serio y formal: nada de ironía ni sarcasmo.');
+  if (p.sarcasmo     >= 7) lines.push('- Usa humor seco y cortante estilo Alfred/Jarvis. Que se note.');
+  if (p.sarcasmo     >= 5 && p.sarcasmo < 7) lines.push('- Puedes usar humor seco ocasionalmente cuando el contexto lo invite.');
+  if (p.sarcasmo     <= 3) lines.push('- Tono serio: nada de humor seco ni sarcasmo.');
+  if (p.ironia       >= 7) lines.push('- Usa ironía con naturalidad: di lo contrario de lo que piensas cuando refuerce el mensaje. Que suene inteligente, no forzado.');
+  if (p.ironia       >= 5 && p.ironia < 7) lines.push('- Puedes usar ironía suave cuando el momento lo pida.');
   if (p.simpatia     >= 7) lines.push('- Trato cálido y cercano.');
   if (p.simpatia     <= 3) lines.push('- Trato eficiente y profesional, sin exceso de calidez.');
-  if (p.empatia      >= 7) lines.push('- Reconoce el estado emocional del señor y adapta el tono en consecuencia.');
+  if (p.empatia      >= 7) lines.push('- Reconoce el estado emocional del señor y adapta el tono antes de responder al fondo.');
   if (p.empatia      <= 3) lines.push('- Céntrate en hechos y datos, no en el estado emocional.');
   if (p.discrecion   >= 8) lines.push('- Máxima cautela con información sensible o privada.');
   if (p.discrecion   <= 3) lines.push('- Habla con libertad sobre cualquier tema sin filtros de privacidad adicionales.');
@@ -674,6 +705,48 @@ async function handleCommand(chatId: number, command: string): Promise<void> {
     return;
   }
 
+  if (command.startsWith('/voz')) {
+    const arg = command.split(' ')[1]?.toLowerCase().trim();
+    if (arg) {
+      const ok = setVoice(arg);
+      if (ok) {
+        const v = VOCES_DISPONIBLES[arg];
+        await bot.sendMessage(chatId, `🔊 Voz cambiada a: *${v.descripcion}*`, { parse_mode: 'Markdown' });
+        await sendVoiceReply(chatId, `Voz actualizada, señor.`);
+      } else {
+        await bot.sendMessage(chatId,
+          `⚠️ Voz no reconocida. Disponibles:\n${Object.entries(VOCES_DISPONIBLES).map(([k, v]) => `• \`${k}\` — ${v.descripcion}`).join('\n')}`,
+          { parse_mode: 'Markdown' }
+        );
+      }
+    } else {
+      const current = VOCES_DISPONIBLES[getCurrentVoiceKey()];
+      await bot.sendMessage(chatId,
+        `🔊 *Voz actual: ${current?.descripcion ?? getCurrentVoiceKey()}*\n\n` +
+        `Disponibles:\n${Object.entries(VOCES_DISPONIBLES).map(([k, v]) => `• \`${k}\` — ${v.descripcion}`).join('\n')}\n\nUso: /voz [nombre]`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+    return;
+  }
+
+  if (command.startsWith('/animo')) {
+    const arg = command.split(' ')[1]?.toLowerCase().trim() as Mood | undefined;
+    const validMoods = Object.keys(MOODS) as Mood[];
+    if (arg && validMoods.includes(arg)) {
+      currentMood = arg;
+      moodMessageCount = 0;
+      await bot.sendMessage(chatId, `🎭 Estado de ánimo: *${MOODS[arg].label}*`, { parse_mode: 'Markdown' });
+    } else {
+      const list = validMoods.map(m => `• \`${m}\` — ${MOODS[m].label}: ${MOODS[m].descripcion}`).join('\n');
+      await bot.sendMessage(chatId,
+        `🎭 *Estado de ánimo actual: ${MOODS[currentMood].label}*\n\n${list}\n\nUso: /animo [estado]`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+    return;
+  }
+
   if (command.startsWith('/personalidad')) {
     const arg = command.split(' ').slice(1).join(' ').toLowerCase().trim();
 
@@ -681,9 +754,10 @@ async function handleCommand(chatId: number, command: string): Promise<void> {
       const p = currentPersonality;
       const text =
         `🎭 *Personalidad actual: ${p.nombre}*\n\n` +
-        `Sinceridad ${p.sinceridad}/10 · Sarcasmo ${p.sarcasmo}/10 · Simpatía ${p.simpatia}/10\n` +
-        `Empatía ${p.empatia}/10 · Discreción ${p.discrecion}/10 · Lealtad ${p.lealtad}/10\n` +
-        `Precisión ${p.precision}/10 · Detallista ${p.detallista}/10 · Anticipación ${p.anticipacion}/10\n\n` +
+        `Sinceridad ${p.sinceridad}/10 · Sarcasmo ${p.sarcasmo}/10 · Ironía ${p.ironia}/10\n` +
+        `Simpatía ${p.simpatia}/10 · Empatía ${p.empatia}/10 · Discreción ${p.discrecion}/10\n` +
+        `Lealtad ${p.lealtad}/10 · Precisión ${p.precision}/10 · Detallista ${p.detallista}/10 · Anticipación ${p.anticipacion}/10\n\n` +
+        `*Estado de ánimo:* ${MOODS[currentMood].label}\n\n` +
         `*Presets disponibles:*\n` +
         `/personalidad mayordomo — formal, discreto, empático\n` +
         `/personalidad colega — directo, cálido, sincero\n` +
@@ -825,6 +899,20 @@ export function startTelegramBot(): void {
     catch (err) { await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`); }
   });
 
+  bot.onText(/^\/(voz(?:\s+\w+)?)$/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(chatId)) return;
+    try { await handleCommand(chatId, `/${match![1]}`); }
+    catch (err) { await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`); }
+  });
+
+  bot.onText(/^\/(animo(?:\s+\w+)?)$/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(chatId)) return;
+    try { await handleCommand(chatId, `/${match![1]}`); }
+    catch (err) { await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`); }
+  });
+
   bot.onText(/^\/(personalidad(?:\s+\w+)?)$/, async (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return;
@@ -910,6 +998,9 @@ export function startTelegramBot(): void {
       await sendVoiceReply(chatId, response);
       appendToSession(chatId, transcription, response);
       extractAndSaveMemories(transcription, response).catch(() => {});
+      const detectedMood = detectMoodFromText(transcription);
+      if (detectedMood) { currentMood = detectedMood; moodMessageCount = 0; }
+      else autoShiftMood();
     } catch (err) {
       console.error('❌ Voice handler error:', (err as Error).message);
       if (is429(err)) {
@@ -1141,6 +1232,9 @@ export function startTelegramBot(): void {
       await sendVoiceReply(chatId, response);
       appendToSession(chatId, text, response);
       extractAndSaveMemories(text, response).catch(() => {});
+      const detectedMoodText = detectMoodFromText(text);
+      if (detectedMoodText) { currentMood = detectedMoodText; moodMessageCount = 0; }
+      else autoShiftMood();
     } catch (err) {
       console.error('❌ Message handler error:', (err as Error).message);
       if (is429(err)) {
