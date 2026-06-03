@@ -25,15 +25,12 @@ const PERSONAL_TAGS = [
   'rutina', 'entrenamiento', 'lae', 'correccion', 'judicial', 'psicologo',
 ];
 
-export async function getMemories(totalLimit = 30): Promise<IMemory[]> {
-  // 70% datos personales (siempre presentes) + 30% técnico reciente.
-  // totalLimit varía según LLM: Ollama ~25 (contexto 4096), Groq ~50 (contexto 128K).
-  const personalLimit  = Math.round(totalLimit * 0.70);
-  const technicalLimit = Math.round(totalLimit * 0.30);
-
+export async function getMemories(technicalLimit = 10): Promise<IMemory[]> {
+  // Datos personales: TODOS siempre (~44 memorias, ~2200 tokens — caben en Ollama 4096).
+  // Técnico: N según LLM (Ollama=5, Groq=20).
   const personal = await Memory.find({ tags: { $in: PERSONAL_TAGS } })
     .sort({ updatedAt: -1 })
-    .limit(personalLimit);
+    .limit(60); // más que suficiente para capturar todos los personales
 
   const personalIds = personal.map(m => (m as any)._id);
   const technical = await Memory.find({ _id: { $nin: personalIds } })

@@ -77,7 +77,7 @@ ${JSON.stringify({
 })}`;
 }
 
-export async function getMemoriesSection(limit = 30): Promise<string> {
+export async function getMemoriesSection(limit = 10): Promise<string> {
   try {
     const memories = await getMemories(limit);
     return formatMemoriesForPrompt(memories);
@@ -980,7 +980,7 @@ export function startTelegramBot(): void {
         return;
       }
       await bot.sendMessage(chatId, '🔒 Procesando en modo privado (solo local)...');
-      const memoriesSection = await getMemoriesSection(llmMode === 'groq' ? 50 : 25);
+      const memoriesSection = await getMemoriesSection(llmMode === 'groq' ? 20 : 5);
       const response = await askClaude(text, {
         systemPrompt: buildSystemPrompt('', memoriesSection),
         private: true,
@@ -1098,7 +1098,7 @@ export function startTelegramBot(): void {
 
       const voiceLocation = await getCurrentLocation();
       const [memoriesSection, ambientCtx, dynProfile] = await Promise.all([
-        getMemoriesSection(llmMode === 'groq' ? 50 : 25),
+        getMemoriesSection(llmMode === 'groq' ? 20 : 5),
         getAmbientContext(voiceLocation),
         getDynamicProfileSection(),
       ]);
@@ -1267,7 +1267,7 @@ export function startTelegramBot(): void {
           return;
         }
         await bot.sendMessage(chatId, '🔒 Contenido sensible detectado — procesando solo en local...');
-        const memoriesSection = await getMemoriesSection(llmMode === 'groq' ? 50 : 25);
+        const memoriesSection = await getMemoriesSection(llmMode === 'groq' ? 20 : 5);
         const response = await askClaude(text, {
           systemPrompt: buildSystemPrompt('', memoriesSection),
           private: true,
@@ -1289,7 +1289,7 @@ export function startTelegramBot(): void {
       // Contexto ambiental siempre activo: tiempo (ciudad actual), ubicación, agenda, tracker
       const currentLocation = await getCurrentLocation();
       const [memoriesSection, ambientCtx, dynProfile] = await Promise.all([
-        getMemoriesSection(llmMode === 'groq' ? 50 : 25),
+        getMemoriesSection(llmMode === 'groq' ? 20 : 5),
         getAmbientContext(currentLocation),
         getDynamicProfileSection(),
       ]);
