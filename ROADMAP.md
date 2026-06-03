@@ -52,6 +52,8 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | Tracker Kronoshin — siempre en contexto ambiental (sin keywords) | ✅ |
 | Historial de sesión — BAKO recuerda la conversación actual (30 min) | ✅ |
 | Ubicación inferida por rutina horaria — Donostia 07-15h L-V | ✅ |
+| Personalidad configurable — 9 parámetros + 3 presets + lenguaje natural | ✅ |
+| Conocimiento profundo — 10 XMLs asimilados (60+ memorias en MongoDB) | ✅ |
 
 ---
 
@@ -184,25 +186,18 @@ BAKO solo habla cuando le hablas. Necesita iniciativa propia.
   - "Mañana tienes reunión a las 9 — ¿quieres el briefing antes?"
 - ❌ Motor de reglas configurables por Borja (pendiente)
 
-### Gap 4 — Acceso sin fricción 🎤
+### Gap 4 — Acceso sin fricción 🎤 ⚠️ EN PROGRESO
 Reducir al mínimo los pasos para hablar con BAKO.
 
-- Texto libre natural sin necesidad de comandos `/comando`
-- BAKO detecta la intención solo ("quiero ver mi agenda" = `/agenda`)
-- Wake word en PC: di "Bako" → responde sin tocar el teclado
-- Respuestas en menos de 2 segundos para preguntas simples
-- ❌ **Personalidad configurable** — parámetros de tono inyectados en el system prompt:
-  - `sinceridad` (0-10): cuánto te dice las verdades incómodas sin filtros
-  - `sarcasmo` (0-10): ironía y humor seco al estilo Alfred/Jarvis
-  - `simpatía` (0-10): calidez y empatía en las respuestas
-  - `empatía` (0-10): reconoce el estado emocional del señor y adapta el tono
-  - `discreción` (0-10): nivel de cautela con información sensible o privada
-  - `lealtad` (0-10): prioriza siempre los intereses del señor, sin neutralidad artificial
-  - `precisión` (0-10): exactitud y detalle técnico en las respuestas, sin ambigüedad
-  - `detallista` (0-10): nivel de profundidad y completitud en cada respuesta
-  - `anticipación` (0-10): proactividad para prever necesidades antes de que se expresen
-  - Presets: `mayordomo clásico` / `colega directo` / `modo Jarvis`
-  - Configurable vía `/personalidad <preset>` o desde el futuro panel admin
+- ✅ Texto libre natural sin necesidad de comandos `/comando`
+- ✅ BAKO detecta la intención en lenguaje natural: ubicación ("estoy en Madrid"), correcciones de datos, modo LLM, memoria, personalidad
+- ❌ Wake word en PC: di "Bako" → responde sin tocar el teclado (pendiente — OpenWakeWord, Horizonte 1)
+- ⚠️ Respuestas en menos de 2 segundos (Ollama local: ~1s ✅ · Groq cloud: ~2-3s según carga)
+- ✅ **Personalidad configurable** — 9 parámetros (0-10) inyectados en system prompt:
+  - `sinceridad` · `sarcasmo` · `simpatía` · `empatía` · `discreción` · `lealtad` · `precisión` · `detallista` · `anticipación`
+  - Presets: `mayordomo clásico` (default) / `colega directo` / `modo Jarvis`
+  - Comandos: `/personalidad` (ver config actual) · `/personalidad [preset]` (cambiar)
+  - Lenguaje natural: "modo Jarvis", "ponte en modo colega"
 
 ### Gap 5 — Conocimiento vivo 📚
 El perfil deja de ser un archivo que editas a mano.
