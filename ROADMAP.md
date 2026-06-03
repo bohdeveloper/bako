@@ -135,10 +135,10 @@ BAKO debe conocer a su señor como lo haría un mayordomo de toda la vida — no
 
 | Categoría | Estado |
 |---|---|
-| Datos básicos (edad, cumpleaños, ubicación) | ⏳ Verificar |
-| Situación laboral actual | ⏳ Verificar |
-| Proyectos personales vs profesional | ⏳ Verificar |
-| Rutina diaria y entrenamiento | ⏳ Verificar |
+| Datos básicos (edad, cumpleaños, ubicación) | ✅ En profile.ts |
+| Situación laboral actual | ✅ En profile.ts (LAE corregido 03/06/2026) |
+| Proyectos personales vs profesional | ✅ En profile.ts |
+| Rutina diaria y entrenamiento | ✅ En profile.ts |
 | Familia y relaciones personales | ✅ En Atlas (19 memorias: pareja, padres, hermana, cuñada, abuelos, amigos, suegros) |
 | Gustos y preferencias (comida, música, ocio) | ✅ En Atlas (comida, música, ocio) |
 | Historia personal y momentos clave | ✅ En Atlas (origen, hábitos, psicólogo, proceso judicial) |
