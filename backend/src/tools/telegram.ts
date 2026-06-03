@@ -381,7 +381,7 @@ const WHISPER_PROMPT = [
   // Localización — actual y futura (Galicia)
   'Errentería, Donostia, Gipuzkoa, Euskadi, País Vasco, Galicia, Pontevedra, Caldas de Reis, Arramendi',
   // Personas — pareja, familia, amigos
-  'Yaimy, Yosiel, Enara, Gen, Paula, Helena, Nati, Julen, Ibon, Sofi, Osvaldo',
+  'Yaimy, Yosiel, Enara, Gen, Paula, Elena, Nati, Julen, Ibon, Sofi, Osvaldo',
   // Hobbies, rutina y vida diaria
   'Shaolin, Kronoshin, Running, BIZIKI, Estoicismo, Meditación, Insight Timer, Marcus Aurelius',
   // Stack técnico
