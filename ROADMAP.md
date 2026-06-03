@@ -105,20 +105,20 @@ Proceso para importar XMLs de roles, proyectos e información personal a la memo
 
 | XML | Contenido | Estado |
 |---|---|---|
-| `prompt_MASTER` | Contexto universal: identidad, stack completo, proyectos, reglas de desarrollo, filosofía | ⏳ Pendiente reimportar |
-| `prompt_app_kefir` | Proyecto kefir artesanal en Galicia (largo plazo), modelo negocio, legal, stack | ⏳ Pendiente reimportar |
-| `prompt_automatizar_IA` | Arquitectura BAKO completa: 7 agentes, n8n, RAG, 4 fases 18 meses | ⏳ Pendiente |
-| `prompt_busqueda_empleo` | Perfil mercado laboral, preferencias, criterios evaluación ofertas | ⏳ Pendiente |
-| `prompt_desarrollar_ia` | Ruta ML/DL completa, stack, recursos, hardware robótica | ⏳ Pendiente |
-| `prompt_desarrollar_ju...` | Matrix Game open-world UE5: visión, stack, timeline, skills necesarias | ⏳ Pendiente |
-| `prompt_estilo_vida` | Rutina semanal completa, estoicismo-shaolin, horario desde tracker | ⏳ Pendiente |
-| `prompt_ingresos_pasivos` | Estrategia ingresos pasivos, criterios, validación, plataformas | ⏳ Pendiente |
-| `prompt_operacion_galicia` | Mudanza Galicia, vivienda, Yaimy, laboral, proceso judicial | ⏳ Pendiente |
-| `prompt_piloto_drones` | Hobby FPV post-Galicia, locaciones, ruta AESA A2, presupuesto | ⏳ Pendiente |
+| `prompt_MASTER` | Contexto universal: identidad, stack completo, proyectos, reglas de desarrollo, filosofía | ✅ Asimilado (15 memorias) |
+| `prompt_app_kefir` | Proyecto kefir artesanal en Galicia (largo plazo), modelo negocio, legal, stack | ✅ Asimilado (12 memorias) |
+| `prompt_automatizar_IA` | Arquitectura BAKO completa: 7 agentes, n8n, RAG, 4 fases 18 meses | ✅ Asimilado (7 memorias) |
+| `prompt_busqueda_empleo` | Perfil mercado laboral, preferencias, criterios evaluación ofertas | ✅ Asimilado (3 memorias) |
+| `prompt_desarrollar_ia` | Ruta ML/DL completa, stack, recursos, hardware robótica | ✅ Asimilado (6 memorias) |
+| `prompt_desarrollar_ju...` | Matrix Game open-world UE5: visión, stack, timeline, skills necesarias | ✅ Asimilado (6 memorias) |
+| `prompt_estilo_vida` | Rutina semanal completa, estoicismo-shaolin, horario desde tracker | ✅ Asimilado (4 memorias) |
+| `prompt_ingresos_pasivos` | Estrategia ingresos pasivos, criterios, validación, plataformas | ✅ Asimilado (2 memorias) |
+| `prompt_operacion_galicia` | Mudanza Galicia, vivienda, Yaimy, laboral, proceso judicial | ✅ Asimilado (3 memorias) |
+| `prompt_piloto_drones` | Hobby FPV post-Galicia, locaciones, ruta AESA A2, presupuesto | ✅ Asimilado (5 memorias) |
 
 **Cómo continuar:** Abrir Claude Code, decir "vamos a continuar con los XMLs" y pegar el siguiente. Claude tiene el contexto completo del proceso.
 
-> Progreso: 0/10 en Atlas (memoria limpiada el 03/06/2026 — reimportar todos)
+> Progreso: 10/10 completados ✅ (reimportados el 03/06/2026)
 
 ---
 
