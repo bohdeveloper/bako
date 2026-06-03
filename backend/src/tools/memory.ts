@@ -20,9 +20,26 @@ export async function saveMemory(
 }
 
 export async function getMemories(): Promise<IMemory[]> {
-  // Las 30 más recientes. profile.ts compacto (~5KB) + 30 memorias (~6KB) + prompt = seguro en Groq.
-  // Todas las memorias siguen en Atlas — nunca se borran. Solo se limita lo que se inyecta.
-  return Memory.find().sort({ updatedAt: -1 }).limit(30);
+  // Selección en dos bloques:
+  // 1) Datos personales (familia, amigos, salud, valores, etc.) — siempre presentes
+  // 2) Técnico reciente (proyectos, reglas, XMLs) — los más recientes hasta completar cap
+  // Total ~50 memorias (~10KB) + profile.ts compacto (~5KB) = dentro del límite Groq.
+  const PERSONAL_TAGS = [
+    'familia', 'amigos', 'familia-politica', 'pareja', 'salud', 'gustos',
+    'historia', 'motivacion', 'valores', 'objetivos', 'finanzas', 'caracter',
+    'rutina', 'entrenamiento', 'lae', 'correccion', 'judicial', 'psicologo',
+  ];
+
+  const personal = await Memory.find({ tags: { $in: PERSONAL_TAGS } })
+    .sort({ updatedAt: -1 })
+    .limit(40);
+
+  const personalIds = personal.map(m => (m as any)._id);
+  const technical = await Memory.find({ _id: { $nin: personalIds } })
+    .sort({ updatedAt: -1 })
+    .limit(20);
+
+  return [...personal, ...technical];
 }
 
 export async function searchMemories(query: string): Promise<IMemory[]> {
