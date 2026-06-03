@@ -52,8 +52,18 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | Tracker Kronoshin — siempre en contexto ambiental (sin keywords) | ✅ |
 | Historial de sesión — BAKO recuerda la conversación actual (30 min) | ✅ |
 | Ubicación inferida por rutina horaria — Donostia 07-15h L-V | ✅ |
-| Personalidad configurable — 9 parámetros + 3 presets + lenguaje natural | ✅ |
-| Conocimiento profundo — 10 XMLs asimilados (60+ memorias en MongoDB) | ✅ |
+| Personalidad configurable — 10 parámetros (+ ironía) + 3 presets + estado de ánimo dinámico | ✅ |
+| Conocimiento profundo — 10 XMLs asimilados (100+ memorias en MongoDB) | ✅ |
+| Selector de voz TTS — 6 voces ES/MX/AR via `/voz` | ✅ |
+| Perfil dinámico — `ProfileOverride` MongoDB, `/perfil`, detección NL de cambios | ✅ |
+| Tracker escritura NL — marcar actividades por voz ("completé el Kronoshin") | ✅ |
+| Remap intenciones — tareas→Tracker, eventos→Calendar, proyectos→Notion | ✅ |
+| Motor de reglas configurables — `/regla [condición]` evaluada por LLM cada 08:30 | ✅ |
+| GitHub issues escritura — "crea un issue en diamadmin" | ✅ |
+| Recordatorios internos — "recuérdame en 30 min..." + `/recordatorios` | ✅ |
+| PWA cliente web — `/bako-client`, instalable en móvil y PC | ✅ |
+| Script Python PC — `bako-desktop/bako_desktop.py`, hotkey Ctrl+Alt+B | ✅ |
+| Endpoints desktop — `/api/desktop/voice` y `/api/desktop/text` | ✅ |
 
 ---
 
@@ -160,17 +170,19 @@ Un mayordomo recuerda todo. BAKO olvida cada conversación al terminar.
 
 - ✅ Colección `Memory` en MongoDB (schema: tipo, importancia, fuente, tags)
 - ✅ Extracción automática de hechos tras cada conversación (async, no bloquea)
-- ✅ Memoria inyectada en cada system prompt (máx 15 recuerdos: alta importancia + recientes)
-- ✅ Comandos naturales: "Bako, recuerda que..." / "Bako, olvida..." / "Bako, qué recuerdas"
+- ✅ Memoria inyectada en cada system prompt: top 50 high + top 10 medium (cap 60 total, ~10KB)
+- ✅ Comandos naturales: "Bako, recuerda que..." / "Bako, olvida..." / `/memorias [tema]`
 - ✅ Privacidad respetada: sin extracción en mensajes sensibles o `/privado`
-- ✅ Script `seed-memory.ts` con 19 memorias iniciales sobre Borja (vida, proyectos, rutina, metas)
+- ✅ 100+ memorias sobre Borja (vida, familia, proyectos, rutina, valores, historia personal)
+- ✅ Corrección de datos: edad 34 años, rutina actualizada (05:00, 07:00 Inetum)
 
 ### Gap 2 — Ejecución de acciones ⚡ ✅ COMPLETADO (v2)
 BAKO lee pero no actúa. Necesita poder ejecutar órdenes.
 
 - ✅ **Notion**: crear tareas, cambiar estado, asignar fecha límite
 - ✅ **Google Calendar**: crear eventos con hora, descripción, ubicación
-- ✅ **GitHub**: crear issues por voz/texto ("crea un issue en diamadmin")
+- ✅ **GitHub**: crear issues por voz/texto ("crea un issue en diamadmin sobre el bug del login")
+- ✅ **Tracker**: marcar actividades por voz/texto ("completé el Kronoshin", "no pude ir a BIZIKI porque llovía")
 - ✅ **Recordatorios**: "recuérdame en X minutos/horas [qué]" — setTimeout + voz al disparar · `/recordatorios` · `/cancelarrecordatorio [id]`
 - ⚠️ Confirmación antes de ejecutar acciones irreversibles (confía en el LLM para interpretar intención)
 
@@ -186,19 +198,29 @@ BAKO solo habla cuando le hablas. Necesita iniciativa propia.
   - "Mañana tienes reunión a las 9 — ¿quieres el briefing antes?"
 - ✅ Motor de reglas configurables: `/regla [condición]` · `/reglas` · `/borrarregla [id]` — evaluadas por LLM cada día a las 08:30
 
-### Gap 4 — Acceso sin fricción 🎤 ✅ COMPLETADO (v1)
+### Gap 4 — Acceso sin fricción 🎤 ✅ COMPLETADO (v2)
 Reducir al mínimo los pasos para hablar con BAKO.
 
-- ✅ Texto libre natural sin necesidad de comandos `/comando`
-- ✅ Detección de intención completa en lenguaje natural:
-  - Ubicación: "estoy en Madrid" → actualiza contexto
-  - Correcciones: "en realidad tengo 34 años" → guarda en memoria
-  - Modo LLM, personalidad, memoria: detección automática
-  - **Datos en tiempo real**: "mi agenda", "qué tareas tengo", "cómo está el tiempo", "mi tracker", "mis proyectos", "dame un briefing", "comentarios del blog" → llama al tool correspondiente y devuelve datos reales (texto y voz)
-- ✅ **Personalidad configurable** — 9 parámetros (0-10) inyectados en system prompt:
-  - `sinceridad` · `sarcasmo` · `simpatía` · `empatía` · `discreción` · `lealtad` · `precisión` · `detallista` · `anticipación`
-  - Presets: `mayordomo clásico` (default) / `colega directo` / `modo Jarvis`
-  - Comandos: `/personalidad` · lenguaje natural: "modo Jarvis", "ponte en modo colega"
+- ✅ Todo en lenguaje natural — sin necesidad de comandos `/comando`
+- ✅ Detección de intención y remap semántico:
+  - "tareas de hoy" / "mi horario" / "actividades" → **Tracker** (datos reales Cloudflare D1)
+  - "eventos" / "reuniones" / "citas" → **Google Calendar** (datos reales)
+  - "proyectos de Notion" / "tareas de diamadmin" → **Notion** (datos reales)
+  - "cómo está el tiempo" → **Weather API** · "dame un briefing" → **Briefing Agent**
+  - Ubicación, correcciones, modo LLM, personalidad, memoria: detección automática
+- ✅ **Personalidad configurable** — 10 parámetros (0-10):
+  - `sinceridad` · `sarcasmo` · `ironía` · `simpatía` · `empatía` · `discreción` · `lealtad` · `precisión` · `detallista` · `anticipación`
+  - Presets: `mayordomo clásico` (default, sarcasmo=8 ironía=8) / `colega directo` / `modo Jarvis`
+  - `/personalidad` · `/personalidad [preset]` · lenguaje natural: "modo Jarvis"
+- ✅ **Estado de ánimo dinámico** — detectado del tono del mensaje, 6 estados:
+  - `neutro` · `juguetón` · `directo` · `empático` · `impaciente` · `reflexivo`
+  - Inyectado en el system prompt — BAKO adapta el tono automáticamente
+  - `/animo [estado]` para cambio manual
+- ✅ **Selector de voz** — 6 voces TTS disponibles vía `/voz [nombre]`:
+  - `alvaro` (ES, actual) · `elvira` (ES) · `jorge` (MX) · `dalia` (MX) · `tomas` (AR) · `elena` (AR)
+- ✅ Correcciones fonéticas Whisper: Paco→BAKO, Josiel→Yosiel, vocabulario de personas añadido
+- ✅ Sin asteriscos en voz (`cleanForVoice` elimina todo markdown antes del TTS)
+- ✅ System prompt reordenado: personalidad y estado de ánimo van PRIMERO
 - ✅ Respuestas en menos de 2 segundos (Ollama local: ~1s · Groq: ~2-3s)
 - ❌ Wake word en PC — diferido a Horizonte 1 (requiere OpenWakeWord + setup local)
 
@@ -213,6 +235,74 @@ El perfil deja de ser un archivo que editas a mano.
 - ✅ Historial de cambios: `prevValue` almacenado en cada override
 - ✅ Alerta proactiva lunes 09:00 — avisa si algún campo lleva 90+ días sin actualizarse
 - ⚠️ Campos actualizables en v1: edad, ubicación, empleador, situación laboral, oficina. Proyectos y rutina siguen en `profile.ts` (v2 con panel admin)
+
+---
+
+## Clientes de acceso a BAKO
+
+### Telegram (principal)
+- Bot activo 24/7 en Render
+- Voz + texto + comandos naturales
+- No requiere instalación
+
+### PWA — Cliente web (móvil y PC) ✅
+URL: `https://<render-url>/bako-client/`
+
+**Instalación en Android (Chrome):**
+1. Abre Chrome → navega a la URL
+2. Menú (⋮) → "Añadir a pantalla de inicio"
+3. Se instala como app con icono propio
+4. Abre directamente sin navegador visible
+
+**Instalación en iOS (Safari):**
+1. Abre Safari → navega a la URL
+2. Icono compartir (⬆) → "Añadir a pantalla de inicio"
+3. Se instala como app
+
+**Uso:** Mantén pulsado el botón del micrófono mientras hablas. Suelta para enviar. BAKO responde por voz.
+
+**Para activar desde pantalla bloqueada (Android):**
+1. Abre Google Home / Google Assistant
+2. Rutinas → ➕ Añadir rutina
+3. Inicio: "Hey Google, habla con BAKO" (o la frase que elijas)
+4. Acción: Abrir URL → `https://<render-url>/bako-client/`
+
+---
+
+### Script Python — Cliente de escritorio (PC) ✅
+Archivo: `bako-desktop/bako_desktop.py`
+
+**Instalación (una sola vez):**
+```bash
+cd bako-desktop
+pip install -r requirements.txt
+```
+
+**Uso diario:**
+```bash
+python bako_desktop.py
+```
+
+**Hotkey:** `Ctrl+Alt+B` → mantén mientras hablas → suelta para enviar → BAKO responde por altavoces
+
+**Configuración opcional** (variables de entorno):
+```
+BAKO_URL=https://<tu-render-url>   # URL del backend
+DESKTOP_TOKEN=<token>              # Si configuras DESKTOP_TOKEN en el servidor
+BAKO_HOTKEY=ctrl+alt+b             # Cambia el atajo si prefieres otro
+```
+
+**Arranque automático con Windows:**
+1. Pulsa `Win+R` → escribe `shell:startup`
+2. Crea un acceso directo a `python bako_desktop.py` en esa carpeta
+
+---
+
+### App React Native (Horizonte 1) ❌ Pendiente
+- App nativa Android + iOS
+- Wake word "Bako" con pantalla bloqueada
+- Notificaciones push proactivas
+- Acceso completo sin abrir ninguna app
 
 ---
 
