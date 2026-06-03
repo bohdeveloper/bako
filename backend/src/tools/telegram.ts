@@ -62,7 +62,7 @@ ${extraContext}
 ${dynamicProfileSection ? `\n${dynamicProfileSection}\n` : ''}
 ${memoriesSection ? `RECUERDOS DINÁMICOS (lo que sabes sobre el señor — fuente de verdad):\n${memoriesSection}\n` : ''}
 PERFIL BASE (estructura, proyectos, rutina — los DATOS DE PERFIL ACTUALIZADOS tienen prioridad si hay conflicto):
-${JSON.stringify(BAKO_PROFILE, null, 2)}`;
+${JSON.stringify(BAKO_PROFILE)}`;
 }
 
 export async function getMemoriesSection(): Promise<string> {
