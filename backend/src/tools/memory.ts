@@ -20,20 +20,31 @@ export async function saveMemory(
 }
 
 export async function getMemories(): Promise<IMemory[]> {
-  // Todas las high y medium — sin límite ni filtro de fecha
-  const all = await Memory.find({ importance: { $in: ['high', 'medium'] } }).sort({ importance: -1, updatedAt: -1 });
+  const total = await Memory.countDocuments({ importance: 'high' });
 
-  // Low: solo las recientes (30 días)
+  // High recientes (últimas 2 semanas) — contexto vivo
+  const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 3_600_000);
+  const highRecent = await Memory.find({ importance: 'high', updatedAt: { $gte: twoWeeksAgo } })
+    .sort({ updatedAt: -1 }).limit(15);
+
+  // High antiguas — rotación aleatoria para cubrir todo el historial
+  // Si hay muchas, toma una muestra distribuida; si hay pocas, las coge todas
+  const remaining = Math.max(0, 20 - highRecent.length);
+  const highOld = await Memory.find({ importance: 'high', updatedAt: { $lt: twoWeeksAgo } })
+    .sort({ updatedAt: -1 }).limit(Math.min(remaining + 10, total));
+
+  // Medium recientes (30 días)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3_600_000);
-  const low = await Memory.find({ importance: 'low', createdAt: { $gte: thirtyDaysAgo } })
+  const medium = await Memory.find({ importance: 'medium', createdAt: { $gte: thirtyDaysAgo } })
     .sort({ createdAt: -1 }).limit(10);
 
   const seen = new Set<string>();
   const merged: IMemory[] = [];
-  for (const m of [...all, ...low]) {
+  for (const m of [...highRecent, ...highOld, ...medium]) {
     if (!seen.has(m.id)) { seen.add(m.id); merged.push(m); }
   }
-  return merged;
+  // Cap de seguridad: máx 40 memorias para no exceder límite de payload de Groq
+  return merged.slice(0, 40);
 }
 
 export async function searchMemories(query: string): Promise<IMemory[]> {
