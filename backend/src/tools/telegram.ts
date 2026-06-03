@@ -61,8 +61,20 @@ CONTEXTO ACTUAL:
 ${extraContext}
 ${dynamicProfileSection ? `\n${dynamicProfileSection}\n` : ''}
 ${memoriesSection ? `RECUERDOS DINÁMICOS (lo que sabes sobre el señor — fuente de verdad):\n${memoriesSection}\n` : ''}
-PERFIL BASE (estructura, proyectos, rutina — los DATOS DE PERFIL ACTUALIZADOS tienen prioridad si hay conflicto):
-${JSON.stringify(BAKO_PROFILE)}`;
+PERFIL BASE:
+${JSON.stringify({
+  identidad: BAKO_PROFILE.identidad,
+  pareja: BAKO_PROFILE.pareja,
+  proyectos: Object.fromEntries(
+    Object.entries(BAKO_PROFILE.proyectos).map(([k, v]: [string, any]) => [k, { nombre: v.nombre, estado: v.estado, tipo: v.tipo }])
+  ),
+  vida_personal: {
+    filosofia: BAKO_PROFILE.vida_personal.filosofia,
+    rutina_diaria: BAKO_PROFILE.vida_personal.rutina_diaria,
+    busqueda_vivienda: BAKO_PROFILE.vida_personal.busqueda_vivienda,
+  },
+  instrucciones_para_bako: BAKO_PROFILE.instrucciones_para_bako,
+})}`;
 }
 
 export async function getMemoriesSection(): Promise<string> {
