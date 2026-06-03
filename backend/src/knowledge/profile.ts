@@ -28,8 +28,9 @@ export const BAKO_PROFILE = {
   proyectos: {
     bako: {
       nombre: "BAKO (Borja's Autonomous Knowledge Operator)",
-      descripcion: "Sistema operativo personal con IA — asistente autónomo, voz, Telegram, GitHub",
-      estado: "MVP en producción en Render",
+      descripcion: "Sistema operativo personal con IA — asistente autónomo, voz, Telegram, GitHub. BAKO ES la visión JARVIS: el objetivo final es un mayordomo digital con presencia física robótica. No son proyectos separados — BAKO evoluciona hacia JARVIS.",
+      estado: "MVP en producción en Render. Horizonte físico/robótico: 3-5 años.",
+      vision_final: "Mayordomo digital omnisciente con cuerpo robótico. Conversa, percibe el entorno, ejecuta tareas físicas, aprende de Borja. El Jarvis de Iron Man, en la vida real.",
     },
     bohdeveloper: {
       nombre: "bohdeveloper.com",
@@ -63,12 +64,14 @@ export const BAKO_PROFILE = {
       stack: "React + TypeScript + Express + MongoDB + TMDB API",
       estado: "Home screen funcionando",
     },
-    ia_autonoma: {
-      nombre: "Proyecto IA Autónoma (JARVIS personal)",
-      objetivo: "IA autónoma con cuerpo robótico. Nivel JARVIS de Iron Man.",
-      horizonte: "3-5 años",
-      estado: "Fase 1 — fundamentos ML",
-      nota: "Proyecto personal — no comunicado en Inetum",
+    drones_fpv: {
+      nombre: "Drones FPV y cinematografía aérea",
+      tipo: "Hobby personal",
+      descripcion: "Aprender a pilotar drones FPV y hacer cinematografía aérea 4K en entornos naturales (bosques, acantilados atlánticos, costa gallega).",
+      arranque: "Post-mudanza a Galicia (finales 2026 o posterior). Sin prioridad hasta estar asentado.",
+      ruta: "Simulador Liftoff → licencia A2 AESA → primer drone 5\" (~1.000€) → cinematografía",
+      estado: "Diferido — esperando mudanza a Galicia",
+      nota: "Proyecto personal — no relacionado con Inetum",
     },
     matrix_game: {
       nombre: "Matrix Game (título provisional)",
