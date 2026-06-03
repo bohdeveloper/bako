@@ -87,6 +87,15 @@ router.post('/morning-briefing', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/agent/memories — listar todas las memorias
+router.get('/memories', async (req: Request, res: Response) => {
+  const { Memory } = await import('../memory/Memory');
+  const q = req.query.q as string | undefined;
+  const filter = q ? { content: new RegExp(q.split(' ').filter(w => w.length > 2).join('|'), 'i') } : {};
+  const memories = await Memory.find(filter).sort({ importance: -1, createdAt: -1 });
+  res.json({ ok: true, total: memories.length, memories });
+});
+
 // POST /api/agent/memories/import — importar memorias en batch
 router.post('/memories/import', async (req: Request, res: Response) => {
   const { memories } = req.body;

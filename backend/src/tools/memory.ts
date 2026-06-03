@@ -20,19 +20,17 @@ export async function saveMemory(
 }
 
 export async function getMemories(): Promise<IMemory[]> {
-  // Todas las memorias de alta importancia — sin límite artificial
-  const high = await Memory.find({ importance: 'high' }).sort({ updatedAt: -1 });
+  // Todas las high y medium — sin límite ni filtro de fecha
+  const all = await Memory.find({ importance: { $in: ['high', 'medium'] } }).sort({ importance: -1, updatedAt: -1 });
 
-  // Memorias de importancia media/baja de los últimos 30 días
+  // Low: solo las recientes (30 días)
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3_600_000);
-  const medium = await Memory.find({
-    importance: { $in: ['medium', 'low'] },
-    createdAt: { $gte: thirtyDaysAgo },
-  }).sort({ createdAt: -1 }).limit(20);
+  const low = await Memory.find({ importance: 'low', createdAt: { $gte: thirtyDaysAgo } })
+    .sort({ createdAt: -1 }).limit(10);
 
   const seen = new Set<string>();
   const merged: IMemory[] = [];
-  for (const m of [...high, ...medium]) {
+  for (const m of [...all, ...low]) {
     if (!seen.has(m.id)) { seen.add(m.id); merged.push(m); }
   }
   return merged;
