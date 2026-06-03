@@ -20,10 +20,29 @@ export async function saveMemory(
 }
 
 export async function getMemories(): Promise<IMemory[]> {
-  const high   = await Memory.find({ importance: 'high' }).sort({ updatedAt: -1 }).limit(10);
-  const recent = await Memory.find({ importance: { $in: ['medium', 'low'] } }).sort({ createdAt: -1 }).limit(10);
-  const highIds = new Set(high.map(h => h.id));
-  return [...high, ...recent.filter(r => !highIds.has(r.id))].slice(0, 15);
+  // Todas las memorias de alta importancia — sin límite artificial
+  const high = await Memory.find({ importance: 'high' }).sort({ updatedAt: -1 });
+
+  // Memorias de importancia media/baja de los últimos 30 días
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 3_600_000);
+  const medium = await Memory.find({
+    importance: { $in: ['medium', 'low'] },
+    createdAt: { $gte: thirtyDaysAgo },
+  }).sort({ createdAt: -1 }).limit(20);
+
+  const seen = new Set<string>();
+  const merged: IMemory[] = [];
+  for (const m of [...high, ...medium]) {
+    if (!seen.has(m.id)) { seen.add(m.id); merged.push(m); }
+  }
+  return merged;
+}
+
+export async function searchMemories(query: string): Promise<IMemory[]> {
+  const words = query.trim().split(/\s+/).filter(w => w.length > 2);
+  if (!words.length) return Memory.find().sort({ createdAt: -1 }).limit(20);
+  const regex = new RegExp(words.join('|'), 'i');
+  return Memory.find({ content: regex }).sort({ importance: -1, createdAt: -1 }).limit(20);
 }
 
 export function formatMemoriesForPrompt(memories: IMemory[]): string {

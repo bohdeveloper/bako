@@ -10,7 +10,7 @@ import { getTrackerSummary, formatTrackerForSpeech, markTrackerRecord, getBlogCo
 import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
 import { generateVoiceBuffer } from './tts';
 import { BAKO_PROFILE } from '../knowledge/profile';
-import { saveMemory, getMemories, formatMemoriesForPrompt, forgetMemory, extractAndSaveMemories, getCurrentLocation } from './memory';
+import { saveMemory, getMemories, searchMemories, formatMemoriesForPrompt, forgetMemory, extractAndSaveMemories, getCurrentLocation } from './memory';
 import { Rule } from '../memory/Rule';
 import { tryExecuteAction } from './actions';
 import { getAmbientContext, invalidateCityWeatherCache } from './context';
@@ -132,7 +132,10 @@ const PERSONALIDAD_PRESETS: Record<string, PersonalityConfig> = {
 let currentPersonality: PersonalityConfig = PERSONALIDAD_PRESETS.mayordomo;
 
 function buildPersonalitySection(p: PersonalityConfig): string {
-  const lines: string[] = [`PERSONALIDAD ACTIVA: ${p.nombre}`];
+  const lines: string[] = [
+    `PERSONALIDAD ACTIVA: ${p.nombre}`,
+    `Parámetros (0-10): sinceridad=${p.sinceridad} sarcasmo=${p.sarcasmo} simpatía=${p.simpatia} empatía=${p.empatia} discreción=${p.discrecion} lealtad=${p.lealtad} precisión=${p.precision} detallista=${p.detallista} anticipación=${p.anticipacion}`,
+  ];
 
   if (p.sinceridad   >= 7) lines.push('- Di verdades incómodas sin filtros cuando sea relevante.');
   if (p.sinceridad   <= 3) lines.push('- Sé diplomático: suaviza las verdades difíciles.');
@@ -477,6 +480,48 @@ async function handleCommand(chatId: number, command: string): Promise<void> {
     return;
   }
 
+  if (command.startsWith('/memorias')) {
+    const query = command.slice(9).trim();
+    const memories = query ? await searchMemories(query) : await getMemories();
+    const total = await (await import('../memory/Memory')).Memory.countDocuments();
+
+    if (memories.length === 0) {
+      await bot.sendMessage(chatId, query
+        ? `🧠 No encontré memorias sobre "${query}".`
+        : '🧠 No hay memorias guardadas todavía.'
+      );
+      return;
+    }
+
+    const header = query
+      ? `🧠 *Memorias sobre "${query}"* (${memories.length} encontradas):\n\n`
+      : `🧠 *Memorias activas* (mostrando ${memories.length} de ${total} totales):\n\n`;
+
+    // Dividir en chunks si hay muchas memorias (límite Telegram: 4096 chars)
+    const lines = memories.map((m, i) => {
+      const icon = m.importance === 'high' ? '🔴' : m.importance === 'medium' ? '🟡' : '⚪';
+      const fecha = new Date(m.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+      return `${icon} ${i + 1}. _[${m.type}]_ ${m.content} _(${fecha})_`;
+    });
+
+    const CHUNK = 3500;
+    let chunk = header;
+    for (const line of lines) {
+      if ((chunk + line + '\n').length > CHUNK) {
+        await bot.sendMessage(chatId, chunk, { parse_mode: 'Markdown' });
+        chunk = '';
+      }
+      chunk += line + '\n';
+    }
+    if (chunk.trim()) await bot.sendMessage(chatId, chunk, { parse_mode: 'Markdown' });
+
+    await bot.sendMessage(chatId,
+      `_Para buscar: /memorias [tema] · Para borrar: "Bako, olvida [tema]" · Para añadir: "Bako, recuerda que..."_`,
+      { parse_mode: 'Markdown' }
+    );
+    return;
+  }
+
   if (command === '/reglas') {
     const rules = await Rule.find().sort({ createdAt: -1 });
     if (rules.length === 0) {
@@ -716,6 +761,13 @@ export function startTelegramBot(): void {
   });
 
   bot.onText(/^\/(personalidad(?:\s+\w+)?)$/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(chatId)) return;
+    try { await handleCommand(chatId, `/${match![1]}`); }
+    catch (err) { await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`); }
+  });
+
+  bot.onText(/^\/(memorias(?:\s+.+)?)$/, async (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return;
     try { await handleCommand(chatId, `/${match![1]}`); }
