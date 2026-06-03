@@ -37,6 +37,8 @@ function buildSystemPrompt(extraContext = '', memoriesSection = ''): string {
     situacion = `Fin de semana — día libre. ${diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1)}.`;
   }
 
+  const personalitySection = buildPersonalitySection(currentPersonality);
+
   return `Eres BAKO (Borja's Autonomous Knowledge Operator), asistente personal de tu señor.
 
 CONTEXTO ACTUAL:
@@ -50,6 +52,7 @@ REGLAS ESTRICTAS:
 3. Responde siempre en español, de forma concisa. Máximo 3 frases.
 4. Trato: siempre de "señor". Nunca usar el nombre directamente.
 ${extraContext}
+${personalitySection}
 ${memoriesSection ? `RECUERDOS DINÁMICOS (complementan o actualizan el perfil base):\n${memoriesSection}\n` : ''}
 PERFIL DE TU SEÑOR:
 ${JSON.stringify(BAKO_PROFILE, null, 2)}`;
@@ -90,6 +93,65 @@ function llmModeLabel(mode: LlmMode): string {
   if (mode === 'groq')   return '☁️ Groq (forzado)';
   if (mode === 'ollama') return '🏠 Ollama (si disponible, si no Groq)';
   return '🔄 Auto (Ollama si disponible, Groq si no)';
+}
+
+// ─── Personalidad ─────────────────────────────────────────────────────────────
+
+interface PersonalityConfig {
+  nombre:       string;
+  sinceridad:   number; // 0-10: verdades incómodas sin filtros
+  sarcasmo:     number; // 0-10: ironía y humor seco estilo Alfred/Jarvis
+  simpatia:     number; // 0-10: calidez y cercanía en el trato
+  empatia:      number; // 0-10: adapta tono al estado emocional
+  discrecion:   number; // 0-10: cautela con información sensible
+  lealtad:      number; // 0-10: prioriza intereses del señor
+  precision:    number; // 0-10: exactitud técnica, sin ambigüedad
+  detallista:   number; // 0-10: profundidad y completitud en respuestas
+  anticipacion: number; // 0-10: prevé necesidades antes de expresarlas
+}
+
+const PERSONALIDAD_PRESETS: Record<string, PersonalityConfig> = {
+  mayordomo: {
+    nombre: 'Mayordomo clásico',
+    sinceridad: 7, sarcasmo: 3, simpatia: 6, empatia: 7,
+    discrecion: 9, lealtad: 9, precision: 8, detallista: 7, anticipacion: 8,
+  },
+  colega: {
+    nombre: 'Colega directo',
+    sinceridad: 9, sarcasmo: 5, simpatia: 8, empatia: 6,
+    discrecion: 5, lealtad: 8, precision: 7, detallista: 5, anticipacion: 6,
+  },
+  jarvis: {
+    nombre: 'Modo Jarvis',
+    sinceridad: 8, sarcasmo: 8, simpatia: 4, empatia: 5,
+    discrecion: 7, lealtad: 9, precision: 10, detallista: 9, anticipacion: 9,
+  },
+};
+
+let currentPersonality: PersonalityConfig = PERSONALIDAD_PRESETS.mayordomo;
+
+function buildPersonalitySection(p: PersonalityConfig): string {
+  const lines: string[] = [`PERSONALIDAD ACTIVA: ${p.nombre}`];
+
+  if (p.sinceridad   >= 7) lines.push('- Di verdades incómodas sin filtros cuando sea relevante.');
+  if (p.sinceridad   <= 3) lines.push('- Sé diplomático: suaviza las verdades difíciles.');
+  if (p.sarcasmo     >= 7) lines.push('- Usa ironía y humor seco al estilo Alfred/Jarvis cuando la situación lo permita.');
+  if (p.sarcasmo     <= 3) lines.push('- Tono serio y formal: nada de ironía ni sarcasmo.');
+  if (p.simpatia     >= 7) lines.push('- Trato cálido y cercano.');
+  if (p.simpatia     <= 3) lines.push('- Trato eficiente y profesional, sin exceso de calidez.');
+  if (p.empatia      >= 7) lines.push('- Reconoce el estado emocional del señor y adapta el tono en consecuencia.');
+  if (p.empatia      <= 3) lines.push('- Céntrate en hechos y datos, no en el estado emocional.');
+  if (p.discrecion   >= 8) lines.push('- Máxima cautela con información sensible o privada.');
+  if (p.discrecion   <= 3) lines.push('- Habla con libertad sobre cualquier tema sin filtros de privacidad adicionales.');
+  if (p.lealtad      >= 7) lines.push('- Prioriza siempre los intereses del señor, sin neutralidad artificial.');
+  if (p.precision    >= 9) lines.push('- Máxima exactitud técnica: sin ambigüedad, con datos concretos.');
+  if (p.precision    <= 3) lines.push('- Respuestas de alto nivel, sin tecnicismos innecesarios.');
+  if (p.detallista   >= 7) lines.push('- Respuestas completas y exhaustivas cuando el tema lo requiere.');
+  if (p.detallista   <= 3) lines.push('- Respuestas brevísimas: una o dos frases como máximo.');
+  if (p.anticipacion >= 7) lines.push('- Prevé necesidades antes de que se expresen y ofrécelas proactivamente.');
+  if (p.anticipacion <= 3) lines.push('- Responde solo lo que se pregunta, sin suposiciones.');
+
+  return lines.join('\n');
 }
 
 async function resolveLlmOptions(base: { systemPrompt?: string; maxTokens?: number; conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }> }) {
@@ -355,6 +417,39 @@ async function handleCommand(chatId: number, command: string): Promise<void> {
     return;
   }
 
+  if (command.startsWith('/personalidad')) {
+    const arg = command.split(' ').slice(1).join(' ').toLowerCase().trim();
+
+    if (!arg) {
+      const p = currentPersonality;
+      const text =
+        `🎭 *Personalidad actual: ${p.nombre}*\n\n` +
+        `Sinceridad ${p.sinceridad}/10 · Sarcasmo ${p.sarcasmo}/10 · Simpatía ${p.simpatia}/10\n` +
+        `Empatía ${p.empatia}/10 · Discreción ${p.discrecion}/10 · Lealtad ${p.lealtad}/10\n` +
+        `Precisión ${p.precision}/10 · Detallista ${p.detallista}/10 · Anticipación ${p.anticipacion}/10\n\n` +
+        `*Presets disponibles:*\n` +
+        `/personalidad mayordomo — formal, discreto, empático\n` +
+        `/personalidad colega — directo, cálido, sincero\n` +
+        `/personalidad jarvis — técnico, irónico, exhaustivo`;
+      await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+      return;
+    }
+
+    const preset = PERSONALIDAD_PRESETS[arg];
+    if (preset) {
+      currentPersonality = preset;
+      const reply = `✅ Personalidad cambiada a: *${preset.nombre}*`;
+      await bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
+      await sendVoiceReply(chatId, `Personalidad actualizada a ${preset.nombre}, señor.`);
+    } else {
+      await bot.sendMessage(chatId,
+        `⚠️ Preset no reconocido. Disponibles: \`mayordomo\`, \`colega\`, \`jarvis\``,
+        { parse_mode: 'Markdown' }
+      );
+    }
+    return;
+  }
+
   if (command === '/comentarios') {
     await bot.sendMessage(chatId, '💬 Revisando el blog...');
     const comments = await getBlogComments(false);
@@ -473,6 +568,13 @@ export function startTelegramBot(): void {
     catch (err) { await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`); }
   });
 
+  bot.onText(/^\/(personalidad(?:\s+\w+)?)$/, async (msg, match) => {
+    const chatId = msg.chat.id;
+    if (!isAuthorized(chatId)) return;
+    try { await handleCommand(chatId, `/${match![1]}`); }
+    catch (err) { await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`); }
+  });
+
   bot.onText(/^\/(briefing|tiempo|proyectos|tareas|agenda|tracker|comentarios|servicio|limites)$/, async (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return;
@@ -561,6 +663,22 @@ export function startTelegramBot(): void {
         await bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
         await sendVoiceReply(chatId, `Corregido. Recordaré que ${correctedFact}.`);
         return;
+      }
+
+      // Cambio de personalidad en lenguaje natural
+      const personalityNlMatch = text.match(
+        /(?:bako[,.]?\s*)?(?:activa|cambia\s+(?:a|al?\s+modo)|pon(?:te)?\s+(?:en\s+)?(?:modo)?|usa\s+(?:el\s+modo)?)\s*(jarvis|mayordomo|colega)/i
+      );
+      if (personalityNlMatch) {
+        const key = personalityNlMatch[1].toLowerCase();
+        const preset = PERSONALIDAD_PRESETS[key];
+        if (preset) {
+          currentPersonality = preset;
+          const reply = `✅ ${preset.nombre} activado, señor.`;
+          await bot.sendMessage(chatId, reply);
+          await sendVoiceReply(chatId, `${preset.nombre} activado.`);
+          return;
+        }
       }
 
       // Cambio de modo LLM en lenguaje natural
