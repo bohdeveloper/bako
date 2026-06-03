@@ -66,7 +66,7 @@ export const BAKO_PROFILE = {
     },
     drones_fpv: {
       nombre: "Drones FPV y cinematografía aérea",
-      tipo: "Hobby personal",
+      tipo: "Hobby personal — DIFERIDO post-Galicia",
       descripcion: "Aprender a pilotar drones FPV y hacer cinematografía aérea 4K en entornos naturales (bosques, acantilados atlánticos, costa gallega).",
       arranque: "Post-mudanza a Galicia (finales 2026 o posterior). Sin prioridad hasta estar asentado.",
       ruta: "Simulador Liftoff → licencia A2 AESA → primer drone 5\" (~1.000€) → cinematografía",
@@ -75,7 +75,7 @@ export const BAKO_PROFILE = {
     },
     matrix_game: {
       nombre: "Matrix Game (título provisional)",
-      tipo: "Videojuego open-world — simulador de vida en el universo Matrix",
+      tipo: "Videojuego open-world — DIFERIDO post-Galicia",
       descripcion: "GTA V + Cyberpunk 2077 + Matrix lore. Mundo 5km², 200+ NPCs con rutinas diarias, economía funcional, facciones (Red Pills, Agentes, Corpos), hacking como mecánica core, combate parkour/gun-fu.",
       engine: "Unreal Engine 5 (C++ + Blueprints)",
       stack: "UE5, C++, Blender, FMOD, Megascans, Git LFS",
@@ -85,7 +85,7 @@ export const BAKO_PROFILE = {
     },
     kefir_artesanal: {
       nombre: "Proyecto Kefir Artesanal",
-      tipo: "Negocio artesanal + e-commerce propio",
+      tipo: "Negocio artesanal + e-commerce propio — DIFERIDO post-Galicia",
       descripcion: "Productor y vendedor de kefir artesanal en Galicia. Venta directa al consumidor vía web propia con suscripción recurrente.",
       stack: "Next.js + PostgreSQL + Stripe",
       ubicacion: "Galicia — arranca tras la mudanza (finales 2026 o posterior)",
