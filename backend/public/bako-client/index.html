@@ -277,11 +277,13 @@
       content: ''; position: absolute; width: 56px; height: 56px;
       border-radius: 50%; border: 2px solid #10b98155; animation: pulse 1.2s infinite;
     }
-    .mic-btn.processing { border-color: var(--yellow); background: #1a1500; cursor: pointer; animation: micPulse 1.4s ease-in-out infinite; }
-    .mic-btn.playing    { border-color: var(--green);  background: #0a1a0f; cursor: pointer; animation: micPulse 1.4s ease-in-out infinite; }
-    .mic-btn.cooldown   { border-color: var(--red);    opacity: 0.5; cursor: not-allowed; }
-    .mic-btn.stopping   { border-color: var(--red);    background: #1a0000; }
-    @keyframes micPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } 50% { box-shadow: 0 0 0 6px rgba(239,68,68,0.25); } }
+    /* Procesando o reproduciendo → rojo claro, mismo esquema para ambos: "toca para parar" */
+    .mic-btn.processing,
+    .mic-btn.playing    { border-color: var(--red); background: rgba(239,68,68,0.18); color: var(--red); cursor: pointer; animation: micPulse 1.2s ease-in-out infinite; }
+    .mic-btn.cooldown   { border-color: var(--red); opacity: 0.5; cursor: not-allowed; }
+    .mic-btn.stopping   { border-color: var(--red); background: rgba(239,68,68,0.18); }
+    .mic-icon svg       { width: 18px; height: 18px; pointer-events: none; display: block; }
+    @keyframes micPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } 50% { box-shadow: 0 0 0 8px rgba(239,68,68,0.35); } }
     @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }
 
     .mic-icon  { font-size: 18px; pointer-events: none; }
@@ -553,8 +555,8 @@
   <div class="text-row">
     <button class="btn-presets" id="btnPresets" title="Comandos rápidos">⚡</button>
     <input class="text-input" id="textInput" type="text" placeholder="Escribe un mensaje…" autocomplete="off">
-    <button class="mic-btn" id="micBtn" title="Mantén para hablar · toca para parar">
-      <span class="mic-icon">🎤</span>
+    <button class="mic-btn" id="micBtn" title="Mantén para hablar">
+      <span class="mic-icon"></span>
       <span class="mic-label" id="micLabel">Mantén</span>
     </button>
     <button class="btn-send-text" id="btnSendText">➤</button>
@@ -667,6 +669,10 @@
     closeAdmin();
     showLoginScreen();
   }
+
+  // SVG icono stop (cuadrado rojo — visible en el botón mic al interrumpir)
+  const SVG_STOP = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2.5"/></svg>`;
+  const SVG_MIC  = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z"/></svg>`;
 
   // SVG ojo abierto (contraseña oculta → pulsar para ver)
   const SVG_EYE_OPEN = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>`;
@@ -932,11 +938,14 @@
   function setMicState(state) {
     micState = state;
     micBtn.className = 'mic-btn' + (state !== 'idle' ? ' ' + state : '');
-    const labels = { recording: 'Suelta', processing: 'Parar', playing: 'Parar', stopping: 'Parando', cooldown: 'Espera', idle: 'Mantén' };
-    const icons  = { recording: '🎙️', processing: '⏹', playing: '⏹', stopping: '⏹', cooldown: '🎤', idle: '🎤' };
-    micLabel.textContent = labels[state] || 'Mantén';
+    micLabel.textContent = ({ recording: 'Suelta', processing: 'Parar', playing: 'Parar', stopping: 'Parando', cooldown: 'Espera', idle: 'Mantén' })[state] || 'Mantén';
     const iconEl = micBtn.querySelector('.mic-icon');
-    if (iconEl) iconEl.textContent = icons[state] || '🎤';
+    if (iconEl) {
+      const isStop = state === 'processing' || state === 'playing' || state === 'stopping';
+      iconEl.innerHTML  = isStop ? SVG_STOP : SVG_MIC;
+      iconEl.style.color = isStop ? 'var(--red)' : (state === 'recording' ? 'var(--green)' : '');
+    }
+    micBtn.title = (state === 'processing' || state === 'playing') ? 'Toca para parar a BAKO' : 'Mantén para hablar';
     wave.classList.toggle('active', state === 'recording');
   }
 
@@ -1432,6 +1441,9 @@
     presetPanel.classList.contains('visible') ? closePresets() : openPresets();
   });
   presetOverlay.addEventListener('click', closePresets);
+
+  // Inicializar icono mic con SVG (el HTML empieza vacío para evitar emoji feo)
+  setMicState('idle');
 
   // ── Init — verificar sesión ───────────────────────────────────────────────
 
