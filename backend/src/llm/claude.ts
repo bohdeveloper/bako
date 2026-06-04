@@ -7,8 +7,9 @@ const GROQ_MODEL   = process.env.GROQ_MODEL   ?? 'llama-3.1-8b-instant';
 export interface AskClaudeOptions {
   systemPrompt?: string;
   maxTokens?: number;
+  temperature?: number; // 0.0–1.0 · default 0.4 para respuestas precisas
   useCloud?: boolean;
-  private?: boolean; // true → solo Ollama local, nunca Groq
+  private?: boolean;    // true → solo Ollama local, nunca Groq
   conversationHistory?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }
 
@@ -24,20 +25,21 @@ export class PrivacyError extends Error {
   }
 }
 
-async function askOllama(messages: Message[], maxTokens?: number): Promise<string> {
+async function askOllama(messages: Message[], maxTokens?: number, temperature?: number): Promise<string> {
   const { data } = await axios.post(`${OLLAMA_URL}/api/chat`, {
     model: OLLAMA_MODEL,
     messages,
     stream: false,
     options: {
       num_ctx: 4096,
-      ...(maxTokens ? { num_predict: maxTokens } : {}),
+      ...(maxTokens   ? { num_predict: maxTokens }   : {}),
+      ...(temperature !== undefined ? { temperature } : {}),
     },
   });
   return data.message?.content ?? 'Sin respuesta';
 }
 
-async function askGroq(messages: Message[], maxTokens?: number): Promise<string> {
+async function askGroq(messages: Message[], maxTokens?: number, temperature?: number): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error('GROQ_API_KEY no está definido en .env');
 
@@ -46,7 +48,8 @@ async function askGroq(messages: Message[], maxTokens?: number): Promise<string>
     {
       model: GROQ_MODEL,
       messages,
-      ...(maxTokens ? { max_tokens: maxTokens } : {}),
+      ...(maxTokens   ? { max_tokens: maxTokens }   : {}),
+      temperature: temperature ?? 0.4,  // default 0.4 — preciso sin ser robótico
     },
     {
       headers: {
@@ -68,7 +71,7 @@ export async function isOllamaAvailable(): Promise<boolean> {
 }
 
 export async function askClaude(prompt: string, options: AskClaudeOptions = {}): Promise<string> {
-  const { systemPrompt, maxTokens, useCloud = false, private: isPrivate = false, conversationHistory } = options;
+  const { systemPrompt, maxTokens, temperature, useCloud = false, private: isPrivate = false, conversationHistory } = options;
 
   const messages: Message[] = [];
   if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
@@ -79,10 +82,9 @@ export async function askClaude(prompt: string, options: AskClaudeOptions = {}):
   }
   messages.push({ role: 'user', content: prompt });
 
-  // Modo privado: solo Ollama. Si no está disponible, lanzar PrivacyError.
   if (isPrivate) {
     try {
-      const response = await askOllama(messages, maxTokens);
+      const response = await askOllama(messages, maxTokens, temperature);
       console.log('🔒 BAKO: modo privado → Ollama local');
       return response;
     } catch {
@@ -90,22 +92,20 @@ export async function askClaude(prompt: string, options: AskClaudeOptions = {}):
     }
   }
 
-  // Modo cloud explícito (Telegram conversación, briefing)
   if (useCloud) {
-    const response = await askGroq(messages, maxTokens);
-    console.log('☁️  BAKO: usando Groq (cloud)');
+    const response = await askGroq(messages, maxTokens, temperature);
+    console.log(`☁️  BAKO: Groq (temp=${temperature ?? 0.4})`);
     return response;
   }
 
-  // Modo normal: Ollama con fallback a Groq
   try {
-    const response = await askOllama(messages, maxTokens);
+    const response = await askOllama(messages, maxTokens, temperature);
     console.log('🏠 BAKO: usando Ollama (local)');
     return response;
   } catch {
     console.warn('⚠️  Ollama no disponible → cambiando a Groq...');
-    const response = await askGroq(messages, maxTokens);
-    console.log('☁️  BAKO: usando Groq (cloud)');
+    const response = await askGroq(messages, maxTokens, temperature);
+    console.log(`☁️  BAKO: Groq fallback (temp=${temperature ?? 0.4})`);
     return response;
   }
 }
