@@ -1354,8 +1354,10 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
             },
           });
           await sendVoiceReply(chatId, `Email redactado para ${destino}. ¿Lo envío, lo guardo como borrador o lo cancelo?`);
-        } catch {
-          await bot.sendMessage(chatId, '⚠️ No pude redactar el email. Verifique que Gmail esté autorizado.');
+        } catch (err: any) {
+          const detail = err?.response?.data?.error?.message ?? err?.message ?? 'Error desconocido';
+          console.error('❌ Gmail draft error:', detail, err?.response?.data);
+          await bot.sendMessage(chatId, `⚠️ No pude redactar el email.\n\`${detail}\``);
         }
         return;
       }
