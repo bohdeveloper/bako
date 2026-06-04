@@ -15,7 +15,7 @@ import { saveMemory, getMemories, searchMemories, formatMemoriesForPrompt, forge
 import { buildDynamicProfileContext, updateProfileField, detectProfileUpdate, PROFILE_FIELDS } from './profileDynamic';
 import { Rule } from '../memory/Rule';
 import { tryExecuteAction } from './actions';
-import { getAmbientContext, invalidateCityWeatherCache } from './context';
+import { getAmbientContext, invalidateCityWeatherCache, invalidateCalendarCache } from './context';
 
 export function buildSystemPrompt(extraContext = '', memoriesSection = '', dynamicProfileSection = ''): string {
   const now   = nowInSpain();
@@ -942,6 +942,7 @@ async function handleCommand(chatId: number, command: string): Promise<void> {
   }
 
   if (command === '/agenda') {
+    invalidateCalendarCache(); // siempre datos frescos al consultar agenda manualmente
     await bot.sendMessage(chatId, '📅 Un momento...');
     const events = await getCalendarEvents(2);
     const speech = formatEventsForSpeech(events);

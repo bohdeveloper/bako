@@ -15,7 +15,7 @@ const weatherByCity = new Map<string, { data: WeatherData; ts: number }>();
 const WEATHER_TTL  = 30 * 60 * 1000; // 30 min
 
 let calendarCache: { data: CalendarEvent[]; ts: number } | null = null;
-const CALENDAR_TTL = 15 * 60 * 1000; // 15 min
+const CALENDAR_TTL = 3 * 60 * 1000; // 3 min
 
 let trackerCache: { data: TrackerDaySummary; ts: number; date: string } | null = null;
 const TRACKER_TTL  =  5 * 60 * 1000; // 5 min — cambia cuando Borja registra actividades
@@ -65,6 +65,11 @@ async function cachedTracker(): Promise<TrackerDaySummary | null> {
 // Invalida el cache de una ciudad (llamar cuando cambia la ubicación)
 export function invalidateCityWeatherCache(city: string): void {
   weatherByCity.delete(city.toLowerCase().trim());
+}
+
+// Invalida el cache del calendario (llamar tras crear/modificar eventos)
+export function invalidateCalendarCache(): void {
+  calendarCache = null;
 }
 
 // ─── Contexto principal ───────────────────────────────────────────────────────

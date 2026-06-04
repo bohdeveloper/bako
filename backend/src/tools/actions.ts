@@ -13,6 +13,7 @@ import { createCalendarEvent } from './calendar';
 import { createGitHubIssue } from './github';
 import { markTrackerRecord } from './cloudflare';
 import { askClaude } from '../llm/claude';
+import { invalidateCalendarCache } from './context';
 import { nowInSpain } from './cloudflare';
 
 function fechaContexto(): string {
@@ -110,6 +111,7 @@ Si no se especifica duración, el evento dura 1 hora. Usa horario de España (Eu
     descripcion: p.descripcion !== 'null' ? p.descripcion : undefined,
     ubicacion:   p.ubicacion   !== 'null' ? p.ubicacion   : undefined,
   });
+  invalidateCalendarCache(); // fuerza recarga inmediata en el próximo mensaje
 
   const fechaStr = new Date(event.start).toLocaleString('es-ES', {
     weekday: 'long', day: 'numeric', month: 'long',
