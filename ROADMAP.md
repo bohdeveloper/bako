@@ -75,8 +75,14 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | Calendar datos en tiempo real — distinción pasados/futuros, cache 1min, no extrae eventos a memoria | ✅ |
 | PWA v4 — mic inline en text-row, interrupción de BAKO (AbortController), 63 presets en 11 categorías | ✅ |
 | Auth JWT — login persistente 30d, roles superadmin/user, panel admin gestión de usuarios | ✅ |
-| Memoria por tiers — social(15)→proyectos(5)→personal(3)→técnico garantizados, char budget anti-413 | ✅ |
+| Memoria por tiers — social(20)→proyectos(5)→personal(3)→técnico garantizados, char budget anti-413 | ✅ |
 | Weather mejorado — caché 10 min, Errentería→Donostia para mejor cobertura de datos | ✅ |
+| Gmail en PWA/Desktop — emails reales en contexto, instrucción anti-alucinación | ✅ |
+| Temperatura LLM 0.4 + max_tokens 400 — respuestas precisas y concisas, sin divagar | ✅ |
+| Desktop v4 — sincronizado con PWA: auth JWT, interrupt, presets, panel admin | ✅ |
+| Icono stop SVG rojo en mic — feedback visual claro al interrumpir BAKO | ✅ |
+| Fase 7 — panel admin Memorias: listar, buscar, filtrar, editar, crear, eliminar (Atlas directo) | ✅ |
+| "No le entiendo, señor" — respuesta cuando el mensaje es ininteligible o sin sentido | ✅ |
 
 ---
 
@@ -341,17 +347,17 @@ BAKO_HOTKEY=ctrl+alt+b
 - Cola de posts en MongoDB → BAKO genera y publica con confirmación
 - Modo automático: calendario editorial definido por ti
 
-### Fase 7 — Panel de administración BAKO 🔄 En progreso
-**Alcance reducido y práctico:** panel integrado en la PWA (no en bohdeveloper.com). Auth ya completada (JWT + roles).
+### Fase 7 — Panel de administración BAKO ✅ Completado (junio 2026)
+Panel integrado en la PWA (no en bohdeveloper.com).
 
-**Completado:**
-- ✅ Auth JWT — login, roles superadmin/user, gestión de usuarios
-
-**Pendiente:**
-- ❌ Gestión de memorias — listar, buscar, editar, eliminar desde el panel admin
-- ❌ Edición de perfil ampliada — más campos que ProfileOverride (actualmente solo 5)
-- ❌ Stats de uso — número de memorias por categoría, conversaciones, última actividad
-- ❌ Widget de chat público en bohdeveloper.com (diferido a cuando el panel sea estable)
+- ✅ Auth JWT — login, roles superadmin/user, gestión de usuarios (crear, editar, activar/desactivar, eliminar)
+- ✅ Pestaña 🧠 Memorias — listar 104+ memorias con badges de tier y importancia
+- ✅ Buscar en tiempo real por contenido o tags, filtrar por tier e importancia
+- ✅ Edición inline — content, importance, type, tags directamente en Atlas
+- ✅ Crear nueva memoria desde el panel
+- ✅ Eliminar con confirmación
+- ❌ Edición de perfil ampliada — más campos que ProfileOverride (pendiente Fase 7b)
+- ❌ Widget de chat público en bohdeveloper.com (diferido)
 
 ### Fase 8 — Automatización (sin n8n) ✅ Completado (junio 2026)
 Implementado directamente en ProactivityService sin infraestructura adicional:
