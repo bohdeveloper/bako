@@ -1235,8 +1235,11 @@ export function startTelegramBot(): void {
 
       const forgetMatch = text.match(/^(?:bako[,.]?\s*)?olvida(?:\s+(?:que|lo\s+de?))?\s+(.+)$/i);
       if (forgetMatch) {
-        const deleted = await forgetMemory(forgetMatch[1].trim());
-        await bot.sendMessage(chatId, deleted ? '🧠 Olvidado, señor.' : '⚠️ No encontré ese recuerdo.');
+        const result = await forgetMemory(forgetMatch[1].trim());
+        const msg = result === 'deleted'   ? '🧠 Olvidado, señor.'
+                  : result === 'protected' ? '🔒 Ese recuerdo forma parte de mi conocimiento base y no puedo borrarlo. Si quiere eliminarlo, indíqueme el ID.'
+                  :                          '⚠️ No encontré ese recuerdo.';
+        await bot.sendMessage(chatId, msg);
         return;
       }
 

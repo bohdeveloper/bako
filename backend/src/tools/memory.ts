@@ -57,14 +57,19 @@ export function formatMemoriesForPrompt(memories: IMemory[]): string {
     .join('\n');
 }
 
-export async function forgetMemory(hint: string): Promise<boolean> {
+export type ForgetResult = 'deleted' | 'protected' | 'not_found';
+
+export async function forgetMemory(hint: string): Promise<ForgetResult> {
   const words = hint.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-  if (!words.length) return false;
+  if (!words.length) return 'not_found';
   const regex = new RegExp(words.join('|'), 'i');
-  const memory = await Memory.findOne({ content: regex }).sort({ createdAt: -1 });
-  if (!memory) return false;
-  await memory.deleteOne();
-  return true;
+  // Comprueba primero si existe (sin filtro de source)
+  const exists = await Memory.findOne({ content: regex }).sort({ createdAt: -1 });
+  if (!exists) return 'not_found';
+  // Las memorias importadas (source=manual) son intocables via lenguaje natural
+  if (exists.source === 'manual') return 'protected';
+  await exists.deleteOne();
+  return 'deleted';
 }
 
 function inferLocationFromRoutine(): string {
