@@ -307,8 +307,7 @@
     <button class="btn-send-text" id="btnSendText" title="Enviar texto">➤</button>
   </div>
 
-  <button class="mic-btn" id="micBtn"
-    ontouchstart="onTouchStart(event)" ontouchend="onTouchEnd(event)">
+  <button class="mic-btn" id="micBtn">
     <span class="mic-icon">🎤</span>
     <span class="mic-label" id="micLabel">Mantén</span>
   </button>
@@ -317,37 +316,48 @@
 </div>
 
 <script>
-  const BAKO_URL = window.location.origin;
-  const REVIEW_SECS  = 5;
-  const MIN_GAP_MS   = 3000;
+  const BAKO_URL    = window.location.origin;
+  const REVIEW_SECS = 5;
+  const MIN_GAP_MS  = 3000;
 
   // ── DOM refs ──────────────────────────────────────────────────────────────
-  const wave         = document.getElementById('wave');
-  const transcDiv    = document.getElementById('transcription');
-  const responseDiv  = document.getElementById('response');
-  const reviewPanel  = document.getElementById('reviewPanel');
-  const reviewText   = document.getElementById('reviewText');
-  const reviewCD     = document.getElementById('reviewCountdown');
-  const progressBar  = document.getElementById('progressBar');
-  const btnCancel    = document.getElementById('btnCancel');
-  const btnSendReview= document.getElementById('btnSendReview');
-  const textInput    = document.getElementById('textInput');
-  const btnSendText  = document.getElementById('btnSendText');
-  const micBtn       = document.getElementById('micBtn');
-  const micLabel     = document.getElementById('micLabel');
-  const statusBar    = document.getElementById('statusBar');
+  const wave          = document.getElementById('wave');
+  const transcDiv     = document.getElementById('transcription');
+  const responseDiv   = document.getElementById('response');
+  const reviewPanel   = document.getElementById('reviewPanel');
+  const reviewText    = document.getElementById('reviewText');
+  const reviewCD      = document.getElementById('reviewCountdown');
+  const progressBar   = document.getElementById('progressBar');
+  const btnCancel     = document.getElementById('btnCancel');
+  const btnSendReview = document.getElementById('btnSendReview');
+  const textInput     = document.getElementById('textInput');
+  const btnSendText   = document.getElementById('btnSendText');
+  const micBtn        = document.getElementById('micBtn');
+  const micLabel      = document.getElementById('micLabel');
+  const statusBar     = document.getElementById('statusBar');
 
   // ── Estado ────────────────────────────────────────────────────────────────
-  let mediaRecorder  = null;
-  let audioChunks    = [];
-  let isRecording    = false;
-  let stream         = null;
-  let currentAudio   = null;
-  let lastRequestMs  = 0;
-  let cooldownUntil  = 0;
+  let mediaRecorder = null;
+  let audioChunks   = [];
+  let isRecording   = false;
+  let stream        = null;
+  let currentAudio  = null;
+  let lastRequestMs = 0;
+  let cooldownUntil = 0;       // timestamp hasta el que no se puede enviar
   let countdownTimer = null;
   let countdownVal   = REVIEW_SECS;
   let userEditing    = false;
+
+  // ── Limpieza de markdown (para mostrar texto limpio) ─────────────────────
+  function stripMarkdown(t) {
+    return t
+      .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')
+      .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
+      .replace(/`{1,3}[^`]*`{1,3}/g, '')
+      .replace(/#{1,6}\s+/g, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/\*/g, '').replace(/_/g, '');
+  }
 
   // ── Utilidades de UI ──────────────────────────────────────────────────────
   function setStatus(msg, cls = '') {
@@ -362,12 +372,17 @@
     wave.classList.toggle('active', state === 'recording');
   }
 
+  // Bloquea/desbloquea TODA interacción. Durante cooldown nunca llama a enable.
   function setUiEnabled(enabled) {
-    micBtn.style.pointerEvents  = enabled ? '' : 'none';
-    micBtn.style.opacity        = enabled ? '' : '0.5';
+    if (enabled && isCoolingDown()) return; // nunca re-habilitar durante cooldown
+    const ptr = enabled ? '' : 'none';
+    micBtn.style.pointerEvents  = ptr;
+    micBtn.style.opacity        = enabled ? '' : '0.4';
+    micBtn.style.cursor         = enabled ? '' : 'not-allowed';
     textInput.disabled          = !enabled;
     btnSendText.disabled        = !enabled;
     btnSendReview.disabled      = !enabled;
+    btnSendText.style.opacity   = enabled ? '' : '0.4';
   }
 
   // ── Rate limit ────────────────────────────────────────────────────────────
@@ -376,24 +391,39 @@
   function setCooldown(secs) {
     cooldownUntil = Date.now() + secs * 1000;
     setMicState('cooldown');
-    setUiEnabled(false);
+    // Deshabilitar sin pasar por setUiEnabled (evita el guard)
+    micBtn.style.pointerEvents = 'none';
+    micBtn.style.opacity       = '0.4';
+    micBtn.style.cursor        = 'not-allowed';
+    textInput.disabled         = true;
+    btnSendText.disabled       = true;
+    btnSendReview.disabled     = true;
+    btnSendText.style.opacity  = '0.4';
     tickCooldown();
   }
 
   function tickCooldown() {
     const rem = Math.ceil((cooldownUntil - Date.now()) / 1000);
     if (rem > 0) {
-      setStatus(`⏳ Rate limit — disponible en ${rem}s`, 'warn');
+      setStatus(`🚫 Rate limit — disponible en ${rem}s`, 'warn');
       setTimeout(tickCooldown, 1000);
     } else {
+      cooldownUntil = 0;
       setMicState('idle');
-      setUiEnabled(true);
-      setStatus('Listo para hablar');
+      micBtn.style.pointerEvents = '';
+      micBtn.style.opacity       = '';
+      micBtn.style.cursor        = '';
+      textInput.disabled         = false;
+      btnSendText.disabled       = false;
+      btnSendReview.disabled     = false;
+      btnSendText.style.opacity  = '';
+      setStatus('✅ Listo para hablar');
     }
   }
 
-  function parseCooldownSecs(text) {
-    const m = text.match(/(\d+)\s*(?:s\b|sec|second|segundo)/i);
+  function parseCooldownSecs(data) {
+    const t = JSON.stringify(data);
+    const m = t.match(/(\d+)\s*(?:s\b|sec|second|segundo)/i);
     return m ? Math.min(parseInt(m[1]), 120) : 30;
   }
 
@@ -408,7 +438,7 @@
 
   // ── Grabación ──────────────────────────────────────────────────────────────
   async function startRecording() {
-    if (isRecording || isCoolingDown()) return;
+    if (isRecording || isCoolingDown()) return;   // bloqueado durante cooldown
     if (currentAudio) { currentAudio.pause(); currentAudio = null; }
     cancelReview();
 
@@ -422,7 +452,7 @@
       mediaRecorder.start(100);
       isRecording = true;
       setMicState('recording');
-      setStatus('Grabando... suelta para revisar');
+      setStatus('Grabando… suelta para revisar');
       transcDiv.textContent = '';
     } catch {
       setStatus('Sin acceso al micrófono', 'error');
@@ -435,7 +465,7 @@
     mediaRecorder.stop();
     stream.getTracks().forEach(t => t.stop());
     setMicState('processing');
-    setStatus('Transcribiendo...', 'warn');
+    setStatus('Transcribiendo…', 'warn');
 
     await new Promise(r => { mediaRecorder.onstop = r; });
 
@@ -443,11 +473,20 @@
     if (blob.size < 500) { setMicState('idle'); setStatus('Listo para hablar'); return; }
 
     try {
-      const formData = new FormData();
-      formData.append('audio', blob, 'voice.webm');
-      const res  = await fetch(`${BAKO_URL}/api/desktop/transcribe`, { method: 'POST', body: formData });
-      const data = await res.json();
+      const form = new FormData();
+      form.append('audio', blob, 'voice.webm');
+      const res  = await fetch(`${BAKO_URL}/api/desktop/transcribe`, { method: 'POST', body: form });
 
+      // 429 también en transcripción
+      if (res.status === 429) {
+        const data = await res.json().catch(() => ({}));
+        setCooldown(parseCooldownSecs(data));
+        responseDiv.textContent = '🚫 Rate limit activo — espera antes de hablar';
+        setMicState('idle');
+        return;
+      }
+
+      const data = await res.json();
       if (!res.ok || !data.transcription) {
         setMicState('idle');
         setStatus('No se detectó habla', 'error');
@@ -465,20 +504,14 @@
   // ── Review panel ──────────────────────────────────────────────────────────
   function showReview(text) {
     reviewText.value = text;
-    userEditing      = false;
-    countdownVal     = REVIEW_SECS;
-
+    userEditing = false;
     reviewPanel.classList.add('visible');
     progressBar.style.transition = 'none';
     progressBar.style.width      = '100%';
-
-    setStatus(`Revisa el mensaje — enviando en ${REVIEW_SECS}s`, 'warn');
-
-    // Forzar reflow antes de activar la transición
+    setStatus(`Revisa — enviando en ${REVIEW_SECS}s`, 'warn');
     void progressBar.offsetWidth;
     progressBar.style.transition = `width ${REVIEW_SECS}s linear`;
     progressBar.style.width      = '0%';
-
     startCountdown();
   }
 
@@ -502,17 +535,15 @@
   function cancelReview() {
     stopCountdown();
     reviewPanel.classList.remove('visible');
-    setMicState('idle');
-    setStatus('Listo para hablar');
+    if (!isCoolingDown()) { setMicState('idle'); setStatus('Listo para hablar'); }
   }
 
   function sendReview() {
     const text = reviewText.value.trim();
     cancelReview();
-    if (text) sendMessage(text);
+    if (text && !isCoolingDown()) sendMessage(text);
   }
 
-  // Edición manual → pausa el countdown
   reviewText.addEventListener('input', () => {
     if (!userEditing) {
       userEditing = true;
@@ -520,20 +551,20 @@
       progressBar.style.transition = 'none';
       progressBar.style.width = '0%';
       reviewCD.textContent = '✏️';
-      setStatus('Editado — pulsa Enviar cuando estés listo', 'ok');
+      setStatus('Editado — pulsa Enviar', 'ok');
     }
   });
   reviewText.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReview(); }
   });
-
-  btnSendReview.addEventListener('click',  sendReview);
-  btnCancel.addEventListener('click',     cancelReview);
+  btnSendReview.addEventListener('click', sendReview);
+  btnCancel.addEventListener('click',    cancelReview);
 
   // ── Input de texto ────────────────────────────────────────────────────────
   function sendTextInput() {
+    if (isCoolingDown()) return;
     const text = textInput.value.trim();
-    if (!text || isCoolingDown()) return;
+    if (!text) return;
     textInput.value = '';
     sendMessage(text);
   }
@@ -544,32 +575,33 @@
 
   // ── Envío a BAKO ──────────────────────────────────────────────────────────
   async function sendMessage(text) {
-    if (isCoolingDown()) { setStatus('Rate limit activo', 'warn'); return; }
+    if (isCoolingDown()) return;    // última defensa
 
     await waitGapIfNeeded();
 
-    transcDiv.textContent = `"${text}"`;
+    transcDiv.textContent   = `"${text}"`;
     responseDiv.textContent = '';
     setUiEnabled(false);
-    setStatus('Enviando a BAKO...', 'warn');
+    setStatus('Enviando a BAKO…', 'warn');
 
     try {
-      const res  = await fetch(`${BAKO_URL}/api/desktop/text`, {
+      const res = await fetch(`${BAKO_URL}/api/desktop/text`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),
       });
       lastRequestMs = Date.now();
-      const data = await res.json();
 
-      // Rate limit
-      const bodyStr = JSON.stringify(data).toLowerCase();
-      if (res.status === 429 || (res.status >= 400 && (bodyStr.includes('rate_limit') || bodyStr.includes('límite') || bodyStr.includes('limit')))) {
-        const secs = parseCooldownSecs(bodyStr);
+      // 429: rate limit — backend ahora devuelve 429 directamente
+      if (res.status === 429) {
+        const data = await res.json().catch(() => ({}));
+        const secs = parseCooldownSecs(data);
         setCooldown(secs);
-        responseDiv.textContent = `⏳ Rate limit — próximo mensaje en ${secs}s`;
+        responseDiv.textContent = `🚫 Rate limit — próximo mensaje en ${secs}s`;
         return;
       }
+
+      const data = await res.json();
 
       if (!res.ok) {
         responseDiv.textContent = `⚠️ ${data.error || 'Error del servidor'}`;
@@ -578,41 +610,46 @@
         return;
       }
 
-      responseDiv.textContent = data.response || '';
+      // Mostrar respuesta sin asteriscos
+      responseDiv.textContent = stripMarkdown(data.response || '');
 
       if (data.audio) {
         setMicState('playing');
-        setStatus('BAKO está hablando...', 'ok');
+        setStatus('BAKO está hablando…', 'ok');
         const bytes = atob(data.audio);
         const arr   = new Uint8Array(bytes.length);
         for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
         const url = URL.createObjectURL(new Blob([arr], { type: 'audio/webm' }));
         currentAudio = new Audio(url);
-        currentAudio.onended = () => { URL.revokeObjectURL(url); setMicState('idle'); setStatus('Listo para hablar'); };
-        currentAudio.onerror  = () => { setMicState('idle'); setStatus('Listo para hablar'); };
+        currentAudio.onended = () => { URL.revokeObjectURL(url); setMicState('idle'); setStatus('Listo para hablar'); setUiEnabled(true); };
+        currentAudio.onerror  = () => { setMicState('idle'); setUiEnabled(true); setStatus('Listo para hablar'); };
         await currentAudio.play().catch(() => {});
       } else {
         setMicState('idle');
+        setUiEnabled(true);
         setStatus('Listo para hablar');
       }
 
-      setUiEnabled(true);
-
     } catch {
+      // Error de red: re-habilitar SOLO si no hay cooldown activo
       responseDiv.textContent = '⚠️ Sin conexión con BAKO';
       setMicState('idle');
-      setUiEnabled(true);
-      setStatus('Sin conexión', 'error');
+      if (!isCoolingDown()) { setUiEnabled(true); setStatus('Sin conexión', 'error'); }
     }
   }
 
-  // ── Touch / Mouse para el micrófono ───────────────────────────────────────
+  // ── Touch / Mouse ─────────────────────────────────────────────────────────
+  // Usamos addEventListener en lugar de atributos HTML para que
+  // respeten pointer-events y el check de isCoolingDown()
   function onTouchStart(e) { e.preventDefault(); startRecording(); }
   function onTouchEnd(e)   { e.preventDefault(); stopRecording();  }
 
-  micBtn.addEventListener('mousedown',  startRecording);
-  micBtn.addEventListener('mouseup',    stopRecording);
-  micBtn.addEventListener('mouseleave', () => { if (isRecording) stopRecording(); });
+  micBtn.addEventListener('touchstart',  onTouchStart, { passive: false });
+  micBtn.addEventListener('touchend',    onTouchEnd,   { passive: false });
+  micBtn.addEventListener('touchcancel', onTouchEnd,   { passive: false });
+  micBtn.addEventListener('mousedown',   startRecording);
+  micBtn.addEventListener('mouseup',     stopRecording);
+  micBtn.addEventListener('mouseleave',  () => { if (isRecording) stopRecording(); });
 
   // ── Inicialización ─────────────────────────────────────────────────────────
   window.addEventListener('load', () => {

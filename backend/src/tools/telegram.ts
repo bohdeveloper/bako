@@ -11,7 +11,7 @@ import { getCalendarEvents, formatEventsForSpeech } from './calendar';
 import { getUnreadEmails, getEmailBody, createDraft, sendEmail, sendDraft, formatEmailsForSpeech, formatEmailsForText } from './gmail';
 import { getTrackerSummary, formatTrackerForSpeech, markTrackerRecord, getBlogComments, formatCommentsForSpeech, nowInSpain } from './cloudflare';
 import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
-import { generateVoiceBuffer, setVoice, getCurrentVoiceKey, VOCES_DISPONIBLES } from './tts';
+import { generateVoiceBuffer, setVoice, getCurrentVoiceKey, VOCES_DISPONIBLES, cleanForVoice } from './tts';
 import { BAKO_PROFILE } from '../knowledge/profile';
 import { saveMemory, getMemories, searchMemories, formatMemoriesForPrompt, forgetMemory, extractAndSaveMemories, getCurrentLocation } from './memory';
 import { buildDynamicProfileContext, updateProfileField, detectProfileUpdate, PROFILE_FIELDS } from './profileDynamic';
@@ -355,20 +355,6 @@ function appendToSession(chatId: number, userMsg: string, assistantMsg: string):
   }
   session.lastActivity = Date.now();
   sessionHistories.set(chatId, session);
-}
-
-function cleanForVoice(text: string): string {
-  return text
-    .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')   // *bold* **bold** ***bold***
-    .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')       // _italic_ __italic__
-    .replace(/`{1,3}[^`]*`{1,3}/g, '')           // `code` ```code```
-    .replace(/#{1,6}\s+/g, '')                    // # headers
-    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')      // [link](url) → link
-    .replace(/https?:\/\/\S+/g, '')               // URLs sueltas
-    .replace(/[_~|>`]/g, '')                      // otros chars markdown sueltos
-    .replace(/\*/g, '')                            // asteriscos sueltos que queden (catch-all)
-    .replace(/\s{2,}/g, ' ')
-    .trim();
 }
 
 async function sendVoiceReply(chatId: number, text: string): Promise<void> {

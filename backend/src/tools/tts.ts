@@ -5,6 +5,18 @@ import { pipeline } from 'stream/promises';
 import * as path from 'path';
 import * as os from 'os';
 
+export function cleanForVoice(text: string): string {
+  return text
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')
+    .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
+    .replace(/`{1,3}[^`]*`{1,3}/g, '')
+    .replace(/#{1,6}\s+/g, '')
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/[_~|>`]/g, '')
+    .replace(/\*/g, '');
+}
+
 export const VOCES_DISPONIBLES: Record<string, { id: string; descripcion: string }> = {
   alvaro:  { id: 'es-ES-AlvaroNeural',   descripcion: 'Álvaro — hombre, España (actual)' },
   elvira:  { id: 'es-ES-ElviraNeural',   descripcion: 'Elvira — mujer, España' },
