@@ -16,6 +16,9 @@ import { getAmbientContext } from '../tools/context';
 import { getCurrentLocation } from '../tools/memory';
 import { tryExecuteAction } from '../tools/actions';
 import { requireAuth } from '../middleware/authMiddleware';
+import { getUnreadEmails, formatEmailsForText } from '../tools/gmail';
+
+const EMAIL_REGEX = /correos?\s+(sin\s+leer|nuevos?|pendientes?)|qu[eé]\s+(correos?|emails?|mails?)\s+tengo|(tengo|hay)\s+(correos?|emails?)|bandeja|revisa\s+el\s+(correo|email|gmail)|emails?\s+sin\s+leer/i;
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -55,15 +58,29 @@ async function transcribeAudio(buffer: Buffer): Promise<string> {
   return data.text as string;
 }
 
-async function getFullSystemPrompt(): Promise<string> {
+async function getEmailContext(message: string): Promise<string> {
+  if (!EMAIL_REGEX.test(message)) return '';
+  try {
+    const emails = await getUnreadEmails(15);
+    if (!emails.length) return '\nEMAILS SIN LEER: Bandeja vacía — no hay ningún correo sin leer en este momento.';
+    return `\nEMAILS SIN LEER (datos reales, ahora mismo):\n${formatEmailsForText(emails)}`;
+  } catch (e) {
+    console.warn('⚠️ Gmail no disponible en desktop:', (e as Error).message);
+    return '\nEMAILS: No se pudo conectar con Gmail en este momento.';
+  }
+}
+
+async function getFullSystemPrompt(message = ''): Promise<string> {
   const location = await getCurrentLocation();
-  const [memories, dynProfile, ambientCtx] = await Promise.all([
+  const [memories, dynProfile, ambientCtx, emailCtx] = await Promise.all([
     getMemoriesSection(5, 44, 1800),
     getDynamicProfileSection(),
     getAmbientContext(location),
+    getEmailContext(message),
   ]);
-  const prompt = buildSystemPrompt(ambientCtx, memories, dynProfile);
-  console.log(`📊 Desktop system prompt: ${prompt.length} chars | memories: ${memories.length} chars`);
+  const fullAmbient = ambientCtx + emailCtx;
+  const prompt = buildSystemPrompt(fullAmbient, memories, dynProfile);
+  console.log(`📊 Desktop system prompt: ${prompt.length} chars | memories: ${memories.length} chars | email: ${emailCtx.length} chars`);
   return prompt;
 }
 
@@ -98,7 +115,7 @@ router.post('/voice', upload.single('audio'), async (req: Request, res: Response
       return;
     }
 
-    const systemPrompt = await getFullSystemPrompt();
+    const systemPrompt = await getFullSystemPrompt(transcription);
     const response     = await askClaude(transcription, { systemPrompt, useCloud: true });
     const audioBuffer  = await generateVoiceBuffer(cleanForVoice(response));
     res.json({ transcription, response, audio: audioBuffer.toString('base64') });
@@ -125,7 +142,7 @@ router.post('/text', async (req: Request, res: Response) => {
       return;
     }
 
-    const systemPrompt = await getFullSystemPrompt();
+    const systemPrompt = await getFullSystemPrompt(message);
     const response     = await askClaude(message, { systemPrompt, useCloud: true });
     const audioBuffer  = await generateVoiceBuffer(cleanForVoice(response));
     res.json({ response, audio: audioBuffer.toString('base64') });

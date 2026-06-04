@@ -1157,8 +1157,8 @@
 
     addMessage('user', text);
     const loadingEl = addStatusMsg('⏳ BAKO está pensando…');
-    setUiEnabled(false);
-    setMicState('processing');
+    setMicState('processing');  // PRIMERO el estado, LUEGO deshabilitar UI
+    setUiEnabled(false);        // así setUiEnabled ve micState='processing' y deja el mic clickable
     setStatus('Enviando…', 'warn');
 
     currentController = new AbortController();
