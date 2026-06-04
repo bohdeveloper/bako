@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
@@ -7,24 +7,50 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="BAKO">
-  <meta name="theme-color" content="#0a0a0a">
+  <meta name="theme-color" id="metaTheme" content="#0a0a0a">
   <link rel="manifest" href="/bako-client/manifest.json">
   <link rel="apple-touch-icon" href="/bako-client/icon-192.png">
   <title>BAKO</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-    :root {
-      --bg:     #0a0a0a;
-      --bg2:    #111111;
-      --bg3:    #1a1a1a;
-      --border: #2a2a2a;
-      --text:   #e8e8e8;
-      --dim:    #555;
-      --blue:   #4a9eff;
-      --green:  #10b981;
-      --yellow: #f59e0b;
-      --red:    #ef4444;
+    /* ── Modo oscuro (por defecto) ──────────────────────────────────────────── */
+    :root,
+    html.dark {
+      --bg:          #0a0a0a;
+      --bg2:         #111111;
+      --bg3:         #1a1a1a;
+      --border:      #2a2a2a;
+      --text:        #e8e8e8;
+      --dim:         #555;
+      --blue:        #4a9eff;
+      --green:       #10b981;
+      --yellow:      #f59e0b;
+      --red:         #ef4444;
+      --bubble-bako: #0e1e32;
+      --bubble-user: #0d2b1a;
+      --bubble-bako-text: #c8dff8;
+      --bubble-user-text: #a8e6c8;
+      color-scheme: dark;
+    }
+
+    /* ── Modo claro ──────────────────────────────────────────────────────────── */
+    html.light {
+      --bg:          #fdfefe;
+      --bg2:         #f0f2f4;
+      --bg3:         #e6e9ec;
+      --border:      #d0d4d8;
+      --text:        #1a1a1a;
+      --dim:         #888;
+      --blue:        #0078d4;
+      --green:       #059669;
+      --yellow:      #d97706;
+      --red:         #dc2626;
+      --bubble-bako: #dbeafe;
+      --bubble-user: #d1fae5;
+      --bubble-bako-text: #1e3a5f;
+      --bubble-user-text: #1a3a28;
+      color-scheme: light;
     }
 
     html, body { height: 100%; overflow: hidden; }
@@ -35,6 +61,7 @@
       display: flex;
       flex-direction: column;
       height: 100dvh;
+      transition: background 0.3s ease, color 0.3s ease;
     }
 
     /* ── Header ─────────────────────────────────────────────────────────────── */
@@ -45,9 +72,30 @@
       justify-content: center;
       padding: 16px 20px 10px;
       border-bottom: 1px solid var(--border);
+      position: relative;
+      transition: border-color 0.3s ease;
     }
-    .header h1 { font-size: 20px; font-weight: 700; letter-spacing: 5px; color: #fff; }
+    .header h1 { font-size: 20px; font-weight: 700; letter-spacing: 5px; color: var(--text); }
     .header p  { font-size: 10px; color: var(--dim); margin-left: 10px; letter-spacing: 2px; }
+
+    .theme-toggle {
+      position: absolute;
+      right: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px;
+      cursor: pointer;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .theme-toggle:hover { border-color: var(--blue); color: var(--blue); }
+    .theme-toggle svg   { width: 18px; height: 18px; display: block; }
 
     /* ── Chat history ────────────────────────────────────────────────────────── */
     .chat-history {
@@ -58,6 +106,8 @@
       flex-direction: column;
       gap: 10px;
       -webkit-overflow-scrolling: touch;
+      background: var(--bg);
+      transition: background 0.3s ease;
     }
     .chat-history::-webkit-scrollbar { width: 3px; }
     .chat-history::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -83,14 +133,16 @@
       word-break: break-word;
     }
     .msg.bako .msg-bubble {
-      background: #0e1e32;
+      background: var(--bubble-bako);
       border-bottom-left-radius: 4px;
-      color: #c8dff8;
+      color: var(--bubble-bako-text);
+      transition: background 0.3s ease, color 0.3s ease;
     }
     .msg.user .msg-bubble {
-      background: #0d2b1a;
+      background: var(--bubble-user);
       border-bottom-right-radius: 4px;
-      color: #a8e6c8;
+      color: var(--bubble-user-text);
+      transition: background 0.3s ease, color 0.3s ease;
     }
 
     .msg-reuse {
@@ -152,6 +204,7 @@
       background: var(--bg3);
       border-top: 1px solid var(--border);
       padding: 10px 14px;
+      transition: background 0.3s ease;
     }
     .review-panel.visible { display: block; }
 
@@ -186,6 +239,8 @@
       align-items: center;
       gap: 10px;
       border-top: 1px solid var(--border);
+      background: var(--bg);
+      transition: background 0.3s ease, border-color 0.3s ease;
     }
 
     .text-row { display: flex; width: 100%; gap: 8px; align-items: center; }
@@ -239,6 +294,16 @@
 <div class="header">
   <h1>BAKO</h1>
   <p>MAYORDOMO PERSONAL</p>
+  <button class="theme-toggle" id="themeToggle" title="Cambiar tema">
+    <!-- Icono luna (visible en modo oscuro → click para ir a claro) -->
+    <svg id="iconMoon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/>
+    </svg>
+    <!-- Icono sol (visible en modo claro → click para ir a oscuro) -->
+    <svg id="iconSun" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="display:none">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.364 6.364l-1.414-1.414M7.05 7.05L5.636 5.636m12.728 0l-1.414 1.414M7.05 16.95l-1.414 1.414M12 8a4 4 0 100 8 4 4 0 000-8z"/>
+    </svg>
+  </button>
 </div>
 
 <!-- Chat history -->
@@ -278,6 +343,39 @@
 </div>
 
 <script>
+  // ── Tema (mismo patrón que bohdeveloper.com) ──────────────────────────────
+  const iconMoon    = document.getElementById('iconMoon');
+  const iconSun     = document.getElementById('iconSun');
+  const metaTheme   = document.getElementById('metaTheme');
+
+  function applyTheme(theme) {
+    const html = document.documentElement;
+    if (theme === 'light') {
+      html.classList.add('light');
+      html.classList.remove('dark');
+      iconMoon.style.display = 'none';
+      iconSun.style.display  = 'block';
+      metaTheme.content = '#fdfefe';
+    } else {
+      html.classList.add('dark');
+      html.classList.remove('light');
+      iconMoon.style.display = 'block';
+      iconSun.style.display  = 'none';
+      metaTheme.content = '#0a0a0a';
+    }
+  }
+
+  // Cargar preferencia guardada (default: dark)
+  applyTheme(localStorage.getItem('bako-theme') || 'dark');
+
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    const current  = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+    const newTheme = current === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('bako-theme', newTheme);
+    applyTheme(newTheme);
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
   const BAKO_URL    = window.location.origin;
   const REVIEW_SECS = 5;
   const MIN_GAP_MS  = 3000;
