@@ -682,6 +682,13 @@
         return;
       }
 
+      if (res.status === 413) {
+        addStatusMsg('⚠️ El contexto es demasiado grande. Intenta de nuevo en un momento.');
+        setUiEnabled(true);
+        setStatus('Listo');
+        return;
+      }
+
       const data = await res.json();
 
       if (!res.ok) {

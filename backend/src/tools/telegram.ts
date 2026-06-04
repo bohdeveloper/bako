@@ -82,9 +82,9 @@ ${JSON.stringify({
 })}`;
 }
 
-export async function getMemoriesSection(limit = 10): Promise<string> {
+export async function getMemoriesSection(technicalLimit = 10, personalLimit = 44): Promise<string> {
   try {
-    const memories = await getMemories(limit);
+    const memories = await getMemories(technicalLimit, personalLimit);
     return formatMemoriesForPrompt(memories);
   } catch {
     return '';

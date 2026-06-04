@@ -25,13 +25,20 @@ function isDesktopAuthorized(req: Request): boolean {
   return req.headers['x-desktop-token'] === token;
 }
 
-// Detecta si el error de Axios es un 429 de Groq y lo propaga como tal
 function isRateLimit(err: unknown): boolean {
   const e = err as any;
   return (
     e?.response?.status === 429 ||
     String(e?.message ?? '').includes('429') ||
     String(e?.response?.data?.error?.message ?? '').toLowerCase().includes('rate limit')
+  );
+}
+
+function isContextTooLarge(err: unknown): boolean {
+  const e = err as any;
+  return (
+    e?.response?.status === 413 ||
+    String(e?.message ?? '').includes('413')
   );
 }
 
@@ -53,7 +60,7 @@ async function transcribeAudio(buffer: Buffer): Promise<string> {
 async function getFullSystemPrompt(): Promise<string> {
   const location = await getCurrentLocation();
   const [memories, dynProfile, ambientCtx] = await Promise.all([
-    getMemoriesSection(),
+    getMemoriesSection(15, 30), // cloud: 30 personales + 15 técnicas (~2500 tokens para memorias)
     getDynamicProfileSection(),
     getAmbientContext(location),
   ]);
@@ -69,8 +76,9 @@ router.post('/transcribe', upload.single('audio'), async (req: Request, res: Res
     if (!transcription.trim()) { res.status(400).json({ error: 'No se detectó habla' }); return; }
     res.json({ transcription });
   } catch (err) {
-    const status = isRateLimit(err) ? 429 : 500;
-    res.status(status).json({ error: (err as Error).message, rateLimited: status === 429 });
+    if (isRateLimit(err))        { res.status(429).json({ error: 'Rate limit de Groq alcanzado. Espera unos segundos.', rateLimited: true }); return; }
+    if (isContextTooLarge(err))  { res.status(413).json({ error: 'Contexto demasiado grande. Intenta de nuevo en un momento.' }); return; }
+    res.status(500).json({ error: (err as Error).message });
   }
 });
 
@@ -97,8 +105,9 @@ router.post('/voice', upload.single('audio'), async (req: Request, res: Response
 
   } catch (err) {
     console.error('❌ Desktop /voice:', (err as Error).message);
-    const status = isRateLimit(err) ? 429 : 500;
-    res.status(status).json({ error: (err as Error).message, rateLimited: status === 429 });
+    if (isRateLimit(err))        { res.status(429).json({ error: 'Rate limit de Groq alcanzado.', rateLimited: true }); return; }
+    if (isContextTooLarge(err))  { res.status(413).json({ error: 'Contexto demasiado grande. Intenta de nuevo.' }); return; }
+    res.status(500).json({ error: (err as Error).message });
   }
 });
 
@@ -123,8 +132,9 @@ router.post('/text', async (req: Request, res: Response) => {
 
   } catch (err) {
     console.error('❌ Desktop /text:', (err as Error).message);
-    const status = isRateLimit(err) ? 429 : 500;
-    res.status(status).json({ error: (err as Error).message, rateLimited: status === 429 });
+    if (isRateLimit(err))        { res.status(429).json({ error: 'Rate limit de Groq alcanzado.', rateLimited: true }); return; }
+    if (isContextTooLarge(err))  { res.status(413).json({ error: 'Contexto demasiado grande. Intenta de nuevo.' }); return; }
+    res.status(500).json({ error: (err as Error).message });
   }
 });
 
