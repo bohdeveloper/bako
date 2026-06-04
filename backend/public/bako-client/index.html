@@ -277,10 +277,11 @@
       content: ''; position: absolute; width: 56px; height: 56px;
       border-radius: 50%; border: 2px solid #10b98155; animation: pulse 1.2s infinite;
     }
-    .mic-btn.processing { border-color: var(--yellow); background: #1a1500; }
-    .mic-btn.playing    { border-color: var(--green);  background: #0a1a0f; }
+    .mic-btn.processing { border-color: var(--yellow); background: #1a1500; cursor: pointer; animation: micPulse 1.4s ease-in-out infinite; }
+    .mic-btn.playing    { border-color: var(--green);  background: #0a1a0f; cursor: pointer; animation: micPulse 1.4s ease-in-out infinite; }
     .mic-btn.cooldown   { border-color: var(--red);    opacity: 0.5; cursor: not-allowed; }
     .mic-btn.stopping   { border-color: var(--red);    background: #1a0000; }
+    @keyframes micPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); } 50% { box-shadow: 0 0 0 6px rgba(239,68,68,0.25); } }
     @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }
 
     .mic-icon  { font-size: 18px; pointer-events: none; }
@@ -950,12 +951,20 @@
 
   function setUiEnabled(enabled) {
     if (enabled && isCoolingDown()) return;
-    micBtn.style.pointerEvents = enabled ? '' : 'none';
-    micBtn.style.opacity       = enabled ? '' : '0.4';
-    textInput.disabled         = !enabled;
-    btnSendText.disabled       = !enabled;
-    btnSendReview.disabled     = !enabled;
-    btnSendText.style.opacity  = enabled ? '' : '0.4';
+    // El mic button NUNCA se deshabilita cuando BAKO está activo —
+    // precisamente entonces sirve para interrumpirle.
+    const bakoActive = micState === 'processing' || micState === 'playing';
+    if (!bakoActive) {
+      micBtn.style.pointerEvents = enabled ? '' : 'none';
+      micBtn.style.opacity       = enabled ? '' : '0.4';
+    } else {
+      micBtn.style.pointerEvents = '';
+      micBtn.style.opacity       = '';
+    }
+    textInput.disabled        = !enabled;
+    btnSendText.disabled      = !enabled;
+    btnSendReview.disabled    = !enabled;
+    btnSendText.style.opacity = enabled ? '' : '0.4';
   }
 
   // ── Rate limit ─────────────────────────────────────────────────────────────
