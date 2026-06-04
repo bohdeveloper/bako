@@ -233,17 +233,17 @@
     /* ── Panel inferior ─────────────────────────────────────────────────────── */
     .bottom {
       flex-shrink: 0;
-      padding: 8px 14px 28px;
+      padding: 10px 14px 24px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       border-top: 1px solid var(--border);
       background: var(--bg);
       transition: background 0.3s ease, border-color 0.3s ease;
     }
 
-    .text-row { display: flex; width: 100%; gap: 8px; align-items: center; }
+    .text-row { display: flex; width: 100%; gap: 6px; align-items: center; }
     .text-input {
       flex: 1; background: var(--bg3);
       border: 1px solid var(--border); border-radius: 22px;
@@ -261,32 +261,89 @@
       display: flex; align-items: center; justify-content: center;
     }
     .btn-send-text:active { opacity: 0.8; transform: scale(0.93); }
+    .btn-send-text:disabled { opacity: 0.4; cursor: not-allowed; }
 
+    /* Mic inline en la fila de texto */
     .mic-btn {
-      width: 80px; height: 80px; border-radius: 50%;
+      width: 42px; height: 42px; border-radius: 50%;
       background: var(--bg3); border: 2px solid var(--border);
       cursor: pointer; display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       transition: all 0.2s; user-select: none; -webkit-user-select: none;
-      position: relative;
+      position: relative; flex-shrink: 0;
     }
     .mic-btn.recording { background: #0d2b0d; border-color: var(--green); }
     .mic-btn.recording::before {
-      content: ''; position: absolute; width: 100px; height: 100px;
-      border-radius: 50%; border: 2px solid #10b98144; animation: pulse 1.2s infinite;
+      content: ''; position: absolute; width: 56px; height: 56px;
+      border-radius: 50%; border: 2px solid #10b98155; animation: pulse 1.2s infinite;
     }
     .mic-btn.processing { border-color: var(--yellow); background: #1a1500; }
     .mic-btn.playing    { border-color: var(--green);  background: #0a1a0f; }
     .mic-btn.cooldown   { border-color: var(--red);    opacity: 0.5; cursor: not-allowed; }
+    .mic-btn.stopping   { border-color: var(--red);    background: #1a0000; }
     @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }
 
-    .mic-icon  { font-size: 28px; pointer-events: none; }
-    .mic-label { font-size: 10px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; margin-top: 3px; pointer-events: none; }
+    .mic-icon  { font-size: 18px; pointer-events: none; }
+    .mic-label { display: none; } /* etiqueta oculta — solo se usa internamente */
 
     .status-bar { font-size: 12px; color: var(--dim); text-align: center; min-height: 15px; }
     .status-bar.warn  { color: var(--yellow); }
     .status-bar.error { color: var(--red); }
     .status-bar.ok    { color: var(--green); }
+
+    /* ── Botón presets ──────────────────────────────────────────────────────── */
+    .btn-presets {
+      width: 42px; height: 42px; border-radius: 50%;
+      background: var(--bg3); border: 1px solid var(--border);
+      color: var(--text); font-size: 17px; cursor: pointer;
+      flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .btn-presets:active, .btn-presets.open { border-color: var(--blue); background: var(--bg2); }
+
+    /* ── Panel de presets (bottom sheet) ────────────────────────────────────── */
+    .preset-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.4); z-index: 10;
+    }
+    .preset-overlay.visible { display: block; }
+
+    .preset-panel {
+      position: fixed; left: 0; right: 0; bottom: 0;
+      background: var(--bg2); border-top: 1px solid var(--border);
+      border-radius: 16px 16px 0 0;
+      padding: 6px 14px 180px;
+      max-height: 68vh; overflow-y: auto;
+      z-index: 11;
+      transform: translateY(100%);
+      transition: transform 0.26s cubic-bezier(.4,0,.2,1);
+    }
+    .preset-panel.visible { transform: translateY(0); }
+
+    .preset-handle {
+      width: 36px; height: 4px; background: var(--border);
+      border-radius: 2px; margin: 8px auto 12px;
+    }
+    .preset-title {
+      font-size: 12px; color: var(--dim);
+      text-transform: uppercase; letter-spacing: 1.5px;
+      text-align: center; margin-bottom: 14px;
+    }
+    .preset-category { margin-bottom: 14px; }
+    .preset-cat-label {
+      font-size: 11px; color: var(--dim);
+      text-transform: uppercase; letter-spacing: 1px;
+      margin-bottom: 7px;
+    }
+    .preset-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .preset-chip {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 20px; padding: 6px 13px;
+      font-size: 13px; color: var(--text); cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      user-select: none; -webkit-user-select: none;
+    }
+    .preset-chip:active { background: var(--blue); border-color: var(--blue); color: #fff; }
   </style>
 </head>
 <body>
@@ -309,7 +366,7 @@
 <!-- Chat history -->
 <div class="chat-history" id="chatHistory"></div>
 
-<!-- Wave (visible al grabar) -->
+<!-- Wave (estado de grabación — compacto sobre el input) -->
 <div class="wave-row">
   <div class="wave" id="wave">
     <span></span><span></span><span></span><span></span><span></span>
@@ -330,15 +387,27 @@
   </div>
 </div>
 
+<!-- Overlay para cerrar el panel de presets -->
+<div class="preset-overlay" id="presetOverlay"></div>
+
+<!-- Panel de presets (bottom sheet) -->
+<div class="preset-panel" id="presetPanel">
+  <div class="preset-handle"></div>
+  <div class="preset-title">Comandos rápidos</div>
+  <div id="presetContent"></div>
+</div>
+
 <div class="bottom">
+  <!-- Fila única: ⚡ | input texto | 🎤 mic/stop | ➤ enviar -->
   <div class="text-row">
+    <button class="btn-presets" id="btnPresets" title="Comandos rápidos">⚡</button>
     <input class="text-input" id="textInput" type="text" placeholder="Escribe un mensaje…" autocomplete="off">
+    <button class="mic-btn" id="micBtn" title="Mantén para hablar · toca para parar">
+      <span class="mic-icon">🎤</span>
+      <span class="mic-label" id="micLabel">Mantén</span>
+    </button>
     <button class="btn-send-text" id="btnSendText">➤</button>
   </div>
-  <button class="mic-btn" id="micBtn">
-    <span class="mic-icon">🎤</span>
-    <span class="mic-label" id="micLabel">Mantén</span>
-  </button>
   <div class="status-bar" id="statusBar">Listo</div>
 </div>
 
@@ -394,18 +463,24 @@
   const micBtn        = document.getElementById('micBtn');
   const micLabel      = document.getElementById('micLabel');
   const statusBar     = document.getElementById('statusBar');
+  const btnPresets    = document.getElementById('btnPresets');
+  const presetPanel   = document.getElementById('presetPanel');
+  const presetOverlay = document.getElementById('presetOverlay');
+  const presetContent = document.getElementById('presetContent');
 
   // ── Estado ────────────────────────────────────────────────────────────────
-  let mediaRecorder  = null;
-  let audioChunks    = [];
-  let isRecording    = false;
-  let stream         = null;
-  let currentAudio   = null;
-  let lastRequestMs  = 0;
-  let cooldownUntil  = 0;
-  let countdownTimer = null;
-  let countdownVal   = REVIEW_SECS;
-  let userEditing    = false;
+  let mediaRecorder    = null;
+  let audioChunks      = [];
+  let isRecording      = false;
+  let stream           = null;
+  let currentAudio     = null;
+  let currentController = null;  // AbortController para cancelar fetch
+  let micState         = 'idle'; // tracking del estado actual del mic
+  let lastRequestMs    = 0;
+  let cooldownUntil    = 0;
+  let countdownTimer   = null;
+  let countdownVal     = REVIEW_SECS;
+  let userEditing      = false;
 
   // ── Chat history ───────────────────────────────────────────────────────────
   function addMessage(role, text) {
@@ -459,10 +534,23 @@
   }
 
   function setMicState(state) {
+    micState = state;
     micBtn.className = 'mic-btn' + (state !== 'idle' ? ' ' + state : '');
-    const labels = { recording: 'Suelta', processing: 'Procesando', playing: 'BAKO habla', cooldown: 'Espera', idle: 'Mantén' };
+    const labels = { recording: 'Suelta', processing: 'Parar', playing: 'Parar', stopping: 'Parando', cooldown: 'Espera', idle: 'Mantén' };
+    const icons  = { recording: '🎙️', processing: '⏹', playing: '⏹', stopping: '⏹', cooldown: '🎤', idle: '🎤' };
     micLabel.textContent = labels[state] || 'Mantén';
+    const iconEl = micBtn.querySelector('.mic-icon');
+    if (iconEl) iconEl.textContent = icons[state] || '🎤';
     wave.classList.toggle('active', state === 'recording');
+  }
+
+  // Cancela cualquier respuesta en curso (fetch o audio)
+  function stopBako() {
+    if (currentController) { currentController.abort(); currentController = null; }
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+    setMicState('idle');
+    setUiEnabled(true);
+    setStatus('Interrumpido');
   }
 
   function setUiEnabled(enabled) {
@@ -663,14 +751,19 @@
     addMessage('user', text);
     const loadingEl = addStatusMsg('⏳ BAKO está pensando…');
     setUiEnabled(false);
+    setMicState('processing');
     setStatus('Enviando…', 'warn');
+
+    currentController = new AbortController();
 
     try {
       const res = await fetch(`${BAKO_URL}/api/desktop/text`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),
+        signal: currentController.signal,
       });
+      currentController = null;
       lastRequestMs = Date.now();
       loadingEl.remove();
 
@@ -684,6 +777,7 @@
 
       if (res.status === 413) {
         addStatusMsg('⚠️ El contexto es demasiado grande. Intenta de nuevo en un momento.');
+        setMicState('idle');
         setUiEnabled(true);
         setStatus('Listo');
         return;
@@ -693,6 +787,7 @@
 
       if (!res.ok) {
         addStatusMsg(`⚠️ ${data.error || 'Error del servidor'}`);
+        setMicState('idle');
         setUiEnabled(true);
         setStatus('Listo');
         return;
@@ -709,8 +804,8 @@
         for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
         const url = URL.createObjectURL(new Blob([arr], { type: 'audio/webm' }));
         currentAudio = new Audio(url);
-        currentAudio.onended = () => { URL.revokeObjectURL(url); setMicState('idle'); setStatus('Listo'); setUiEnabled(true); };
-        currentAudio.onerror  = () => { setMicState('idle'); setUiEnabled(true); setStatus('Listo'); };
+        currentAudio.onended = () => { URL.revokeObjectURL(url); currentAudio = null; setMicState('idle'); setStatus('Listo'); setUiEnabled(true); };
+        currentAudio.onerror  = () => { currentAudio = null; setMicState('idle'); setUiEnabled(true); setStatus('Listo'); };
         await currentAudio.play().catch(() => {});
       } else {
         setMicState('idle');
@@ -718,21 +813,145 @@
         setStatus('Listo');
       }
 
-    } catch {
+    } catch (err) {
+      currentController = null;
       loadingEl?.remove();
+      if (err && err.name === 'AbortError') {
+        // Interrumpido por el usuario — no mostrar error
+        setMicState('idle');
+        setUiEnabled(true);
+        setStatus('Listo');
+        return;
+      }
       addStatusMsg('⚠️ Sin conexión con BAKO');
       setMicState('idle');
       if (!isCoolingDown()) { setUiEnabled(true); setStatus('Sin conexión', 'error'); }
     }
   }
 
-  // ── Touch / Mouse ──────────────────────────────────────────────────────────
-  micBtn.addEventListener('touchstart',  e => { e.preventDefault(); startRecording(); }, { passive: false });
-  micBtn.addEventListener('touchend',    e => { e.preventDefault(); stopRecording();  }, { passive: false });
-  micBtn.addEventListener('touchcancel', e => { e.preventDefault(); stopRecording();  }, { passive: false });
-  micBtn.addEventListener('mousedown',   startRecording);
-  micBtn.addEventListener('mouseup',     stopRecording);
+  // ── Touch / Mouse del mic (inline) ────────────────────────────────────────
+  function handleMicPress(e) {
+    // Si BAKO está procesando o reproduciendo → interrumpir
+    if (micState === 'processing' || micState === 'playing') {
+      stopBako();
+      return;
+    }
+    if (isCoolingDown()) return;
+    startRecording();
+  }
+
+  function handleMicRelease() {
+    if (isRecording) stopRecording();
+  }
+
+  micBtn.addEventListener('touchstart',  e => { e.preventDefault(); handleMicPress(e);   }, { passive: false });
+  micBtn.addEventListener('touchend',    e => { e.preventDefault(); handleMicRelease();   }, { passive: false });
+  micBtn.addEventListener('touchcancel', e => { e.preventDefault(); handleMicRelease();   }, { passive: false });
+  micBtn.addEventListener('mousedown',   handleMicPress);
+  micBtn.addEventListener('mouseup',     handleMicRelease);
   micBtn.addEventListener('mouseleave',  () => { if (isRecording) stopRecording(); });
+
+  // ── Presets ────────────────────────────────────────────────────────────────
+  const PRESETS = [
+    {
+      cat: '📅 Agenda',
+      items: [
+        '¿Qué tengo hoy?',
+        '¿Cuál es mi próximo evento?',
+        '¿Tengo algo esta semana?',
+        '¿Qué reuniones tengo pendientes?',
+      ],
+    },
+    {
+      cat: '🌤 Estado del día',
+      items: [
+        '¿Cómo está el tiempo ahora?',
+        '¿Qué debería estar haciendo ahora?',
+        'Dame un resumen del día',
+        '¿Dónde estoy según mi rutina?',
+      ],
+    },
+    {
+      cat: '🚀 Proyectos',
+      items: [
+        '¿En qué debería enfocarme ahora?',
+        'Resume mis proyectos activos',
+        '¿Cuál es el estado de BAKO?',
+        '¿Qué tareas tengo pendientes?',
+      ],
+    },
+    {
+      cat: '👤 Personal',
+      items: [
+        '¿Qué recuerdas de mí?',
+        '¿Cuándo cumple años alguien próximamente?',
+        'Dame motivación para hoy',
+        '¿Cómo van mis hábitos?',
+      ],
+    },
+    {
+      cat: '💪 Rutina',
+      items: [
+        '¿Qué entreno hoy?',
+        '¿Cuál es mi rutina de hoy?',
+        'Recuérdame mi rutina matutina',
+        '¿He cumplido mis objetivos del día?',
+      ],
+    },
+    {
+      cat: '⚡ Acciones rápidas',
+      items: [
+        'Anota que…',
+        'Crea un evento en el calendario para…',
+        'Ponme un recordatorio para…',
+        'Recuérdame mañana que…',
+      ],
+    },
+  ];
+
+  // Render presets
+  PRESETS.forEach(({ cat, items }) => {
+    const section = document.createElement('div');
+    section.className = 'preset-category';
+    const label = document.createElement('div');
+    label.className = 'preset-cat-label';
+    label.textContent = cat;
+    const chips = document.createElement('div');
+    chips.className = 'preset-chips';
+    items.forEach(text => {
+      const chip = document.createElement('button');
+      chip.className = 'preset-chip';
+      chip.textContent = text;
+      chip.addEventListener('click', () => {
+        textInput.value = text;
+        closePresets();
+        textInput.focus();
+        // Si termina en '…' no enviar automáticamente (hay que completar)
+        if (!text.endsWith('…')) sendTextInput();
+      });
+      chips.appendChild(chip);
+    });
+    section.appendChild(label);
+    section.appendChild(chips);
+    presetContent.appendChild(section);
+  });
+
+  function openPresets() {
+    presetPanel.classList.add('visible');
+    presetOverlay.classList.add('visible');
+    btnPresets.classList.add('open');
+  }
+
+  function closePresets() {
+    presetPanel.classList.remove('visible');
+    presetOverlay.classList.remove('visible');
+    btnPresets.classList.remove('open');
+  }
+
+  btnPresets.addEventListener('click', () => {
+    presetPanel.classList.contains('visible') ? closePresets() : openPresets();
+  });
+  presetOverlay.addEventListener('click', closePresets);
 
   // ── Init ───────────────────────────────────────────────────────────────────
   addMessage('bako', '¿En qué puedo ayudarle, señor?');
