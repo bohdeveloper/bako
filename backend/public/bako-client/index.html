@@ -385,6 +385,96 @@
     }
     .logout-btn:hover { border-color: var(--red); }
 
+    /* ── Tabs del panel admin ───────────────────────────────────────────────── */
+    .admin-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+    .admin-tab-btn {
+      flex: 1; padding: 9px 4px; font-size: 13px; font-weight: 500;
+      background: none; border: none; border-bottom: 2px solid transparent;
+      color: var(--dim); cursor: pointer; transition: color 0.15s, border-color 0.15s;
+    }
+    .admin-tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+    .admin-tab-content { display: none; }
+    .admin-tab-content.active { display: block; }
+
+    /* ── Memorias ───────────────────────────────────────────────────────────── */
+    .mem-toolbar { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+    .mem-search {
+      flex: 1; min-width: 120px; background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 8px; padding: 7px 10px; color: var(--text); font-size: 13px;
+      font-family: inherit; outline: none;
+    }
+    .mem-search:focus { border-color: var(--blue); }
+    .mem-filter {
+      background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+      padding: 7px 8px; color: var(--text); font-size: 12px; font-family: inherit;
+      outline: none; cursor: pointer;
+    }
+    .btn-new-mem {
+      background: var(--blue); border: none; border-radius: 8px; color: #fff;
+      font-size: 13px; font-weight: 600; padding: 7px 12px; cursor: pointer;
+    }
+    .mem-stats {
+      font-size: 11px; color: var(--dim); margin-bottom: 8px;
+      display: flex; gap: 10px; flex-wrap: wrap;
+    }
+    .mem-stat-badge { padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+    .mem-list { display: flex; flex-direction: column; gap: 6px; }
+    .mem-item {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 12px;
+    }
+    .mem-item-top { display: flex; align-items: flex-start; gap: 6px; }
+    .mem-item-content { flex: 1; font-size: 13px; color: var(--text); line-height: 1.45; word-break: break-word; }
+    .mem-item-actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .btn-mem-action {
+      background: none; border: 1px solid var(--border); border-radius: 6px;
+      padding: 3px 7px; font-size: 11px; cursor: pointer; color: var(--dim);
+      transition: all 0.15s;
+    }
+    .btn-mem-action.edit:hover { border-color: var(--blue);  color: var(--blue); }
+    .btn-mem-action.del:hover  { border-color: var(--red);   color: var(--red);  }
+    .mem-item-meta { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; }
+    .mem-badge {
+      font-size: 10px; padding: 2px 6px; border-radius: 8px;
+      font-weight: 600; letter-spacing: 0.3px;
+    }
+    .mem-badge.high   { background: rgba(239,68,68,0.2);   color: #f87171; }
+    .mem-badge.medium { background: rgba(245,158,11,0.2);  color: #fbbf24; }
+    .mem-badge.low    { background: rgba(107,114,128,0.2); color: #9ca3af; }
+    .mem-badge.social  { background: rgba(74,158,255,0.2); color: #4a9eff; }
+    .mem-badge.project { background: rgba(245,158,11,0.2); color: #f59e0b; }
+    .mem-badge.personal{ background: rgba(16,185,129,0.2); color: #10b981; }
+    .mem-badge.tech    { background: rgba(139,92,246,0.2); color: #a78bfa; }
+    .mem-badge.tag     { background: var(--bg2); color: var(--dim); font-weight: 400; }
+    .mem-edit-form { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+    .mem-edit-textarea {
+      background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 10px; color: var(--text); font-size: 13px; font-family: inherit;
+      outline: none; resize: vertical; min-height: 60px;
+    }
+    .mem-edit-textarea:focus { border-color: var(--blue); }
+    .mem-edit-row { display: flex; gap: 6px; }
+    .mem-edit-select {
+      flex: 1; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 6px 8px; color: var(--text); font-size: 12px; font-family: inherit;
+      outline: none; cursor: pointer;
+    }
+    .mem-edit-tags {
+      flex: 2; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 6px 8px; color: var(--text); font-size: 12px; font-family: inherit; outline: none;
+    }
+    .mem-edit-tags:focus, .mem-edit-select:focus { border-color: var(--blue); }
+    .mem-edit-actions { display: flex; gap: 6px; }
+    .btn-mem-save   { flex: 1; background: var(--blue); border: none; border-radius: 7px; color: #fff; font-size: 12px; font-weight: 600; padding: 6px; cursor: pointer; }
+    .btn-mem-cancel { background: none; border: 1px solid var(--border); border-radius: 7px; color: var(--dim); font-size: 12px; padding: 6px 10px; cursor: pointer; }
+    .mem-create-form {
+      background: var(--bg3); border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px; margin-bottom: 10px; display: none; flex-direction: column; gap: 6px;
+    }
+    .mem-create-form.visible { display: flex; }
+    .mem-load-more { width: 100%; background: none; border: 1px solid var(--border); border-radius: 8px; padding: 8px; color: var(--dim); font-size: 13px; cursor: pointer; margin-top: 6px; }
+    .mem-load-more:hover { border-color: var(--blue); color: var(--blue); }
+
     /* ── Contraseña visible ─────────────────────────────────────────────────── */
     .pass-wrap { position: relative; display: flex; align-items: center; }
     .pass-wrap input { flex: 1; padding-right: 40px; }
@@ -473,26 +563,86 @@
 <div class="admin-overlay" id="adminOverlay"></div>
 <div class="admin-panel" id="adminPanel">
   <div class="admin-header">
-    <span class="admin-title">⚙️ Gestión de usuarios</span>
+    <span class="admin-title">⚙️ Administración</span>
     <button class="admin-close" id="adminClose">✕</button>
   </div>
-  <div class="admin-section-title">Usuarios activos</div>
-  <div id="userList"></div>
-  <div class="admin-section-title">Crear usuario</div>
-  <div class="create-user-form">
-    <input class="admin-input" id="newUserName" type="text" placeholder="Nombre de usuario" autocapitalize="none">
-    <div class="pass-wrap">
-      <input class="admin-input" id="newUserPass" type="password" placeholder="Contraseña" style="width:100%">
-      <button class="eye-btn" type="button" data-target="newUserPass" title="Mostrar/ocultar"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg></button>
-    </div>
-    <select class="admin-select" id="newUserRole">
-      <option value="user">Usuario</option>
-      <option value="superadmin">Superadmin</option>
-    </select>
-    <button class="btn-create-user" id="btnCreateUser">Crear usuario</button>
-    <div class="admin-feedback" id="adminFeedback"></div>
+
+  <!-- Tabs -->
+  <div class="admin-tabs">
+    <button class="admin-tab-btn active" id="tabBtnUsers"    data-tab="tabUsers">👥 Usuarios</button>
+    <button class="admin-tab-btn"        id="tabBtnMemories" data-tab="tabMemories">🧠 Memorias</button>
   </div>
-  <button class="logout-btn" id="logoutBtn">Cerrar sesión</button>
+
+  <!-- Tab: Usuarios -->
+  <div class="admin-tab-content active" id="tabUsers">
+    <div class="admin-section-title">Usuarios activos</div>
+    <div id="userList"></div>
+    <div class="admin-section-title">Crear usuario</div>
+    <div class="create-user-form">
+      <input class="admin-input" id="newUserName" type="text" placeholder="Nombre de usuario" autocapitalize="none">
+      <div class="pass-wrap">
+        <input class="admin-input" id="newUserPass" type="password" placeholder="Contraseña" style="width:100%">
+        <button class="eye-btn" type="button" data-target="newUserPass" title="Mostrar/ocultar"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg></button>
+      </div>
+      <select class="admin-select" id="newUserRole">
+        <option value="user">Usuario</option>
+        <option value="superadmin">Superadmin</option>
+      </select>
+      <button class="btn-create-user" id="btnCreateUser">Crear usuario</button>
+      <div class="admin-feedback" id="adminFeedback"></div>
+    </div>
+    <button class="logout-btn" id="logoutBtn">Cerrar sesión</button>
+  </div>
+
+  <!-- Tab: Memorias -->
+  <div class="admin-tab-content" id="tabMemories">
+    <div class="mem-toolbar">
+      <input class="mem-search" id="memSearch" type="text" placeholder="🔍 Buscar en memorias…">
+      <select class="mem-filter" id="memFilterTier">
+        <option value="">Todos los tiers</option>
+        <option value="social">🔵 Social</option>
+        <option value="project">🟠 Proyectos</option>
+        <option value="personal">🟢 Personal</option>
+        <option value="tech">🟣 Técnico</option>
+      </select>
+      <select class="mem-filter" id="memFilterImp">
+        <option value="">Toda importancia</option>
+        <option value="high">🔴 Alta</option>
+        <option value="medium">🟡 Media</option>
+        <option value="low">⚫ Baja</option>
+      </select>
+      <button class="btn-new-mem" id="btnNewMem">+ Nueva</button>
+    </div>
+
+    <!-- Crear nueva memoria -->
+    <div class="mem-create-form" id="memCreateForm">
+      <textarea class="mem-edit-textarea" id="newMemContent" placeholder="Contenido de la memoria…" rows="3"></textarea>
+      <div class="mem-edit-row">
+        <select class="mem-edit-select" id="newMemType">
+          <option value="fact">Hecho</option>
+          <option value="preference">Preferencia</option>
+          <option value="project_update">Proyecto</option>
+          <option value="decision">Decisión</option>
+          <option value="feeling">Sentimiento</option>
+        </select>
+        <select class="mem-edit-select" id="newMemImp">
+          <option value="high">Alta</option>
+          <option value="medium" selected>Media</option>
+          <option value="low">Baja</option>
+        </select>
+      </div>
+      <input class="mem-edit-tags" id="newMemTags" type="text" placeholder="Tags separados por coma: familia, yaimy">
+      <div class="mem-edit-actions">
+        <button class="btn-mem-save"   id="btnSaveNewMem">Guardar</button>
+        <button class="btn-mem-cancel" id="btnCancelNewMem">Cancelar</button>
+      </div>
+      <div class="admin-feedback" id="newMemFeedback"></div>
+    </div>
+
+    <div class="mem-stats" id="memStats"></div>
+    <div class="mem-list"  id="memList"><div style="color:var(--dim);font-size:13px">Cargando…</div></div>
+    <button class="mem-load-more" id="memLoadMore" style="display:none">Cargar más</button>
+  </div>
 </div>
 
 <div class="header">
@@ -783,6 +933,233 @@
     adminFeedback.className   = 'admin-feedback ' + (ok ? 'ok' : 'err');
     setTimeout(() => { adminFeedback.textContent = ''; adminFeedback.className = 'admin-feedback'; }, 3000);
   }
+
+  // ── Tabs del panel admin ──────────────────────────────────────────────────
+  document.querySelectorAll('.admin-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.tab).classList.add('active');
+      if (btn.dataset.tab === 'tabMemories') loadMemories();
+    });
+  });
+
+  // ── Memorias — tiers ──────────────────────────────────────────────────────
+  const MEM_SOCIAL_TAGS  = ['familia','amigos','familia-politica','pareja','suegros','cuniada','cuniado','hermana','padre','madre','padres','yaimy','paula','julen','ibon','sofi','nati','elena','oscar','osvaldo'];
+  const MEM_PROJECT_TAGS = ['bako','diamadmin','unyona','kefir','ai-personal-os','matrix-game','bohdeveloper','ingresos-pasivos','robotica','busqueda-empleo','proyectos'];
+  const MEM_PERSONAL_TAGS= ['salud','gustos','historia','motivacion','valores','objetivos','finanzas','caracter','rutina','entrenamiento','lae','correccion','judicial','psicologo','hobbies','suenos','miedos','transformacion'];
+
+  function memTier(m) {
+    const t = m.tags || [];
+    if (t.some(x => MEM_SOCIAL_TAGS.includes(x)))   return 'social';
+    if (t.some(x => MEM_PROJECT_TAGS.includes(x)))  return 'project';
+    if (t.some(x => MEM_PERSONAL_TAGS.includes(x))) return 'personal';
+    return 'tech';
+  }
+  const TIER_LABEL = { social: '🔵 Social', project: '🟠 Proyecto', personal: '🟢 Personal', tech: '🟣 Técnico' };
+
+  // ── Memorias — estado y carga ─────────────────────────────────────────────
+  let _allMems = [];
+  let _memPage = 20;
+
+  async function loadMemories() {
+    document.getElementById('memList').innerHTML = '<div style="color:var(--dim);font-size:13px">Cargando…</div>';
+    try {
+      const res  = await fetch(`${BAKO_URL}/api/agent/memories`, { headers: authHeaders() });
+      const data = await res.json();
+      _allMems   = data.memories || [];
+      _memPage   = 20;
+      renderMemories();
+    } catch {
+      document.getElementById('memList').innerHTML = '<div style="color:var(--red)">Error al cargar memorias</div>';
+    }
+  }
+
+  function filteredMems() {
+    const q    = (document.getElementById('memSearch')?.value || '').toLowerCase();
+    const tier = document.getElementById('memFilterTier')?.value || '';
+    const imp  = document.getElementById('memFilterImp')?.value  || '';
+    return _allMems.filter(m => {
+      if (q    && !m.content.toLowerCase().includes(q) && !(m.tags||[]).some(t => t.toLowerCase().includes(q))) return false;
+      if (tier && memTier(m) !== tier)    return false;
+      if (imp  && m.importance !== imp)   return false;
+      return true;
+    });
+  }
+
+  function renderMemories() {
+    const mems = filteredMems();
+
+    // Stats
+    const counts = { social: 0, project: 0, personal: 0, tech: 0 };
+    _allMems.forEach(m => counts[memTier(m)]++);
+    document.getElementById('memStats').innerHTML =
+      `<span>${_allMems.length} memorias</span>` +
+      `<span class="mem-stat-badge" style="background:rgba(74,158,255,0.15);color:#4a9eff">🔵 ${counts.social}</span>` +
+      `<span class="mem-stat-badge" style="background:rgba(245,158,11,0.15);color:#f59e0b">🟠 ${counts.project}</span>` +
+      `<span class="mem-stat-badge" style="background:rgba(16,185,129,0.15);color:#10b981">🟢 ${counts.personal}</span>` +
+      `<span class="mem-stat-badge" style="background:rgba(139,92,246,0.15);color:#a78bfa">🟣 ${counts.tech}</span>`;
+
+    const list    = document.getElementById('memList');
+    const visible = mems.slice(0, _memPage);
+    list.innerHTML = '';
+
+    if (!mems.length) {
+      list.innerHTML = '<div style="color:var(--dim);font-size:13px;text-align:center;padding:16px">Sin resultados</div>';
+      document.getElementById('memLoadMore').style.display = 'none';
+      return;
+    }
+
+    visible.forEach(m => list.appendChild(buildMemItem(m)));
+
+    const loadMore = document.getElementById('memLoadMore');
+    loadMore.style.display = mems.length > _memPage ? 'block' : 'none';
+    loadMore.textContent   = `Cargar más (${mems.length - _memPage} restantes)`;
+  }
+
+  function buildMemItem(m) {
+    const tier  = memTier(m);
+    const item  = document.createElement('div');
+    item.className = 'mem-item';
+    item.id        = 'memitem-' + m._id;
+
+    const tagsHtml = (m.tags || []).slice(0, 4).map(t =>
+      `<span class="mem-badge tag">${t}</span>`).join('');
+
+    item.innerHTML = `
+      <div class="mem-item-top">
+        <div class="mem-item-content">${escHtml(m.content)}</div>
+        <div class="mem-item-actions">
+          <button class="btn-mem-action edit" data-id="${m._id}" title="Editar">✏️</button>
+          <button class="btn-mem-action del"  data-id="${m._id}" title="Eliminar">🗑</button>
+        </div>
+      </div>
+      <div class="mem-item-meta">
+        <span class="mem-badge ${tier}">${TIER_LABEL[tier]}</span>
+        <span class="mem-badge ${m.importance}">${m.importance}</span>
+        ${tagsHtml}
+      </div>
+    `;
+
+    item.querySelector('.edit').addEventListener('click', () => toggleMemEdit(m, item));
+    item.querySelector('.del').addEventListener('click',  () => deleteMem(m._id, item));
+    return item;
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function toggleMemEdit(m, item) {
+    const existing = item.querySelector('.mem-edit-form');
+    if (existing) { existing.remove(); return; }
+
+    const form = document.createElement('div');
+    form.className = 'mem-edit-form';
+    form.innerHTML = `
+      <textarea class="mem-edit-textarea">${m.content}</textarea>
+      <div class="mem-edit-row">
+        <select class="mem-edit-select imp-sel">
+          ${['high','medium','low'].map(v => `<option value="${v}" ${m.importance===v?'selected':''}>${v}</option>`).join('')}
+        </select>
+        <select class="mem-edit-select type-sel">
+          ${['fact','preference','project_update','decision','feeling'].map(v => `<option value="${v}" ${m.type===v?'selected':''}>${v}</option>`).join('')}
+        </select>
+      </div>
+      <input class="mem-edit-tags tags-inp" type="text" placeholder="Tags: familia, yaimy" value="${(m.tags||[]).join(', ')}">
+      <div class="mem-edit-actions">
+        <button class="btn-mem-save save-btn">Guardar</button>
+        <button class="btn-mem-cancel">Cancelar</button>
+      </div>
+      <div class="admin-feedback ef"></div>
+    `;
+    item.appendChild(form);
+
+    form.querySelector('.btn-mem-cancel').addEventListener('click', () => form.remove());
+    form.querySelector('.save-btn').addEventListener('click', async () => {
+      const body = {
+        content:    form.querySelector('textarea').value.trim(),
+        importance: form.querySelector('.imp-sel').value,
+        type:       form.querySelector('.type-sel').value,
+        tags:       form.querySelector('.tags-inp').value,
+      };
+      if (!body.content) return;
+      form.querySelector('.save-btn').disabled = true;
+      try {
+        const res = await fetch(`${BAKO_URL}/api/agent/memories/${m._id}`, {
+          method: 'PUT', headers: authHeaders(), body: JSON.stringify(body),
+        });
+        if (res.ok) {
+          const updated = (await res.json()).memory;
+          Object.assign(m, updated);
+          const newItem = buildMemItem(m);
+          item.replaceWith(newItem);
+        } else {
+          const fb = form.querySelector('.ef');
+          fb.textContent = (await res.json()).error || 'Error';
+          fb.className   = 'admin-feedback ef err';
+          form.querySelector('.save-btn').disabled = false;
+        }
+      } catch {
+        form.querySelector('.save-btn').disabled = false;
+      }
+    });
+    return form;
+  }
+
+  async function deleteMem(id, item) {
+    if (!confirm('¿Eliminar esta memoria?')) return;
+    const res = await fetch(`${BAKO_URL}/api/agent/memories/${id}`, {
+      method: 'DELETE', headers: authHeaders(),
+    });
+    if (res.ok) {
+      _allMems = _allMems.filter(m => m._id !== id);
+      item.remove();
+      renderMemories();
+    }
+  }
+
+  // Crear memoria
+  document.getElementById('btnNewMem').addEventListener('click', () => {
+    const f = document.getElementById('memCreateForm');
+    f.classList.toggle('visible');
+    if (f.classList.contains('visible')) document.getElementById('newMemContent').focus();
+  });
+  document.getElementById('btnCancelNewMem').addEventListener('click', () => {
+    document.getElementById('memCreateForm').classList.remove('visible');
+  });
+  document.getElementById('btnSaveNewMem').addEventListener('click', async () => {
+    const content = document.getElementById('newMemContent').value.trim();
+    const tags    = document.getElementById('newMemTags').value;
+    const imp     = document.getElementById('newMemImp').value;
+    const type    = document.getElementById('newMemType').value;
+    const fb      = document.getElementById('newMemFeedback');
+    if (!content) { fb.textContent = 'El contenido es obligatorio'; fb.className = 'admin-feedback err'; return; }
+    document.getElementById('btnSaveNewMem').disabled = true;
+    try {
+      const res = await fetch(`${BAKO_URL}/api/agent/memories/import`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ memories: [{ content, type, importance: imp, tags: tags.split(',').map(t=>t.trim()).filter(Boolean) }] }),
+      });
+      if (res.ok) {
+        fb.textContent = '✓ Guardada'; fb.className = 'admin-feedback ok';
+        document.getElementById('newMemContent').value = '';
+        document.getElementById('newMemTags').value    = '';
+        setTimeout(() => { document.getElementById('memCreateForm').classList.remove('visible'); fb.textContent = ''; }, 1200);
+        await loadMemories();
+      } else {
+        fb.textContent = 'Error al guardar'; fb.className = 'admin-feedback err';
+      }
+    } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
+    finally { document.getElementById('btnSaveNewMem').disabled = false; }
+  });
+
+  // Filtros en tiempo real
+  ['memSearch','memFilterTier','memFilterImp'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', () => { _memPage = 20; renderMemories(); });
+  });
+  document.getElementById('memLoadMore')?.addEventListener('click', () => { _memPage += 20; renderMemories(); });
 
   // ── Edición inline de usuario ─────────────────────────────────────────────
   let editingId = null;

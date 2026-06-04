@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import bcrypt from 'bcryptjs';
 import agentRoutes from './routes/agent';
+import { requireAuth } from './middleware/authMiddleware';
 import desktopRoutes from './routes/desktop';
 import bakoClientRoutes from './routes/bakoClient';
 import authRoutes from './routes/auth';
@@ -30,7 +31,7 @@ app.get('/ping', (_req, res) => {
 app.use('/bako-client', express.static(path.join(__dirname, '../public/bako-client')));
 
 app.use('/api/auth',    authRoutes);
-app.use('/api/agent',   agentRoutes);
+app.use('/api/agent',   requireAuth, agentRoutes);
 app.use('/api/desktop', desktopRoutes);
 app.use('/bako-client', bakoClientRoutes);
 

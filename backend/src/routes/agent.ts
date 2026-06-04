@@ -96,6 +96,20 @@ router.get('/memories', async (req: Request, res: Response) => {
   res.json({ ok: true, total: memories.length, memories });
 });
 
+// PUT /api/agent/memories/:id — editar memoria
+router.put('/memories/:id', async (req: Request, res: Response) => {
+  const { Memory } = await import('../memory/Memory');
+  const { content, importance, type, tags } = req.body;
+  const memory = await Memory.findById(req.params.id);
+  if (!memory) { res.status(404).json({ error: 'Memoria no encontrada' }); return; }
+  if (content    !== undefined) memory.content    = content;
+  if (importance !== undefined) memory.importance = importance;
+  if (type       !== undefined) memory.type       = type;
+  if (tags       !== undefined) memory.tags       = Array.isArray(tags) ? tags : String(tags).split(',').map((t: string) => t.trim()).filter(Boolean);
+  await memory.save();
+  res.json({ ok: true, memory });
+});
+
 // DELETE /api/agent/memories/:id — eliminar memoria por ID
 router.delete('/memories/:id', async (req: Request, res: Response) => {
   const { Memory } = await import('../memory/Memory');
