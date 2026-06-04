@@ -63,8 +63,16 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | GitHub issues escritura — "crea un issue en diamadmin" | ✅ |
 | Recordatorios internos — "recuérdame en 30 min..." + `/recordatorios` | ✅ |
 | PWA cliente web — `/bako-client`, instalable en móvil y PC | ✅ |
+| PWA v3 — chat history con burbujas, input texto, revisión transcripción, modo claro/oscuro | ✅ |
 | Script Python PC — `bako-desktop/bako_desktop.py`, hotkey Ctrl+Alt+B | ✅ |
-| Endpoints desktop — `/api/desktop/voice` y `/api/desktop/text` | ✅ |
+| Script Python v3 — GUI tkinter con chat, burbujas, modo claro/oscuro, revisión transcripción | ✅ |
+| Endpoints desktop — `/api/desktop/voice`, `/api/desktop/text`, `/api/desktop/transcribe` | ✅ |
+| Gmail inteligente — `/email`, leer sin leer, redactar + enviar con confirmación botones inline | ✅ |
+| Gmail proactivo — scopes gmail.send + drafts.send, confirmación antes de enviar | ✅ |
+| Tech Radar semanal — lunes 09:30, feeds JS/Node/React/AI, LLM filtra top 5 · `/techradar` | ✅ |
+| PR Review automático — L-V 08:30, diff GitHub por LLM como senior dev · `/prreview` | ✅ |
+| Gestión mensajes automáticos — `/automaticos`, toggle inline por cada cron, persiste MongoDB | ✅ |
+| Calendar datos en tiempo real — distinción pasados/futuros, cache 1min, no extrae eventos a memoria | ✅ |
 
 ---
 
@@ -248,32 +256,38 @@ El perfil deja de ser un archivo que editas a mano.
 - Voz + texto + comandos naturales
 - No requiere instalación
 
-### PWA — Cliente web (móvil y PC)
-URL: `https://<render-url>/bako-client/`
+### PWA — Cliente web v3 (móvil y PC)
+URL: `https://ai-personal-os.onrender.com/bako-client/`
+
+**Características v3:**
+- Chat history con burbujas (usuario derecha verde · BAKO izquierda azul)
+- Botón ↩ por mensaje → copia al input para editar y reenviar
+- Input de texto + botón Enviar (además de voz)
+- Revisión de transcripción: 5s countdown + barra de progreso, editable
+- Modo claro/oscuro con toggle luna/sol (patrón bohdeveloper.com)
+- Rate limit: bloquea UI automáticamente con countdown visible
 
 **Instalación en Android (Chrome):**
 1. Abre Chrome → navega a la URL
 2. Menú (⋮) → "Añadir a pantalla de inicio"
 3. Se instala como app con icono propio
-4. Abre directamente sin navegador visible
 
 **Instalación en iOS (Safari):**
-1. Abre Safari → navega a la URL
-2. Icono compartir (⬆) → "Añadir a pantalla de inicio"
-3. Se instala como app
-
-**Uso:** Mantén pulsado el botón del micrófono mientras hablas. Suelta para enviar. BAKO responde por voz.
-
-**Para activar desde pantalla bloqueada (Android):**
-1. Abre Google Home / Google Assistant
-2. Rutinas → ➕ Añadir rutina
-3. Inicio: "Hey Google, habla con BAKO" (o la frase que elijas)
-4. Acción: Abrir URL → `https://<render-url>/bako-client/`
+1. Safari → icono compartir (⬆) → "Añadir a pantalla de inicio"
 
 ---
 
-### Script Python — Cliente de escritorio (PC)
+### Script Python — Cliente de escritorio v3 (PC)
 Archivo: `bako-desktop/bako_desktop.py`
+
+**Características v3:**
+- GUI tkinter con chat history y burbujas (mismo estilo que la PWA)
+- Botón ↩ por mensaje → pega texto en el input para reenviar
+- Input de texto + botón Enviar
+- Modo claro/oscuro con toggle luna/sol
+- Revisión de transcripción: 5s countdown, editable
+- Rate limit: bloquea botones automáticamente con countdown
+- Hotkey global Ctrl+Alt+B
 
 **Instalación (una sola vez):**
 ```bash
@@ -286,18 +300,15 @@ pip install -r requirements.txt
 python bako_desktop.py
 ```
 
-**Hotkey:** `Ctrl+Alt+B` → mantén mientras hablas → suelta para enviar → BAKO responde por altavoces
-
 **Configuración opcional** (variables de entorno):
 ```
-BAKO_URL=https://<tu-render-url>   # URL del backend
-DESKTOP_TOKEN=<token>              # Si configuras DESKTOP_TOKEN en el servidor
-BAKO_HOTKEY=ctrl+alt+b             # Cambia el atajo si prefieres otro
+BAKO_URL=https://ai-personal-os.onrender.com
+DESKTOP_TOKEN=<token>
+BAKO_HOTKEY=ctrl+alt+b
 ```
 
 **Arranque automático con Windows:**
-1. Pulsa `Win+R` → escribe `shell:startup`
-2. Crea un acceso directo a `python bako_desktop.py` en esa carpeta
+1. `Win+R` → `shell:startup` → acceso directo a `python bako_desktop.py`
 
 ---
 
@@ -312,64 +323,36 @@ BAKO_HOTKEY=ctrl+alt+b             # Cambia el atajo si prefieres otro
 ## HORIZONTE 1 — BAKO completo como asistente
 ### Objetivo: BAKO gestiona toda tu vida digital. ~6-12 meses.
 
-### Fase 5 — Email inteligente
-- Gmail API → resumen de correos sin leer priorizados
-- Borrador de respuesta generado por LLM
-- `/email` en Telegram → lista de los más importantes por voz
-- Acción: "Bako, redacta una respuesta a este email de Inetum"
+### Fase 5 — Email inteligente ✅ Completado (junio 2026)
+- ✅ Gmail API — `getUnreadEmails`, `/email` lista correos sin leer por voz y texto
+- ✅ Redactar email por voz/texto: "Bako, redacta un email a X sobre Y"
+- ✅ Preview del email + botones inline [✅ Enviar] [📁 Borrador] [❌ Cancelar]
+- ✅ Envío directo via `drafts.send` — nunca envía sin confirmación explícita
+- ✅ Gmail en briefing matutino 05:45 — menciona correos sin leer
+- ✅ Scopes: gmail.readonly + gmail.compose + gmail.modify + gmail.send
+- ✅ Re-auth con nuevos scopes documentada en auth-google.ts
 
-### Fase 6 — Redes Sociales
-- Twitter/X + LinkedIn API
+### Fase 6 — Redes Sociales ❌ Pendiente
+- Twitter/X + LinkedIn API (requieren plan de pago — diferido)
 - Cola de posts en MongoDB → BAKO genera y publica con confirmación
 - Modo automático: calendario editorial definido por ti
 
-### Fase 7 — Portfolio Integration + Panel de administración BAKO
+### Fase 7 — Portfolio Integration + Panel de administración BAKO ❌ Pendiente
+- Panel admin en bohdeveloper.com/admin — gestión visual de memorias, perfil, tools, stats
+- Widget de chat público en bohdeveloper.com
+- Stack: Next.js + API REST BAKO + MongoDB + auth existente
 
-**Modo público** — visitantes de bohdeveloper.com hablan con BAKO:
-- Widget de chat embebido
-- Conoce tus proyectos, stack, experiencia y formas de contacto
-- Responde preguntas reales sobre ti
+### Fase 8 — Automatización (sin n8n) ✅ Completado (junio 2026)
+Implementado directamente en ProactivityService sin infraestructura adicional:
+- ✅ **Tech Radar semanal** (lunes 09:30) — 5 feeds tech (JS Weekly, Node, React, HN, TLDR AI) → LLM filtra top 5 relevantes para el stack de Borja · `/techradar` manual
+- ✅ **PR Review automático** (L-V 08:30) — PRs actualizados en 24h → diff GitHub → análisis LLM como senior dev · `/prreview` manual
+- ✅ Morning Briefing (05:45), Weekly Summary (viernes 18:00), Alerta Tracker (22:00)
+- ✅ **Gestión mensajes automáticos** — `/automaticos` con botones inline, 7 crons configurables, estado persiste en MongoDB (`AutoConfig`)
 
-**Modo privado — Panel admin en bohdeveloper.com/admin** — tú, autenticado, gestionas a BAKO desde una interfaz web:
-
-*Gestión del conocimiento:*
-- Editor de perfil dinámico — modifica quién es Borja sin tocar `profile.ts`
-- Visor y editor de memorias — ve, edita o elimina lo que BAKO recuerda
-- Historial de conversaciones con búsqueda y filtros
-
-*Configuración:*
-- Activa o desactiva tools individuales (GitHub, Notion, Calendar...)
-- Ajusta parámetros: voz, idioma, nivel de detalle del briefing, hora del cron
-- Gestión de reglas de privacidad y palabras sensibles
-
-*Seguimiento y evolución:*
-- Estadísticas de uso: conversaciones por día, tools más usadas, temas frecuentes
-- Log de acciones ejecutadas (tareas creadas, eventos agendados, issues abiertos)
-- Línea de tiempo del aprendizaje — cómo ha crecido la memoria de BAKO
-- Estado del sistema: Ollama online/offline, Groq, cada tool con su estado
-
-*Stack:* Next.js (ya existe en bohdeveloper) + API REST de BAKO + MongoDB + autenticación existente
-
-### Fase 8 — Automatización n8n
-- **n8n self-hosted** como capa de automatización externa (Railway/VPS)
-- Bridge n8n ↔ BAKO backend vía webhooks propios
-- Workflows pendientes de implementar:
-  - ❌ **PR Review automático** — cada push en GitHub → Dev Agent analiza el diff → comentario estructurado como senior dev
-  - ❌ **Tech Radar semanal** (lunes 09:00) — RSS feeds JS Weekly, Node Weekly, AI newsletters → Research Agent filtra → 5 novedades relevantes para el stack de Borja
-  - ✅ Morning Briefing (05:45) — ya implementado en ProactivityService
-  - ✅ Weekly Summary (viernes 18:00) — ya implementado
-  - ✅ Alerta Tracker vacío (22:00) — ya implementado
-
-### Fase 9 — Wake Word
+### Fase 9 — Wake Word ❌ Pendiente
 - **OpenWakeWord** — escucha el micrófono en background, sin internet
 - Dices "Bako" → detecta → ejecuta briefing → responde por voz
 - Sin tocar el teclado, sin abrir el móvil
-
-### Fase 9 — Agentes autónomos y memoria larga
-- Decisiones asistidas: BAKO propone opciones, tú confirmas con un número
-- Cron jobs: briefing a las 05:45, resumen viernes a las 18:00 (ya en Gap 3)
-- Alertas proactivas sin que las pidas: PRs sin revisar, deadlines próximos
-- Memoria persistente entre conversaciones (ya en Gap 1)
 
 ---
 
