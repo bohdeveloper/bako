@@ -15,20 +15,19 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
     :root {
-      --bg:      #0a0a0a;
-      --bg2:     #111111;
-      --bg3:     #1a1a1a;
-      --border:  #2a2a2a;
-      --text:    #e8e8e8;
-      --dim:     #555;
-      --blue:    #4a9eff;
-      --green:   #10b981;
-      --yellow:  #f59e0b;
-      --red:     #ef4444;
+      --bg:     #0a0a0a;
+      --bg2:    #111111;
+      --bg3:    #1a1a1a;
+      --border: #2a2a2a;
+      --text:   #e8e8e8;
+      --dim:    #555;
+      --blue:   #4a9eff;
+      --green:  #10b981;
+      --yellow: #f59e0b;
+      --red:    #ef4444;
     }
 
     html, body { height: 100%; overflow: hidden; }
-
     body {
       background: var(--bg);
       color: var(--text);
@@ -38,238 +37,201 @@
       height: 100dvh;
     }
 
-    /* ── Header ────────────────────────────────────────────────────────────── */
+    /* ── Header ─────────────────────────────────────────────────────────────── */
     .header {
-      text-align: center;
-      padding: 28px 24px 12px;
       flex-shrink: 0;
-    }
-    .header h1 { font-size: 26px; font-weight: 700; letter-spacing: 6px; color: #fff; }
-    .header p  { font-size: 11px; color: var(--dim); margin-top: 3px; letter-spacing: 3px; }
-
-    /* ── Área central (chat) ────────────────────────────────────────────────── */
-    .chat-area {
-      flex: 1;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 16px;
-      padding: 12px 24px;
-      overflow: hidden;
-      max-width: 480px;
-      width: 100%;
-      margin: 0 auto;
+      padding: 16px 20px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .header h1 { font-size: 20px; font-weight: 700; letter-spacing: 5px; color: #fff; }
+    .header p  { font-size: 10px; color: var(--dim); margin-left: 10px; letter-spacing: 2px; }
+
+    /* ── Chat history ────────────────────────────────────────────────────────── */
+    .chat-history {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px 14px 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .chat-history::-webkit-scrollbar { width: 3px; }
+    .chat-history::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* Burbujas de mensaje */
+    .msg {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      max-width: 88%;
+      animation: fadeIn 0.2s ease;
+    }
+    .msg.bako { align-self: flex-start; }
+    .msg.user { align-self: flex-end;   flex-direction: row-reverse; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    .msg-bubble {
+      padding: 10px 13px;
+      border-radius: 16px;
+      font-size: 15px;
+      line-height: 1.55;
+      word-break: break-word;
+    }
+    .msg.bako .msg-bubble {
+      background: #0e1e32;
+      border-bottom-left-radius: 4px;
+      color: #c8dff8;
+    }
+    .msg.user .msg-bubble {
+      background: #0d2b1a;
+      border-bottom-right-radius: 4px;
+      color: #a8e6c8;
     }
 
+    .msg-reuse {
+      flex-shrink: 0;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--dim);
+      font-size: 13px;
+      padding: 3px 7px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s;
+      margin-bottom: 2px;
+      line-height: 1;
+    }
+    .msg:hover .msg-reuse,
+    .msg:focus-within .msg-reuse { opacity: 1; }
+
+    /* Burbuja de estado (grabando, procesando...) */
+    .msg-status {
+      align-self: center;
+      font-size: 12px;
+      color: var(--dim);
+      letter-spacing: 1px;
+    }
+
+    /* ── Wave (entre chat y controles) ─────────────────────────────────────── */
+    .wave-row {
+      flex-shrink: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 32px;
+    }
     .wave {
       display: flex;
-      gap: 5px;
+      gap: 4px;
       align-items: center;
-      height: 40px;
       opacity: 0;
       transition: opacity 0.3s;
     }
     .wave.active { opacity: 1; }
     .wave span {
-      display: block; width: 4px; border-radius: 2px; background: var(--blue);
+      display: block; width: 3px; border-radius: 2px; background: var(--blue);
       animation: wave 0.8s infinite ease-in-out;
     }
-    .wave span:nth-child(1) { height: 12px; animation-delay: 0s; }
-    .wave span:nth-child(2) { height: 28px; animation-delay: 0.1s; }
-    .wave span:nth-child(3) { height: 40px; animation-delay: 0.2s; }
-    .wave span:nth-child(4) { height: 28px; animation-delay: 0.3s; }
-    .wave span:nth-child(5) { height: 12px; animation-delay: 0.4s; }
+    .wave span:nth-child(1) { height: 8px;  animation-delay: 0s; }
+    .wave span:nth-child(2) { height: 18px; animation-delay: 0.1s; }
+    .wave span:nth-child(3) { height: 26px; animation-delay: 0.2s; }
+    .wave span:nth-child(4) { height: 18px; animation-delay: 0.3s; }
+    .wave span:nth-child(5) { height: 8px;  animation-delay: 0.4s; }
     @keyframes wave { 0%,100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }
 
-    .transcription { font-size: 13px; color: var(--dim); font-style: italic; text-align: center; min-height: 20px; }
-    .response      { font-size: 17px; color: var(--text); text-align: center; line-height: 1.65; }
-
-    /* ── Panel de revisión de transcripción ─────────────────────────────────── */
+    /* ── Panel de revisión ───────────────────────────────────────────────────── */
     .review-panel {
       display: none;
-      width: 100%;
-      background: var(--bg3);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 12px 14px;
       flex-shrink: 0;
+      background: var(--bg3);
+      border-top: 1px solid var(--border);
+      padding: 10px 14px;
     }
     .review-panel.visible { display: block; }
 
     .review-label {
-      font-size: 11px;
-      color: var(--dim);
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      margin-bottom: 8px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+      font-size: 11px; color: var(--dim);
+      text-transform: uppercase; letter-spacing: 1px;
+      display: flex; justify-content: space-between; margin-bottom: 6px;
     }
     .review-countdown { color: var(--yellow); font-weight: 600; }
 
-    .review-progress {
-      height: 2px;
-      background: var(--border);
-      border-radius: 1px;
-      margin-bottom: 10px;
-      overflow: hidden;
-    }
-    .review-progress-bar {
-      height: 100%;
-      background: var(--yellow);
-      border-radius: 1px;
-      transition: width 1s linear;
-      width: 100%;
-    }
+    .review-progress { height: 2px; background: var(--border); border-radius: 1px; margin-bottom: 8px; overflow: hidden; }
+    .review-progress-bar { height: 100%; background: var(--yellow); border-radius: 1px; transition: width 1s linear; width: 100%; }
 
     .review-text {
-      width: 100%;
-      background: var(--bg2);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 12px;
-      color: var(--text);
-      font-size: 15px;
-      font-family: inherit;
-      resize: none;
-      outline: none;
-      min-height: 42px;
-      line-height: 1.4;
-      overflow: hidden;
+      width: 100%; background: var(--bg2);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 11px; color: var(--text); font-size: 15px;
+      font-family: inherit; resize: none; outline: none; min-height: 38px;
     }
     .review-text:focus { border-color: var(--blue); }
 
-    .review-actions {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 10px;
-    }
-    .btn-cancel {
-      background: none;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--dim);
-      font-size: 13px;
-      padding: 7px 14px;
-      cursor: pointer;
-    }
-    .btn-send-review {
-      background: var(--blue);
-      border: none;
-      border-radius: 8px;
-      color: #fff;
-      font-size: 14px;
-      font-weight: 600;
-      padding: 7px 20px;
-      cursor: pointer;
-    }
-    .btn-cancel:active     { opacity: 0.7; }
-    .btn-send-review:active { opacity: 0.8; transform: scale(0.97); }
+    .review-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+    .btn-cancel      { background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--dim); font-size: 13px; padding: 6px 12px; cursor: pointer; }
+    .btn-send-review { background: var(--blue); border: none; border-radius: 8px; color: #fff; font-size: 14px; font-weight: 600; padding: 6px 18px; cursor: pointer; }
 
     /* ── Panel inferior ─────────────────────────────────────────────────────── */
     .bottom {
       flex-shrink: 0;
-      padding: 10px 20px 32px;
+      padding: 8px 14px 28px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 12px;
-      max-width: 480px;
-      width: 100%;
-      margin: 0 auto;
+      gap: 10px;
+      border-top: 1px solid var(--border);
     }
 
-    /* Input de texto */
-    .text-row {
-      display: flex;
-      width: 100%;
-      gap: 8px;
-      align-items: center;
-    }
+    .text-row { display: flex; width: 100%; gap: 8px; align-items: center; }
     .text-input {
-      flex: 1;
-      background: var(--bg3);
-      border: 1px solid var(--border);
-      border-radius: 24px;
-      padding: 11px 18px;
-      color: var(--text);
-      font-size: 15px;
-      font-family: inherit;
-      outline: none;
+      flex: 1; background: var(--bg3);
+      border: 1px solid var(--border); border-radius: 22px;
+      padding: 10px 16px; color: var(--text);
+      font-size: 15px; font-family: inherit; outline: none;
       transition: border-color 0.2s;
     }
     .text-input::placeholder { color: var(--dim); }
     .text-input:focus { border-color: var(--blue); }
+
     .btn-send-text {
-      width: 44px;
-      height: 44px;
-      border-radius: 50%;
-      background: var(--blue);
-      border: none;
-      color: #fff;
-      font-size: 20px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-      transition: opacity 0.2s, transform 0.1s;
+      width: 42px; height: 42px; border-radius: 50%;
+      background: var(--blue); border: none; color: #fff;
+      font-size: 18px; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
     }
     .btn-send-text:active { opacity: 0.8; transform: scale(0.93); }
 
-    /* Botón micrófono */
     .mic-btn {
-      width: 88px;
-      height: 88px;
-      border-radius: 50%;
-      background: var(--bg3);
-      border: 2px solid var(--border);
-      cursor: pointer;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s;
-      user-select: none;
-      -webkit-user-select: none;
+      width: 80px; height: 80px; border-radius: 50%;
+      background: var(--bg3); border: 2px solid var(--border);
+      cursor: pointer; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      transition: all 0.2s; user-select: none; -webkit-user-select: none;
       position: relative;
     }
-    .mic-btn.recording {
-      background: #0d2b0d;
-      border-color: var(--green);
-    }
+    .mic-btn.recording { background: #0d2b0d; border-color: var(--green); }
     .mic-btn.recording::before {
-      content: '';
-      position: absolute;
-      width: 110px; height: 110px;
-      border-radius: 50%;
-      border: 2px solid #10b98144;
-      animation: pulse 1.2s infinite;
+      content: ''; position: absolute; width: 100px; height: 100px;
+      border-radius: 50%; border: 2px solid #10b98144; animation: pulse 1.2s infinite;
     }
     .mic-btn.processing { border-color: var(--yellow); background: #1a1500; }
     .mic-btn.playing    { border-color: var(--green);  background: #0a1a0f; }
-    .mic-btn.cooldown   { border-color: var(--red);    background: #1a0a0a; opacity: 0.7; cursor: not-allowed; }
+    .mic-btn.cooldown   { border-color: var(--red);    opacity: 0.5; cursor: not-allowed; }
     @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }
 
-    .mic-icon  { font-size: 32px; pointer-events: none; }
-    .mic-label { font-size: 11px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; margin-top: 4px; text-align: center; pointer-events: none; }
+    .mic-icon  { font-size: 28px; pointer-events: none; }
+    .mic-label { font-size: 10px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; margin-top: 3px; pointer-events: none; }
 
-    /* Status bar */
-    .status-bar {
-      font-size: 12px;
-      color: var(--dim);
-      text-align: center;
-      min-height: 16px;
-    }
+    .status-bar { font-size: 12px; color: var(--dim); text-align: center; min-height: 15px; }
     .status-bar.warn  { color: var(--yellow); }
     .status-bar.error { color: var(--red); }
     .status-bar.ok    { color: var(--green); }
-
-    /* Disabled state */
-    .disabled-overlay { pointer-events: none; opacity: 0.4; }
   </style>
 </head>
 <body>
@@ -279,12 +241,14 @@
   <p>MAYORDOMO PERSONAL</p>
 </div>
 
-<div class="chat-area">
+<!-- Chat history -->
+<div class="chat-history" id="chatHistory"></div>
+
+<!-- Wave (visible al grabar) -->
+<div class="wave-row">
   <div class="wave" id="wave">
     <span></span><span></span><span></span><span></span><span></span>
   </div>
-  <div class="transcription" id="transcription"></div>
-  <div class="response" id="response">¿En qué puedo ayudarle, señor?</div>
 </div>
 
 <!-- Panel de revisión de transcripción -->
@@ -303,16 +267,14 @@
 
 <div class="bottom">
   <div class="text-row">
-    <input class="text-input" id="textInput" type="text" placeholder="Escribe un mensaje..." autocomplete="off">
-    <button class="btn-send-text" id="btnSendText" title="Enviar texto">➤</button>
+    <input class="text-input" id="textInput" type="text" placeholder="Escribe un mensaje…" autocomplete="off">
+    <button class="btn-send-text" id="btnSendText">➤</button>
   </div>
-
   <button class="mic-btn" id="micBtn">
     <span class="mic-icon">🎤</span>
     <span class="mic-label" id="micLabel">Mantén</span>
   </button>
-
-  <div class="status-bar" id="statusBar">Listo para hablar</div>
+  <div class="status-bar" id="statusBar">Listo</div>
 </div>
 
 <script>
@@ -320,10 +282,9 @@
   const REVIEW_SECS = 5;
   const MIN_GAP_MS  = 3000;
 
-  // ── DOM refs ──────────────────────────────────────────────────────────────
+  // ── DOM ────────────────────────────────────────────────────────────────────
+  const chatHistory   = document.getElementById('chatHistory');
   const wave          = document.getElementById('wave');
-  const transcDiv     = document.getElementById('transcription');
-  const responseDiv   = document.getElementById('response');
   const reviewPanel   = document.getElementById('reviewPanel');
   const reviewText    = document.getElementById('reviewText');
   const reviewCD      = document.getElementById('reviewCountdown');
@@ -337,19 +298,54 @@
   const statusBar     = document.getElementById('statusBar');
 
   // ── Estado ────────────────────────────────────────────────────────────────
-  let mediaRecorder = null;
-  let audioChunks   = [];
-  let isRecording   = false;
-  let stream        = null;
-  let currentAudio  = null;
-  let lastRequestMs = 0;
-  let cooldownUntil = 0;       // timestamp hasta el que no se puede enviar
+  let mediaRecorder  = null;
+  let audioChunks    = [];
+  let isRecording    = false;
+  let stream         = null;
+  let currentAudio   = null;
+  let lastRequestMs  = 0;
+  let cooldownUntil  = 0;
   let countdownTimer = null;
   let countdownVal   = REVIEW_SECS;
   let userEditing    = false;
 
-  // ── Limpieza de markdown (para mostrar texto limpio) ─────────────────────
-  function stripMarkdown(t) {
+  // ── Chat history ───────────────────────────────────────────────────────────
+  function addMessage(role, text) {
+    const div = document.createElement('div');
+    div.className = `msg ${role}`;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.textContent = text;
+
+    const reuse = document.createElement('button');
+    reuse.className = 'msg-reuse';
+    reuse.title = 'Copiar al input';
+    reuse.textContent = '↩';
+    reuse.addEventListener('click', () => {
+      textInput.value = text;
+      textInput.focus();
+      textInput.setSelectionRange(text.length, text.length);
+    });
+
+    div.appendChild(bubble);
+    div.appendChild(reuse);
+    chatHistory.appendChild(div);
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+    return div;
+  }
+
+  function addStatusMsg(text) {
+    const div = document.createElement('div');
+    div.className = 'msg-status';
+    div.textContent = text;
+    chatHistory.appendChild(div);
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+    return div;
+  }
+
+  // ── Utilidades UI ──────────────────────────────────────────────────────────
+  function stripMd(t) {
     return t
       .replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1')
       .replace(/_{1,2}([^_]+)_{1,2}/g, '$1')
@@ -359,7 +355,6 @@
       .replace(/\*/g, '').replace(/_/g, '');
   }
 
-  // ── Utilidades de UI ──────────────────────────────────────────────────────
   function setStatus(msg, cls = '') {
     statusBar.textContent = msg;
     statusBar.className = 'status-bar' + (cls ? ' ' + cls : '');
@@ -372,29 +367,24 @@
     wave.classList.toggle('active', state === 'recording');
   }
 
-  // Bloquea/desbloquea TODA interacción. Durante cooldown nunca llama a enable.
   function setUiEnabled(enabled) {
-    if (enabled && isCoolingDown()) return; // nunca re-habilitar durante cooldown
-    const ptr = enabled ? '' : 'none';
-    micBtn.style.pointerEvents  = ptr;
-    micBtn.style.opacity        = enabled ? '' : '0.4';
-    micBtn.style.cursor         = enabled ? '' : 'not-allowed';
-    textInput.disabled          = !enabled;
-    btnSendText.disabled        = !enabled;
-    btnSendReview.disabled      = !enabled;
-    btnSendText.style.opacity   = enabled ? '' : '0.4';
+    if (enabled && isCoolingDown()) return;
+    micBtn.style.pointerEvents = enabled ? '' : 'none';
+    micBtn.style.opacity       = enabled ? '' : '0.4';
+    textInput.disabled         = !enabled;
+    btnSendText.disabled       = !enabled;
+    btnSendReview.disabled     = !enabled;
+    btnSendText.style.opacity  = enabled ? '' : '0.4';
   }
 
-  // ── Rate limit ────────────────────────────────────────────────────────────
+  // ── Rate limit ─────────────────────────────────────────────────────────────
   function isCoolingDown() { return Date.now() < cooldownUntil; }
 
   function setCooldown(secs) {
     cooldownUntil = Date.now() + secs * 1000;
     setMicState('cooldown');
-    // Deshabilitar sin pasar por setUiEnabled (evita el guard)
     micBtn.style.pointerEvents = 'none';
     micBtn.style.opacity       = '0.4';
-    micBtn.style.cursor        = 'not-allowed';
     textInput.disabled         = true;
     btnSendText.disabled       = true;
     btnSendReview.disabled     = true;
@@ -405,55 +395,49 @@
   function tickCooldown() {
     const rem = Math.ceil((cooldownUntil - Date.now()) / 1000);
     if (rem > 0) {
-      setStatus(`🚫 Rate limit — disponible en ${rem}s`, 'warn');
+      setStatus(`🚫 Rate limit — ${rem}s`, 'warn');
       setTimeout(tickCooldown, 1000);
     } else {
       cooldownUntil = 0;
       setMicState('idle');
       micBtn.style.pointerEvents = '';
       micBtn.style.opacity       = '';
-      micBtn.style.cursor        = '';
       textInput.disabled         = false;
       btnSendText.disabled       = false;
       btnSendReview.disabled     = false;
       btnSendText.style.opacity  = '';
-      setStatus('✅ Listo para hablar');
+      setStatus('Listo');
     }
   }
 
   function parseCooldownSecs(data) {
-    const t = JSON.stringify(data);
-    const m = t.match(/(\d+)\s*(?:s\b|sec|second|segundo)/i);
+    const m = JSON.stringify(data).match(/(\d+)\s*(?:s\b|sec|second|segundo)/i);
     return m ? Math.min(parseInt(m[1]), 120) : 30;
   }
 
   async function waitGapIfNeeded() {
     const elapsed = Date.now() - lastRequestMs;
     if (elapsed < MIN_GAP_MS) {
-      const wait = MIN_GAP_MS - elapsed;
-      setStatus(`⏳ Espera ${(wait/1000).toFixed(1)}s...`, 'warn');
-      await new Promise(r => setTimeout(r, wait));
+      await new Promise(r => setTimeout(r, MIN_GAP_MS - elapsed));
     }
   }
 
   // ── Grabación ──────────────────────────────────────────────────────────────
   async function startRecording() {
-    if (isRecording || isCoolingDown()) return;   // bloqueado durante cooldown
+    if (isRecording || isCoolingDown()) return;
     if (currentAudio) { currentAudio.pause(); currentAudio = null; }
     cancelReview();
 
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: { sampleRate: 16000, channelCount: 1 } });
       audioChunks = [];
-      const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus' : 'audio/webm';
+      const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
       mediaRecorder = new MediaRecorder(stream, { mimeType: mime });
       mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
       mediaRecorder.start(100);
       isRecording = true;
       setMicState('recording');
-      setStatus('Grabando… suelta para revisar');
-      transcDiv.textContent = '';
+      setStatus('Grabando…');
     } catch {
       setStatus('Sin acceso al micrófono', 'error');
     }
@@ -470,18 +454,17 @@
     await new Promise(r => { mediaRecorder.onstop = r; });
 
     const blob = new Blob(audioChunks, { type: audioChunks[0]?.type || 'audio/webm' });
-    if (blob.size < 500) { setMicState('idle'); setStatus('Listo para hablar'); return; }
+    if (blob.size < 500) { setMicState('idle'); setStatus('Listo'); return; }
 
     try {
       const form = new FormData();
       form.append('audio', blob, 'voice.webm');
-      const res  = await fetch(`${BAKO_URL}/api/desktop/transcribe`, { method: 'POST', body: form });
+      const res = await fetch(`${BAKO_URL}/api/desktop/transcribe`, { method: 'POST', body: form });
 
-      // 429 también en transcripción
       if (res.status === 429) {
         const data = await res.json().catch(() => ({}));
         setCooldown(parseCooldownSecs(data));
-        responseDiv.textContent = '🚫 Rate limit activo — espera antes de hablar';
+        addStatusMsg('🚫 Rate limit activo — espera antes de hablar');
         setMicState('idle');
         return;
       }
@@ -501,7 +484,7 @@
     }
   }
 
-  // ── Review panel ──────────────────────────────────────────────────────────
+  // ── Review panel ───────────────────────────────────────────────────────────
   function showReview(text) {
     reviewText.value = text;
     userEditing = false;
@@ -535,7 +518,7 @@
   function cancelReview() {
     stopCountdown();
     reviewPanel.classList.remove('visible');
-    if (!isCoolingDown()) { setMicState('idle'); setStatus('Listo para hablar'); }
+    if (!isCoolingDown()) setStatus('Listo');
   }
 
   function sendReview() {
@@ -560,7 +543,7 @@
   btnSendReview.addEventListener('click', sendReview);
   btnCancel.addEventListener('click',    cancelReview);
 
-  // ── Input de texto ────────────────────────────────────────────────────────
+  // ── Input de texto ──────────────────────────────────────────────────────────
   function sendTextInput() {
     if (isCoolingDown()) return;
     const text = textInput.value.trim();
@@ -573,16 +556,16 @@
     if (e.key === 'Enter') { e.preventDefault(); sendTextInput(); }
   });
 
-  // ── Envío a BAKO ──────────────────────────────────────────────────────────
+  // ── Envío a BAKO ───────────────────────────────────────────────────────────
   async function sendMessage(text) {
-    if (isCoolingDown()) return;    // última defensa
+    if (isCoolingDown()) return;
 
     await waitGapIfNeeded();
 
-    transcDiv.textContent   = `"${text}"`;
-    responseDiv.textContent = '';
+    addMessage('user', text);
+    const loadingEl = addStatusMsg('⏳ BAKO está pensando…');
     setUiEnabled(false);
-    setStatus('Enviando a BAKO…', 'warn');
+    setStatus('Enviando…', 'warn');
 
     try {
       const res = await fetch(`${BAKO_URL}/api/desktop/text`, {
@@ -591,27 +574,27 @@
         body: JSON.stringify({ message: text }),
       });
       lastRequestMs = Date.now();
+      loadingEl.remove();
 
-      // 429: rate limit — backend ahora devuelve 429 directamente
       if (res.status === 429) {
         const data = await res.json().catch(() => ({}));
         const secs = parseCooldownSecs(data);
         setCooldown(secs);
-        responseDiv.textContent = `🚫 Rate limit — próximo mensaje en ${secs}s`;
+        addStatusMsg(`🚫 Rate limit — próximo mensaje en ${secs}s`);
         return;
       }
 
       const data = await res.json();
 
       if (!res.ok) {
-        responseDiv.textContent = `⚠️ ${data.error || 'Error del servidor'}`;
+        addStatusMsg(`⚠️ ${data.error || 'Error del servidor'}`);
         setUiEnabled(true);
-        setStatus('Listo para hablar');
+        setStatus('Listo');
         return;
       }
 
-      // Mostrar respuesta sin asteriscos
-      responseDiv.textContent = stripMarkdown(data.response || '');
+      const responseText = stripMd(data.response || '');
+      if (responseText) addMessage('bako', responseText);
 
       if (data.audio) {
         setMicState('playing');
@@ -621,37 +604,34 @@
         for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
         const url = URL.createObjectURL(new Blob([arr], { type: 'audio/webm' }));
         currentAudio = new Audio(url);
-        currentAudio.onended = () => { URL.revokeObjectURL(url); setMicState('idle'); setStatus('Listo para hablar'); setUiEnabled(true); };
-        currentAudio.onerror  = () => { setMicState('idle'); setUiEnabled(true); setStatus('Listo para hablar'); };
+        currentAudio.onended = () => { URL.revokeObjectURL(url); setMicState('idle'); setStatus('Listo'); setUiEnabled(true); };
+        currentAudio.onerror  = () => { setMicState('idle'); setUiEnabled(true); setStatus('Listo'); };
         await currentAudio.play().catch(() => {});
       } else {
         setMicState('idle');
         setUiEnabled(true);
-        setStatus('Listo para hablar');
+        setStatus('Listo');
       }
 
     } catch {
-      // Error de red: re-habilitar SOLO si no hay cooldown activo
-      responseDiv.textContent = '⚠️ Sin conexión con BAKO';
+      loadingEl?.remove();
+      addStatusMsg('⚠️ Sin conexión con BAKO');
       setMicState('idle');
       if (!isCoolingDown()) { setUiEnabled(true); setStatus('Sin conexión', 'error'); }
     }
   }
 
-  // ── Touch / Mouse ─────────────────────────────────────────────────────────
-  // Usamos addEventListener en lugar de atributos HTML para que
-  // respeten pointer-events y el check de isCoolingDown()
-  function onTouchStart(e) { e.preventDefault(); startRecording(); }
-  function onTouchEnd(e)   { e.preventDefault(); stopRecording();  }
-
-  micBtn.addEventListener('touchstart',  onTouchStart, { passive: false });
-  micBtn.addEventListener('touchend',    onTouchEnd,   { passive: false });
-  micBtn.addEventListener('touchcancel', onTouchEnd,   { passive: false });
+  // ── Touch / Mouse ──────────────────────────────────────────────────────────
+  micBtn.addEventListener('touchstart',  e => { e.preventDefault(); startRecording(); }, { passive: false });
+  micBtn.addEventListener('touchend',    e => { e.preventDefault(); stopRecording();  }, { passive: false });
+  micBtn.addEventListener('touchcancel', e => { e.preventDefault(); stopRecording();  }, { passive: false });
   micBtn.addEventListener('mousedown',   startRecording);
   micBtn.addEventListener('mouseup',     stopRecording);
   micBtn.addEventListener('mouseleave',  () => { if (isRecording) stopRecording(); });
 
-  // ── Inicialización ─────────────────────────────────────────────────────────
+  // ── Init ───────────────────────────────────────────────────────────────────
+  addMessage('bako', '¿En qué puedo ayudarle, señor?');
+
   window.addEventListener('load', () => {
     if (navigator.mediaDevices) {
       navigator.mediaDevices.getUserMedia({ audio: true })

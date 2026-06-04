@@ -1223,6 +1223,10 @@ export function startTelegramBot(): void {
         return;
       }
 
+      if (/calendario|agenda|cita|reuni[oó]n|evento|gmail|correo|email|mail/i.test(transcription)) {
+        invalidateCalendarCache();
+      }
+
       const voiceLocation = await getCurrentLocation();
       const [memoriesSection, ambientCtx, dynProfile] = await Promise.all([
         getMemoriesSection(llmMode === 'groq' ? 20 : 5),
@@ -1455,6 +1459,11 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
         await sendVoiceReply(chatId, action.voice);
         appendToSession(chatId, text, action.voice);
         return;
+      }
+
+      // Forzar datos frescos si el mensaje pregunta por calendar, gmail u otros servicios externos
+      if (/calendario|agenda|cita|reuni[oó]n|evento|gmail|correo|email|mail/i.test(text)) {
+        invalidateCalendarCache();
       }
 
       // Contexto ambiental siempre activo: tiempo (ciudad actual), ubicación, agenda, tracker

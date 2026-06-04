@@ -100,30 +100,39 @@ export async function getAmbientContext(
     if (pasado) parts.push(`   Pasado: ${pasado.minTemp}–${pasado.maxTemp}°C, ${pasado.description}, lluvia ${pasado.rainProbability}%`);
   }
 
-  // Agenda — cacheada 15 min
-  const events = await cachedCalendar();
+  // Agenda — datos en tiempo real, separados en futuros y pasados
+  const events  = await cachedCalendar();
+  const realNow = new Date(); // UTC real para comparar con timestamps de eventos
   const hoyStr  = now.toDateString();
-  const todayEvents    = events.filter(e => new Date(e.start).toDateString() === hoyStr);
-  const upcomingEvents = events.filter(e => new Date(e.start).toDateString() !== hoyStr);
 
-  if (todayEvents.length > 0) {
-    const list = todayEvents.map(e => {
+  const todayEvents = events.filter(e => new Date(e.start).toDateString() === hoyStr);
+  const todayFuture = todayEvents.filter(e => e.allDay || new Date(e.start) > realNow);
+  const todayPast   = todayEvents.filter(e => !e.allDay && new Date(e.start) <= realNow);
+  const nextDays    = events.filter(e => new Date(e.start).toDateString() !== hoyStr);
+
+  if (todayFuture.length > 0) {
+    const list = todayFuture.map(e => {
       if (e.allDay) return e.title;
       const h = new Date(e.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
       return `${e.title} a las ${h}`;
     }).join(', ');
-    parts.push(`📆 Agenda hoy: ${list}`);
+    parts.push(`📆 Eventos restantes hoy: ${list}`);
   } else {
-    parts.push(`📆 Agenda hoy: sin eventos`);
+    parts.push(`📆 Sin eventos futuros hoy`);
   }
 
-  if (upcomingEvents.length > 0) {
-    const list = upcomingEvents.slice(0, 3).map(e => {
+  if (todayPast.length > 0) {
+    const list = todayPast.map(e => e.title).join(', ');
+    parts.push(`   (Ya pasados hoy: ${list})`);
+  }
+
+  if (nextDays.length > 0) {
+    const list = nextDays.slice(0, 3).map(e => {
       const d = new Date(e.start).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Madrid' });
       const h = e.allDay ? '' : ` ${new Date(e.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' })}`;
       return `${e.title} (${d}${h})`;
     }).join(' · ');
-    parts.push(`   Próximos: ${list}`);
+    parts.push(`   Próximos días: ${list}`);
   }
 
   // Tracker Personal — cacheado 5 min, siempre presente
