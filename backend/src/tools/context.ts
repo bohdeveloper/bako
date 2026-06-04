@@ -104,7 +104,7 @@ export async function getAmbientContext(
   if (todayEvents.length > 0) {
     const list = todayEvents.map(e => {
       if (e.allDay) return e.title;
-      const h = new Date(e.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      const h = new Date(e.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
       return `${e.title} a las ${h}`;
     }).join(', ');
     parts.push(`📆 Agenda hoy: ${list}`);
@@ -114,8 +114,8 @@ export async function getAmbientContext(
 
   if (upcomingEvents.length > 0) {
     const list = upcomingEvents.slice(0, 3).map(e => {
-      const d = new Date(e.start).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
-      const h = e.allDay ? '' : ` ${new Date(e.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
+      const d = new Date(e.start).toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Madrid' });
+      const h = e.allDay ? '' : ` ${new Date(e.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' })}`;
       return `${e.title} (${d}${h})`;
     }).join(' · ');
     parts.push(`   Próximos: ${list}`);

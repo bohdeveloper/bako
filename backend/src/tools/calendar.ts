@@ -121,7 +121,7 @@ export function formatEventsForSpeech(events: CalendarEvent[]): string {
   if (todayEvents.length > 0) {
     const list = todayEvents.map(e => {
       if (e.allDay) return e.title;
-      const hora = new Date(e.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      const hora = new Date(e.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
       return `${e.title} a las ${hora}`;
     }).join(', ');
     parts.push(`Hoy tiene ${todayEvents.length === 1 ? 'un evento' : `${todayEvents.length} eventos`}: ${list}.`);
@@ -132,7 +132,7 @@ export function formatEventsForSpeech(events: CalendarEvent[]): string {
   if (tomorrowEvents.length > 0) {
     const list = tomorrowEvents.map(e => {
       if (e.allDay) return e.title;
-      const hora = new Date(e.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+      const hora = new Date(e.start).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
       return `${e.title} a las ${hora}`;
     }).join(', ');
     parts.push(`Mañana: ${list}.`);
