@@ -3,6 +3,7 @@ import FormData from 'form-data';
 import axios from 'axios';
 import { runMorningBriefing } from '../agents/MorningBriefingAgent';
 import { buildTechRadar, buildPRReviews } from '../services/ProactivityService';
+import { isJobEnabled, toggleJob, JOB_DEFS, AutoConfig } from '../memory/AutoConfig';
 import { getWeather } from './weather';
 import { fetchGitHubData } from './github';
 import { getNotionTasks, createNotionTask } from './notion';
@@ -924,6 +925,25 @@ async function handleCommand(chatId: number, command: string): Promise<void> {
     return;
   }
 
+  if (command === '/automaticos') {
+    const states = await Promise.all(JOB_DEFS.map(j => isJobEnabled(j.key)));
+    const lines = JOB_DEFS.map((j, i) => {
+      const on = states[i];
+      return `${on ? '✅' : '⏸'} ${j.icon} *${j.nombre}* — ${j.horario}\n   _${j.descripcion}_`;
+    }).join('\n\n');
+
+    const buttons = JOB_DEFS.map((j, i) => [{
+      text: `${states[i] ? '⏸ Pausar' : '▶️ Activar'} ${j.icon} ${j.nombre}`,
+      callback_data: `autotoggle_${j.key}`,
+    }]);
+
+    await bot.sendMessage(chatId,
+      `⚙️ *Mensajes automáticos de BAKO*\n\n${lines}\n\nPulsa un botón para activar o pausar:`,
+      { parse_mode: 'Markdown', reply_markup: { inline_keyboard: buttons } }
+    );
+    return;
+  }
+
   if (command === '/techradar') {
     await bot.sendMessage(chatId, '🛰 Analizando novedades tech de la semana...');
     try {
@@ -1119,7 +1139,7 @@ export function startTelegramBot(): void {
     catch (err) { await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`); }
   });
 
-  bot.onText(/^\/(briefing|tiempo|proyectos|tareas|agenda|tracker|comentarios|servicio|limites|recordatorios|reglas|techradar|prreview)$/, async (msg, match) => {
+  bot.onText(/^\/(briefing|tiempo|proyectos|tareas|agenda|tracker|comentarios|servicio|limites|recordatorios|reglas|techradar|prreview|automaticos)$/, async (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return;
     try {
@@ -1144,6 +1164,19 @@ export function startTelegramBot(): void {
         { chat_id: chatId, message_id: query.message!.message_id }
       );
     } catch { /* mensaje muy antiguo, ignorar */ }
+
+    // Toggle de mensaje automático
+    if (query.data?.startsWith('autotoggle_')) {
+      const key     = query.data.replace('autotoggle_', '');
+      const job     = JOB_DEFS.find(j => j.key === key);
+      if (!job) { await bot.sendMessage(chatId, '⚠️ Mensaje automático no reconocido.'); return; }
+      const newState = await toggleJob(key);
+      const label    = newState ? '✅ Activado' : '⏸ Pausado';
+      await bot.sendMessage(chatId, `${label}: ${job.icon} *${job.nombre}*`, { parse_mode: 'Markdown' });
+      // Refresca el panel
+      await handleCommand(chatId, '/automaticos');
+      return;
+    }
 
     if (!pending) {
       await bot.sendMessage(chatId, '⚠️ No hay ningún email pendiente de confirmación.');

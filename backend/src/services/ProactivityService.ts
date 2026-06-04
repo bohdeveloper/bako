@@ -19,6 +19,7 @@ import { Rule } from '../memory/Rule';
 import { askClaude } from '../llm/claude';
 import { checkStaleFields } from '../tools/profileDynamic';
 import { getTechRadarItems } from '../tools/news';
+import { isJobEnabled } from '../memory/AutoConfig';
 
 const WATCHED_REPOS = (process.env.PROACTIVITY_REPOS ?? 'diamadmin,unyona,ai-personal-os')
   .split(',')
@@ -333,31 +334,17 @@ export function startProactivityService(): void {
 
   // 05:45 L-V — Morning Briefing automático
   cron.schedule('45 5 * * 1-5', async () => {
+    if (!await isJobEnabled('briefing')) return;
     console.log('⏰ CRON: Morning Briefing automático (05:45)');
     try {
       const briefing = await runMorningBriefing();
       await sendSystemMessage(briefing, briefing);
-    } catch (err) {
-      console.error('❌ CRON Briefing:', (err as Error).message);
-    }
-  }, { timezone: tz });
-
-  // Lunes 09:30 — Tech Radar semanal
-  cron.schedule('30 9 * * 1', async () => {
-    console.log('⏰ CRON: Tech Radar semanal (lunes 09:30)');
-    try {
-      const radar = await buildTechRadar();
-      if (radar) {
-        const voice = radar.replace(/\*|_/g, '').replace(/https?:\/\/\S+/g, '').slice(0, 400);
-        await sendSystemMessage(radar, `Tech Radar de la semana. ${voice}`);
-      }
-    } catch (err) {
-      console.error('❌ CRON Tech Radar:', (err as Error).message);
-    }
+    } catch (err) { console.error('❌ CRON Briefing:', (err as Error).message); }
   }, { timezone: tz });
 
   // Lunes 09:00 — Verificación de perfil desactualizado (semanal)
   cron.schedule('0 9 * * 1', async () => {
+    if (!await isJobEnabled('perfil')) return;
     console.log('⏰ CRON: Verificación perfil dinámico (lunes 09:00)');
     try {
       const staleAlerts = await checkStaleFields(90);
@@ -367,46 +354,57 @@ export function startProactivityService(): void {
           alert
         );
       }
-    } catch (err) {
-      console.error('❌ CRON Perfil staleness:', (err as Error).message);
-    }
+    } catch (err) { console.error('❌ CRON Perfil staleness:', (err as Error).message); }
+  }, { timezone: tz });
+
+  // Lunes 09:30 — Tech Radar semanal
+  cron.schedule('30 9 * * 1', async () => {
+    if (!await isJobEnabled('techradar')) return;
+    console.log('⏰ CRON: Tech Radar semanal (lunes 09:30)');
+    try {
+      const radar = await buildTechRadar();
+      if (radar) {
+        const voice = radar.replace(/\*|_/g, '').replace(/https?:\/\/\S+/g, '').slice(0, 400);
+        await sendSystemMessage(radar, `Tech Radar de la semana. ${voice}`);
+      }
+    } catch (err) { console.error('❌ CRON Tech Radar:', (err as Error).message); }
   }, { timezone: tz });
 
   // 08:30 L-V — Alertas inteligentes + reglas + PR Reviews
   cron.schedule('30 8 * * 1-5', async () => {
     console.log('⏰ CRON: Alertas inteligentes + PR Reviews (08:30)');
     try {
+      const [alertasEnabled, prEnabled] = await Promise.all([
+        isJobEnabled('alertas'),
+        isJobEnabled('pr_review'),
+      ]);
       const [smartAlerts, ruleAlerts, prAlerts] = await Promise.allSettled([
-        buildSmartAlerts(),
-        evaluateCustomRules(),
-        buildPRReviews(),
+        alertasEnabled ? buildSmartAlerts()    : Promise.resolve([]),
+        alertasEnabled ? evaluateCustomRules() : Promise.resolve([]),
+        prEnabled      ? buildPRReviews()      : Promise.resolve([]),
       ]);
       const allAlerts = [
         ...(smartAlerts.status === 'fulfilled' ? smartAlerts.value : []),
         ...(ruleAlerts.status  === 'fulfilled' ? ruleAlerts.value  : []),
         ...(prAlerts.status    === 'fulfilled' ? prAlerts.value    : []),
       ];
-      for (const a of allAlerts) {
-        await sendSystemMessage(a.text, a.voice);
-      }
-    } catch (err) {
-      console.error('❌ CRON Alertas:', (err as Error).message);
-    }
+      for (const a of allAlerts) await sendSystemMessage(a.text, a.voice);
+    } catch (err) { console.error('❌ CRON Alertas:', (err as Error).message); }
   }, { timezone: tz });
 
   // 18:00 Viernes — Resumen semanal
   cron.schedule('0 18 * * 5', async () => {
+    if (!await isJobEnabled('resumen_semanal')) return;
     console.log('⏰ CRON: Resumen semanal (viernes 18:00)');
     try {
       const summary = await buildWeeklySummary();
       await sendSystemMessage(summary, summary);
-    } catch (err) {
-      console.error('❌ CRON Resumen semanal:', (err as Error).message);
-    }
+    } catch (err) { console.error('❌ CRON Resumen semanal:', (err as Error).message); }
   }, { timezone: tz });
 
   // 22:00 L-V — Alerta Tracker vacío
   cron.schedule('0 22 * * 1-5', async () => {
+    if (!await isJobEnabled('tracker_vacio')) return;
     console.log('⏰ CRON: Verificando Tracker (22:00)');
     try {
       const tracker = await getTrackerSummary();
@@ -416,8 +414,6 @@ export function startProactivityService(): void {
           'Señor, el Tracker de hoy está vacío. ¿Quiere registrar las actividades del día?'
         );
       }
-    } catch (err) {
-      console.error('❌ CRON Tracker check:', (err as Error).message);
-    }
+    } catch (err) { console.error('❌ CRON Tracker check:', (err as Error).message); }
   }, { timezone: tz });
 }
