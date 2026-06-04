@@ -1129,7 +1129,7 @@ export function startTelegramBot(): void {
           await sendEmail(pending.to, pending.subject, pending.body);
         }
         pendingEmails.delete(chatId);
-        await bot.sendMessage(chatId, `✅ *Email enviado* a ${pending.to}`, { parse_mode: 'Markdown' });
+        await bot.sendMessage(chatId, `✅ Email enviado a ${pending.to}`);
         await sendVoiceReply(chatId, `Email enviado a ${pending.to}, señor.`);
       } catch (err: any) {
         const detail = err?.response?.data?.error?.message ?? err?.message ?? 'Error desconocido';
