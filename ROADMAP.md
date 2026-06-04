@@ -73,6 +73,10 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | PR Review automático — L-V 08:30, diff GitHub por LLM como senior dev · `/prreview` | ✅ |
 | Gestión mensajes automáticos — `/automaticos`, toggle inline por cada cron, persiste MongoDB | ✅ |
 | Calendar datos en tiempo real — distinción pasados/futuros, cache 1min, no extrae eventos a memoria | ✅ |
+| PWA v4 — mic inline en text-row, interrupción de BAKO (AbortController), 63 presets en 11 categorías | ✅ |
+| Auth JWT — login persistente 30d, roles superadmin/user, panel admin gestión de usuarios | ✅ |
+| Memoria por tiers — social(15)→proyectos(5)→personal(3)→técnico garantizados, char budget anti-413 | ✅ |
+| Weather mejorado — caché 10 min, Errentería→Donostia para mejor cobertura de datos | ✅ |
 
 ---
 
@@ -99,7 +103,7 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | **Notion API** | Free | 3 req/seg | Siempre |
 | **GitHub API** | Free | 5.000 req/hora | Siempre |
 | **Google Calendar** | Free | 1M req/día | Siempre |
-| **Open-Meteo** | Free | 10.000 req/día (cacheado 30 min) | Siempre |
+| **Open-Meteo** | Free | 10.000 req/día (cacheado 10 min) | Siempre |
 | **MongoDB Atlas** | M0 Free | 512MB almacenamiento | Siempre |
 | **Render** | Free | 750h/mes (no duerme con ping activo) | Siempre |
 
@@ -337,10 +341,17 @@ BAKO_HOTKEY=ctrl+alt+b
 - Cola de posts en MongoDB → BAKO genera y publica con confirmación
 - Modo automático: calendario editorial definido por ti
 
-### Fase 7 — Portfolio Integration + Panel de administración BAKO ❌ Pendiente
-- Panel admin en bohdeveloper.com/admin — gestión visual de memorias, perfil, tools, stats
-- Widget de chat público en bohdeveloper.com
-- Stack: Next.js + API REST BAKO + MongoDB + auth existente
+### Fase 7 — Panel de administración BAKO 🔄 En progreso
+**Alcance reducido y práctico:** panel integrado en la PWA (no en bohdeveloper.com). Auth ya completada (JWT + roles).
+
+**Completado:**
+- ✅ Auth JWT — login, roles superadmin/user, gestión de usuarios
+
+**Pendiente:**
+- ❌ Gestión de memorias — listar, buscar, editar, eliminar desde el panel admin
+- ❌ Edición de perfil ampliada — más campos que ProfileOverride (actualmente solo 5)
+- ❌ Stats de uso — número de memorias por categoría, conversaciones, última actividad
+- ❌ Widget de chat público en bohdeveloper.com (diferido a cuando el panel sea estable)
 
 ### Fase 8 — Automatización (sin n8n) ✅ Completado (junio 2026)
 Implementado directamente en ProactivityService sin infraestructura adicional:
