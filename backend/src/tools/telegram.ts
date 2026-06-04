@@ -1122,12 +1122,19 @@ export function startTelegramBot(): void {
 
     if (query.data === 'email_send') {
       try {
-        await sendEmail(pending.to, pending.subject, pending.body);
+        // Usa el borrador ya creado en Gmail en lugar de construir un raw nuevo
+        if (pending.draftId) {
+          await sendDraft(pending.draftId);
+        } else {
+          await sendEmail(pending.to, pending.subject, pending.body);
+        }
         pendingEmails.delete(chatId);
         await bot.sendMessage(chatId, `✅ *Email enviado* a ${pending.to}`, { parse_mode: 'Markdown' });
         await sendVoiceReply(chatId, `Email enviado a ${pending.to}, señor.`);
-      } catch {
-        await bot.sendMessage(chatId, '❌ Error al enviar el email. Compruebe los scopes de Gmail en Render.');
+      } catch (err: any) {
+        const detail = err?.response?.data?.error?.message ?? err?.message ?? 'Error desconocido';
+        console.error('❌ Gmail send error:', detail);
+        await bot.sendMessage(chatId, `❌ No pude enviar el email.\n\`${detail}\``);
       }
     } else if (query.data === 'email_draft') {
       pendingEmails.delete(chatId);
