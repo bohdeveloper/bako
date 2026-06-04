@@ -15,15 +15,13 @@ import { getMemoriesSection, getDynamicProfileSection, buildSystemPrompt } from 
 import { getAmbientContext } from '../tools/context';
 import { getCurrentLocation } from '../tools/memory';
 import { tryExecuteAction } from '../tools/actions';
+import { requireAuth } from '../middleware/authMiddleware';
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
-function isDesktopAuthorized(req: Request): boolean {
-  const token = process.env.DESKTOP_TOKEN;
-  if (!token) return true;
-  return req.headers['x-desktop-token'] === token;
-}
+// Todas las rutas desktop requieren auth (JWT o x-desktop-token legacy)
+router.use(requireAuth);
 
 function isRateLimit(err: unknown): boolean {
   const e = err as any;
@@ -60,16 +58,18 @@ async function transcribeAudio(buffer: Buffer): Promise<string> {
 async function getFullSystemPrompt(): Promise<string> {
   const location = await getCurrentLocation();
   const [memories, dynProfile, ambientCtx] = await Promise.all([
-    getMemoriesSection(15, 30), // cloud: 30 personales + 15 técnicas (~2500 tokens para memorias)
+    getMemoriesSection(5, 44, 1800),
     getDynamicProfileSection(),
     getAmbientContext(location),
   ]);
-  return buildSystemPrompt(ambientCtx, memories, dynProfile);
+  const prompt = buildSystemPrompt(ambientCtx, memories, dynProfile);
+  console.log(`📊 Desktop system prompt: ${prompt.length} chars | memories: ${memories.length} chars`);
+  return prompt;
 }
 
 // POST /api/desktop/transcribe
 router.post('/transcribe', upload.single('audio'), async (req: Request, res: Response) => {
-  if (!isDesktopAuthorized(req)) { res.status(401).json({ error: 'No autorizado' }); return; }
+  // auth handled by router.use(requireAuth)
   if (!req.file) { res.status(400).json({ error: 'Se requiere campo "audio"' }); return; }
   try {
     const transcription = await transcribeAudio(req.file.buffer);
@@ -84,7 +84,7 @@ router.post('/transcribe', upload.single('audio'), async (req: Request, res: Res
 
 // POST /api/desktop/voice
 router.post('/voice', upload.single('audio'), async (req: Request, res: Response) => {
-  if (!isDesktopAuthorized(req)) { res.status(401).json({ error: 'No autorizado' }); return; }
+  // auth handled by router.use(requireAuth)
   if (!req.file) { res.status(400).json({ error: 'Se requiere campo "audio"' }); return; }
 
   try {
@@ -113,7 +113,7 @@ router.post('/voice', upload.single('audio'), async (req: Request, res: Response
 
 // POST /api/desktop/text
 router.post('/text', async (req: Request, res: Response) => {
-  if (!isDesktopAuthorized(req)) { res.status(401).json({ error: 'No autorizado' }); return; }
+  // auth handled by router.use(requireAuth)
   const { message } = req.body;
   if (!message) { res.status(400).json({ error: 'Se requiere campo "message"' }); return; }
 
@@ -131,7 +131,8 @@ router.post('/text', async (req: Request, res: Response) => {
     res.json({ response, audio: audioBuffer.toString('base64') });
 
   } catch (err) {
-    console.error('❌ Desktop /text:', (err as Error).message);
+    const e = err as any;
+    console.error('❌ Desktop /text:', e?.response?.status, e?.response?.data ?? e?.message);
     if (isRateLimit(err))        { res.status(429).json({ error: 'Rate limit de Groq alcanzado.', rateLimited: true }); return; }
     if (isContextTooLarge(err))  { res.status(413).json({ error: 'Contexto demasiado grande. Intenta de nuevo.' }); return; }
     res.status(500).json({ error: (err as Error).message });

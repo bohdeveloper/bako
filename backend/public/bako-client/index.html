@@ -291,6 +291,97 @@
     .status-bar.error { color: var(--red); }
     .status-bar.ok    { color: var(--green); }
 
+    /* ── Login ──────────────────────────────────────────────────────────────── */
+    .login-screen {
+      display: none; position: fixed; inset: 0; z-index: 100;
+      background: var(--bg); flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px;
+    }
+    .login-screen.visible { display: flex; }
+    .login-card {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 16px; padding: 32px 28px;
+      width: min(320px, 90vw); display: flex; flex-direction: column; gap: 14px;
+    }
+    .login-logo { text-align: center; font-size: 28px; font-weight: 700; letter-spacing: 6px; }
+    .login-sub  { text-align: center; font-size: 11px; color: var(--dim); letter-spacing: 2px; text-transform: uppercase; margin-top: -8px; }
+    .login-input {
+      background: var(--bg3); border: 1px solid var(--border); border-radius: 10px;
+      padding: 11px 14px; color: var(--text); font-size: 15px; font-family: inherit; outline: none;
+    }
+    .login-input:focus { border-color: var(--blue); }
+    .login-btn {
+      background: var(--blue); border: none; border-radius: 10px;
+      color: #fff; font-size: 15px; font-weight: 600; padding: 12px; cursor: pointer; margin-top: 4px;
+    }
+    .login-btn:active { opacity: 0.85; }
+    .login-error { font-size: 13px; color: var(--red); text-align: center; min-height: 18px; }
+
+    /* ── Admin panel ─────────────────────────────────────────────────────────── */
+    .btn-admin {
+      position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+      background: none; border: 1px solid var(--border); border-radius: 8px; padding: 6px;
+      cursor: pointer; color: var(--dim); display: none;
+      align-items: center; justify-content: center; transition: border-color 0.2s, color 0.2s;
+    }
+    .btn-admin.visible { display: flex; }
+    .btn-admin:hover { border-color: var(--blue); color: var(--blue); }
+    .btn-admin svg { width: 18px; height: 18px; display: block; }
+
+    .admin-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 20; }
+    .admin-overlay.visible { display: block; }
+    .admin-panel {
+      position: fixed; top: 0; right: 0; bottom: 0; width: min(360px, 100vw);
+      background: var(--bg2); border-left: 1px solid var(--border);
+      padding: 20px 18px; z-index: 21; overflow-y: auto;
+      transform: translateX(100%); transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+    }
+    .admin-panel.visible { transform: translateX(0); }
+    .admin-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .admin-title  { font-size: 16px; font-weight: 600; }
+    .admin-close  { background: none; border: none; color: var(--dim); font-size: 22px; cursor: pointer; line-height: 1; }
+    .admin-section-title { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; margin-top: 18px; }
+    .user-item {
+      display: flex; align-items: center; gap: 8px; padding: 10px 12px;
+      background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px;
+    }
+    .user-info { flex: 1; }
+    .user-name  { font-size: 14px; font-weight: 500; }
+    .user-meta  { font-size: 12px; color: var(--dim); }
+    .user-item.inactive .user-name { color: var(--dim); text-decoration: line-through; }
+    .btn-user-action {
+      background: none; border: 1px solid var(--border); border-radius: 6px;
+      padding: 4px 8px; font-size: 11px; cursor: pointer; color: var(--dim); transition: all 0.15s;
+    }
+    .btn-user-action.toggle:hover { border-color: var(--yellow); color: var(--yellow); }
+    .btn-user-action.del:hover    { border-color: var(--red);    color: var(--red); }
+    .create-user-form {
+      display: flex; flex-direction: column; gap: 10px;
+      padding: 14px; background: var(--bg3); border: 1px solid var(--border); border-radius: 10px;
+    }
+    .admin-input {
+      background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 9px 12px; color: var(--text); font-size: 14px; font-family: inherit; outline: none;
+    }
+    .admin-input:focus { border-color: var(--blue); }
+    .admin-select {
+      background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+      padding: 9px 12px; color: var(--text); font-size: 14px; font-family: inherit; outline: none; cursor: pointer;
+    }
+    .btn-create-user {
+      background: var(--blue); border: none; border-radius: 8px;
+      color: #fff; font-size: 14px; font-weight: 600; padding: 10px; cursor: pointer;
+    }
+    .admin-feedback { font-size: 12px; text-align: center; min-height: 16px; }
+    .admin-feedback.ok  { color: var(--green); }
+    .admin-feedback.err { color: var(--red); }
+    .logout-btn {
+      display: block; width: 100%; background: none; border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px; color: var(--red); font-size: 14px;
+      cursor: pointer; margin-top: 20px; transition: border-color 0.2s;
+    }
+    .logout-btn:hover { border-color: var(--red); }
+
     /* ── Botón presets ──────────────────────────────────────────────────────── */
     .btn-presets {
       width: 42px; height: 42px; border-radius: 50%;
@@ -348,7 +439,48 @@
 </head>
 <body>
 
+<!-- ── Login screen ──────────────────────────────────────────────────────── -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">BAKO</div>
+    <div class="login-sub">Mayordomo Personal</div>
+    <input class="login-input" id="loginUser" type="text" placeholder="Usuario" autocomplete="username" autocapitalize="none">
+    <input class="login-input" id="loginPass" type="password" placeholder="Contraseña" autocomplete="current-password">
+    <button class="login-btn" id="loginBtn">Acceder</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- ── Admin overlay + panel ─────────────────────────────────────────────── -->
+<div class="admin-overlay" id="adminOverlay"></div>
+<div class="admin-panel" id="adminPanel">
+  <div class="admin-header">
+    <span class="admin-title">⚙️ Gestión de usuarios</span>
+    <button class="admin-close" id="adminClose">✕</button>
+  </div>
+  <div class="admin-section-title">Usuarios activos</div>
+  <div id="userList"></div>
+  <div class="admin-section-title">Crear usuario</div>
+  <div class="create-user-form">
+    <input class="admin-input" id="newUserName" type="text" placeholder="Nombre de usuario" autocapitalize="none">
+    <input class="admin-input" id="newUserPass" type="password" placeholder="Contraseña">
+    <select class="admin-select" id="newUserRole">
+      <option value="user">Usuario</option>
+      <option value="superadmin">Superadmin</option>
+    </select>
+    <button class="btn-create-user" id="btnCreateUser">Crear usuario</button>
+    <div class="admin-feedback" id="adminFeedback"></div>
+  </div>
+  <button class="logout-btn" id="logoutBtn">Cerrar sesión</button>
+</div>
+
 <div class="header">
+  <button class="btn-admin" id="btnAdmin" title="Gestión de usuarios">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+    </svg>
+  </button>
   <h1>BAKO</h1>
   <p>MAYORDOMO PERSONAL</p>
   <button class="theme-toggle" id="themeToggle" title="Cambiar tema">
@@ -448,6 +580,162 @@
   const BAKO_URL    = window.location.origin;
   const REVIEW_SECS = 5;
   const MIN_GAP_MS  = 3000;
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  const loginScreen  = document.getElementById('loginScreen');
+  const loginUserEl  = document.getElementById('loginUser');
+  const loginPassEl  = document.getElementById('loginPass');
+  const loginBtn     = document.getElementById('loginBtn');
+  const loginError   = document.getElementById('loginError');
+  const btnAdmin     = document.getElementById('btnAdmin');
+  const adminPanel   = document.getElementById('adminPanel');
+  const adminOverlay = document.getElementById('adminOverlay');
+  const adminClose   = document.getElementById('adminClose');
+  const userList     = document.getElementById('userList');
+  const newUserName  = document.getElementById('newUserName');
+  const newUserPass  = document.getElementById('newUserPass');
+  const newUserRole  = document.getElementById('newUserRole');
+  const btnCreateUser= document.getElementById('btnCreateUser');
+  const adminFeedback= document.getElementById('adminFeedback');
+  const logoutBtn    = document.getElementById('logoutBtn');
+
+  function getToken()    { return localStorage.getItem('bako-token') || ''; }
+  function getAuthUser() { try { return JSON.parse(localStorage.getItem('bako-user') || 'null'); } catch { return null; } }
+
+  function authHeaders(extra = {}) {
+    return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}`, ...extra };
+  }
+
+  function showLoginScreen() {
+    loginScreen.classList.add('visible');
+    loginError.textContent = '';
+    loginUserEl.value = '';
+    loginPassEl.value = '';
+    setTimeout(() => loginUserEl.focus(), 100);
+  }
+
+  function showApp(user) {
+    loginScreen.classList.remove('visible');
+    if (user?.role === 'superadmin') btnAdmin.classList.add('visible');
+    else btnAdmin.classList.remove('visible');
+  }
+
+  async function doLogin() {
+    const username = loginUserEl.value.trim();
+    const password = loginPassEl.value;
+    if (!username || !password) { loginError.textContent = 'Rellena usuario y contraseña'; return; }
+    loginBtn.disabled = true; loginBtn.textContent = 'Accediendo…';
+    try {
+      const res = await fetch(`${BAKO_URL}/api/auth/login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { loginError.textContent = data.error || 'Error al acceder'; return; }
+      localStorage.setItem('bako-token', data.token);
+      localStorage.setItem('bako-user', JSON.stringify(data.user));
+      showApp(data.user);
+    } catch {
+      loginError.textContent = 'Sin conexión con BAKO';
+    } finally {
+      loginBtn.disabled = false; loginBtn.textContent = 'Acceder';
+    }
+  }
+
+  function doLogout() {
+    localStorage.removeItem('bako-token');
+    localStorage.removeItem('bako-user');
+    closeAdmin();
+    showLoginScreen();
+  }
+
+  loginBtn.addEventListener('click', doLogin);
+  loginPassEl.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  loginUserEl.addEventListener('keydown', e => { if (e.key === 'Enter') loginPassEl.focus(); });
+  logoutBtn.addEventListener('click', doLogout);
+
+  // ── Admin panel ───────────────────────────────────────────────────────────
+  function openAdmin() {
+    adminPanel.classList.add('visible');
+    adminOverlay.classList.add('visible');
+    loadUsers();
+  }
+  function closeAdmin() {
+    adminPanel.classList.remove('visible');
+    adminOverlay.classList.remove('visible');
+  }
+
+  btnAdmin.addEventListener('click', openAdmin);
+  adminClose.addEventListener('click', closeAdmin);
+  adminOverlay.addEventListener('click', closeAdmin);
+
+  async function loadUsers() {
+    userList.innerHTML = '<div style="color:var(--dim);font-size:13px">Cargando…</div>';
+    try {
+      const res  = await fetch(`${BAKO_URL}/api/auth/users`, { headers: authHeaders() });
+      const data = await res.json();
+      if (!res.ok) { userList.innerHTML = `<div style="color:var(--red)">${data.error}</div>`; return; }
+      if (!data.users.length) { userList.innerHTML = '<div style="color:var(--dim);font-size:13px">Sin usuarios</div>'; return; }
+      userList.innerHTML = '';
+      data.users.forEach(u => {
+        const item = document.createElement('div');
+        item.className = 'user-item' + (u.active ? '' : ' inactive');
+        item.innerHTML = `
+          <div class="user-info">
+            <div class="user-name">${u.username}</div>
+            <div class="user-meta">${u.role} · ${u.active ? 'activo' : 'inactivo'}</div>
+          </div>
+          ${u.role !== 'superadmin' ? `
+            <button class="btn-user-action toggle" data-id="${u._id}" title="${u.active ? 'Desactivar' : 'Activar'}">${u.active ? '🔒' : '🔓'}</button>
+            <button class="btn-user-action del"    data-id="${u._id}" title="Eliminar">🗑</button>
+          ` : ''}
+        `;
+        userList.appendChild(item);
+      });
+      userList.querySelectorAll('.toggle').forEach(btn => btn.addEventListener('click', async e => {
+        const id  = e.currentTarget.dataset.id;
+        const res = await fetch(`${BAKO_URL}/api/auth/users/${id}/toggle`, { method: 'PATCH', headers: authHeaders() });
+        if (res.ok) loadUsers();
+      }));
+      userList.querySelectorAll('.del').forEach(btn => btn.addEventListener('click', async e => {
+        if (!confirm('¿Eliminar usuario?')) return;
+        const id  = e.currentTarget.dataset.id;
+        const res = await fetch(`${BAKO_URL}/api/auth/users/${id}`, { method: 'DELETE', headers: authHeaders() });
+        if (res.ok) loadUsers();
+      }));
+    } catch {
+      userList.innerHTML = '<div style="color:var(--red)">Error al cargar usuarios</div>';
+    }
+  }
+
+  btnCreateUser.addEventListener('click', async () => {
+    const username = newUserName.value.trim();
+    const password = newUserPass.value;
+    const role     = newUserRole.value;
+    if (!username || !password) { setAdminFeedback('Rellena usuario y contraseña', false); return; }
+    btnCreateUser.disabled = true;
+    try {
+      const res  = await fetch(`${BAKO_URL}/api/auth/users`, {
+        method: 'POST', headers: authHeaders(),
+        body: JSON.stringify({ username, password, role }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setAdminFeedback(data.error, false); return; }
+      setAdminFeedback(`✓ ${data.user.username} creado`, true);
+      newUserName.value = ''; newUserPass.value = '';
+      loadUsers();
+    } catch {
+      setAdminFeedback('Error de conexión', false);
+    } finally {
+      btnCreateUser.disabled = false;
+    }
+  });
+
+  function setAdminFeedback(msg, ok) {
+    adminFeedback.textContent = msg;
+    adminFeedback.className   = 'admin-feedback ' + (ok ? 'ok' : 'err');
+    setTimeout(() => { adminFeedback.textContent = ''; adminFeedback.className = 'admin-feedback'; }, 3000);
+  }
 
   // ── DOM ────────────────────────────────────────────────────────────────────
   const chatHistory   = document.getElementById('chatHistory');
@@ -645,7 +933,10 @@
     try {
       const form = new FormData();
       form.append('audio', blob, 'voice.webm');
-      const res = await fetch(`${BAKO_URL}/api/desktop/transcribe`, { method: 'POST', body: form });
+      const res = await fetch(`${BAKO_URL}/api/desktop/transcribe`, {
+        method: 'POST', body: form,
+        headers: { 'Authorization': `Bearer ${getToken()}` },
+      });
 
       if (res.status === 429) {
         const data = await res.json().catch(() => ({}));
@@ -759,13 +1050,18 @@
     try {
       const res = await fetch(`${BAKO_URL}/api/desktop/text`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ message: text }),
         signal: currentController.signal,
       });
       currentController = null;
       lastRequestMs = Date.now();
       loadingEl.remove();
+
+      if (res.status === 401) {
+        doLogout();
+        return;
+      }
 
       if (res.status === 429) {
         const data = await res.json().catch(() => ({}));
@@ -953,8 +1249,22 @@
   });
   presetOverlay.addEventListener('click', closePresets);
 
-  // ── Init ───────────────────────────────────────────────────────────────────
-  addMessage('bako', '¿En qué puedo ayudarle, señor?');
+  // ── Init — verificar sesión ───────────────────────────────────────────────
+
+  (async function initAuth() {
+    const token = getToken();
+    const user  = getAuthUser();
+    if (!token) { showLoginScreen(); return; }
+    // Verificar que el token sigue siendo válido
+    try {
+      const res = await fetch(`${BAKO_URL}/api/auth/users`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (res.status === 401) { doLogout(); return; }
+    } catch { /* sin conexión — mostrar chat de todos modos */ }
+    showApp(user);
+    addMessage('bako', '¿En qué puedo ayudarle, señor?');
+  })();
 
   window.addEventListener('load', () => {
     if (navigator.mediaDevices) {

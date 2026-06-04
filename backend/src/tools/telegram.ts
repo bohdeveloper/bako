@@ -82,10 +82,14 @@ ${JSON.stringify({
 })}`;
 }
 
-export async function getMemoriesSection(technicalLimit = 10, personalLimit = 44): Promise<string> {
+export async function getMemoriesSection(technicalLimit = 5, personalLimit = 44, charBudget = 1800): Promise<string> {
   try {
     const memories = await getMemories(technicalLimit, personalLimit);
-    return formatMemoriesForPrompt(memories);
+    const full = formatMemoriesForPrompt(memories);
+    if (full.length <= charBudget) return full;
+    // Truncar en el último salto de línea dentro del presupuesto
+    const cut = full.lastIndexOf('\n', charBudget);
+    return cut > 0 ? full.slice(0, cut) : full.slice(0, charBudget);
   } catch {
     return '';
   }
