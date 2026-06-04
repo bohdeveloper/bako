@@ -2,6 +2,7 @@ import TelegramBot from 'node-telegram-bot-api';
 import FormData from 'form-data';
 import axios from 'axios';
 import { runMorningBriefing } from '../agents/MorningBriefingAgent';
+import { buildTechRadar, buildPRReviews } from '../services/ProactivityService';
 import { getWeather } from './weather';
 import { fetchGitHubData } from './github';
 import { getNotionTasks, createNotionTask } from './notion';
@@ -923,6 +924,35 @@ async function handleCommand(chatId: number, command: string): Promise<void> {
     return;
   }
 
+  if (command === '/techradar') {
+    await bot.sendMessage(chatId, '🛰 Analizando novedades tech de la semana...');
+    try {
+      const radar = await buildTechRadar();
+      if (!radar) { await bot.sendMessage(chatId, '📡 No encontré novedades relevantes esta semana.'); return; }
+      await bot.sendMessage(chatId, radar, { parse_mode: 'Markdown' });
+      const voice = radar.replace(/\*|_/g, '').replace(/https?:\/\/\S+/g, '').slice(0, 400);
+      await sendVoiceReply(chatId, `Tech Radar de la semana. ${voice}`);
+    } catch (err) {
+      await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`);
+    }
+    return;
+  }
+
+  if (command === '/prreview') {
+    await bot.sendMessage(chatId, '🔀 Revisando pull requests activos...');
+    try {
+      const reviews = await buildPRReviews();
+      if (!reviews.length) { await bot.sendMessage(chatId, '✅ No hay pull requests nuevos o actualizados en las últimas 24h.'); return; }
+      for (const r of reviews) {
+        await bot.sendMessage(chatId, r.text, { parse_mode: 'Markdown' });
+      }
+      await sendVoiceReply(chatId, `He revisado ${reviews.length} pull request${reviews.length > 1 ? 's' : ''}. Revise los detalles en el chat.`);
+    } catch (err) {
+      await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`);
+    }
+    return;
+  }
+
   if (command.startsWith('/email')) {
     await bot.sendMessage(chatId, '📬 Revisando la bandeja...');
     try {
@@ -1089,7 +1119,7 @@ export function startTelegramBot(): void {
     catch (err) { await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`); }
   });
 
-  bot.onText(/^\/(briefing|tiempo|proyectos|tareas|agenda|tracker|comentarios|servicio|limites|recordatorios|reglas)$/, async (msg, match) => {
+  bot.onText(/^\/(briefing|tiempo|proyectos|tareas|agenda|tracker|comentarios|servicio|limites|recordatorios|reglas|techradar|prreview)$/, async (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return;
     try {

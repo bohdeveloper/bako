@@ -10,7 +10,7 @@
 
 import cron from 'node-cron';
 import { runMorningBriefing } from '../agents/MorningBriefingAgent';
-import { fetchGitHubData, getUserRepos } from '../tools/github';
+import { fetchGitHubData, getUserRepos, getPRFiles, getPRDetails } from '../tools/github';
 import { getCalendarEvents } from '../tools/calendar';
 import { getTrackerSummary, nowInSpain } from '../tools/cloudflare';
 import { getNotionTasks } from '../tools/notion';
@@ -18,6 +18,7 @@ import { sendSystemMessage } from '../tools/telegram';
 import { Rule } from '../memory/Rule';
 import { askClaude } from '../llm/claude';
 import { checkStaleFields } from '../tools/profileDynamic';
+import { getTechRadarItems } from '../tools/news';
 
 const WATCHED_REPOS = (process.env.PROACTIVITY_REPOS ?? 'diamadmin,unyona,ai-personal-os')
   .split(',')
@@ -221,6 +222,109 @@ async function evaluateCustomRules(): Promise<{ text: string; voice: string }[]>
   return alerts;
 }
 
+// ─── Tech Radar semanal ───────────────────────────────────────────────────────
+
+export async function buildTechRadar(): Promise<string | null> {
+  const items = await getTechRadarItems(5);
+  if (!items.length) return null;
+
+  const listJson = JSON.stringify(
+    items.map(i => ({ titulo: i.title, fuente: i.source, url: i.link }))
+  );
+
+  const raw = await askClaude(listJson, {
+    systemPrompt: `Eres el Tech Radar semanal de BAKO. El stack de Borja: React, TypeScript, Node.js, Express, Next.js, MongoDB, Cloudflare Workers/D1, AI/ML (aprendiendo). Sus proyectos: Diamadmin (SaaS facturación), Unyona (red profesional), BAKO (asistente IA personal), kéfir artesanal (futuro).
+
+Filtra las 5 noticias o artículos más relevantes para su stack y proyectos. Descarta noticias genéricas de negocios, política o ajenas al desarrollo.
+
+Responde SOLO con JSON válido, sin texto adicional:
+[{"titulo":"...","fuente":"...","url":"...","relevancia":"una frase corta de por qué le interesa a Borja"}]`,
+    maxTokens: 600,
+    useCloud: true,
+  });
+
+  const match = raw.match(/\[[\s\S]*\]/);
+  if (!match) return null;
+
+  let picks: Array<{ titulo: string; fuente: string; url: string; relevancia: string }>;
+  try { picks = JSON.parse(match[0]); } catch { return null; }
+
+  const lines = picks.slice(0, 5).map((p, i) =>
+    `${i + 1}. *${p.titulo}* — _${p.fuente}_\n   ${p.relevancia}${p.url ? `\n   ${p.url}` : ''}`
+  );
+
+  return `🛰 *Tech Radar semanal*\n\nLas novedades más relevantes para su stack esta semana:\n\n${lines.join('\n\n')}`;
+}
+
+// ─── PR Review automático ─────────────────────────────────────────────────────
+
+// Rastrea qué revisiones ya se han enviado en esta sesión (repo#número@updatedAt)
+const reviewedPRs = new Set<string>();
+
+export async function buildPRReviews(): Promise<{ text: string; voice: string }[]> {
+  const username = process.env.GITHUB_USERNAME;
+  if (!username) return [];
+
+  const gh = await fetchGitHubData();
+  if (!gh.openPRs.length) return [];
+
+  // Solo PRs de repos vigilados actualizados en las últimas 24h
+  const since = new Date(Date.now() - 24 * 3_600_000);
+  const fresh  = gh.openPRs.filter(pr =>
+    WATCHED_REPOS.includes(pr.repo.toLowerCase()) &&
+    new Date(pr.updatedAt) > since
+  );
+  if (!fresh.length) return [];
+
+  const results: { text: string; voice: string }[] = [];
+
+  for (const pr of fresh) {
+    const key = `${pr.repo}#${pr.number}@${pr.updatedAt}`;
+    if (reviewedPRs.has(key)) continue;
+
+    const [details, files] = await Promise.all([
+      getPRDetails(pr.repo, pr.number),
+      getPRFiles(pr.repo, pr.number),
+    ]);
+    if (!details) continue;
+
+    // Si el PR es muy grande (>500 cambios), solo lista ficheros sin patches
+    const totalChanges = details.additions + details.deletions;
+    const diffSummary = totalChanges <= 500
+      ? files.map(f => `${f.status} ${f.filename} (+${f.additions}/-${f.deletions}):\n${(f.patch ?? '').slice(0, 800)}`).join('\n\n---\n\n')
+      : files.map(f => `${f.status} ${f.filename} (+${f.additions}/-${f.deletions})`).join('\n');
+
+    const prompt = `PR #${pr.number} en ${pr.repo}: "${details.title}"
+${details.body ? `Descripción: ${details.body.slice(0, 300)}` : ''}
+Commits: ${details.commits} · +${details.additions}/-${details.deletions} líneas
+
+Cambios:
+${diffSummary.slice(0, 2500)}`;
+
+    let review: string;
+    try {
+      review = await askClaude(prompt, {
+        systemPrompt: `Eres un senior developer revisando un PR. Responde en español, de forma directa y sin rodeos. Estructura tu revisión en 3 secciones:
+1. **Resumen** (1-2 frases de qué hace este PR)
+2. **⚠️ Posibles problemas** (bugs, edge cases, seguridad — si no hay, escribe "Sin problemas detectados")
+3. **💡 Sugerencias** (mejoras concretas — máximo 2-3 puntos)`,
+        maxTokens: 500,
+        useCloud: true,
+      });
+    } catch {
+      continue;
+    }
+
+    reviewedPRs.add(key);
+    results.push({
+      text:  `🔀 *PR Review: #${pr.number} — ${pr.title}* (${pr.repo})\n${pr.url}\n\n${review}`,
+      voice: `Revisión del pull request número ${pr.number} en ${pr.repo}: ${pr.title}. ${review.replace(/\*\*/g, '').replace(/#+/g, '').slice(0, 300)}`,
+    });
+  }
+
+  return results;
+}
+
 // ─── Servicio principal ───────────────────────────────────────────────────────
 
 export function startProactivityService(): void {
@@ -235,6 +339,20 @@ export function startProactivityService(): void {
       await sendSystemMessage(briefing, briefing);
     } catch (err) {
       console.error('❌ CRON Briefing:', (err as Error).message);
+    }
+  }, { timezone: tz });
+
+  // Lunes 09:30 — Tech Radar semanal
+  cron.schedule('30 9 * * 1', async () => {
+    console.log('⏰ CRON: Tech Radar semanal (lunes 09:30)');
+    try {
+      const radar = await buildTechRadar();
+      if (radar) {
+        const voice = radar.replace(/\*|_/g, '').replace(/https?:\/\/\S+/g, '').slice(0, 400);
+        await sendSystemMessage(radar, `Tech Radar de la semana. ${voice}`);
+      }
+    } catch (err) {
+      console.error('❌ CRON Tech Radar:', (err as Error).message);
     }
   }, { timezone: tz });
 
@@ -254,17 +372,19 @@ export function startProactivityService(): void {
     }
   }, { timezone: tz });
 
-  // 08:30 L-V — Alertas inteligentes + reglas configurables
+  // 08:30 L-V — Alertas inteligentes + reglas + PR Reviews
   cron.schedule('30 8 * * 1-5', async () => {
-    console.log('⏰ CRON: Alertas inteligentes (08:30)');
+    console.log('⏰ CRON: Alertas inteligentes + PR Reviews (08:30)');
     try {
-      const [smartAlerts, ruleAlerts] = await Promise.allSettled([
+      const [smartAlerts, ruleAlerts, prAlerts] = await Promise.allSettled([
         buildSmartAlerts(),
         evaluateCustomRules(),
+        buildPRReviews(),
       ]);
       const allAlerts = [
         ...(smartAlerts.status === 'fulfilled' ? smartAlerts.value : []),
         ...(ruleAlerts.status  === 'fulfilled' ? ruleAlerts.value  : []),
+        ...(prAlerts.status    === 'fulfilled' ? prAlerts.value    : []),
       ];
       for (const a of allAlerts) {
         await sendSystemMessage(a.text, a.voice);

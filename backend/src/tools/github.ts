@@ -149,6 +149,52 @@ export async function createGitHubIssue(
   return { number: data.number, url: data.html_url, title: data.title };
 }
 
+export interface PRFile {
+  filename:  string;
+  status:    string;
+  additions: number;
+  deletions: number;
+  patch?:    string;
+}
+
+export async function getPRFiles(repo: string, prNumber: number): Promise<PRFile[]> {
+  const username = process.env.GITHUB_USERNAME;
+  if (!username) return [];
+  try {
+    const { data } = await getClient().get(`/repos/${username}/${repo}/pulls/${prNumber}/files`, {
+      params: { per_page: 30 },
+    });
+    return data.map((f: any) => ({
+      filename:  f.filename,
+      status:    f.status,
+      additions: f.additions,
+      deletions: f.deletions,
+      patch:     f.patch,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function getPRDetails(repo: string, prNumber: number): Promise<{
+  title: string; body: string; commits: number; additions: number; deletions: number;
+} | null> {
+  const username = process.env.GITHUB_USERNAME;
+  if (!username) return null;
+  try {
+    const { data } = await getClient().get(`/repos/${username}/${repo}/pulls/${prNumber}`);
+    return {
+      title:     data.title,
+      body:      data.body ?? '',
+      commits:   data.commits,
+      additions: data.additions,
+      deletions: data.deletions,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchGitHubData(): Promise<GitHubData> {
   const username = process.env.GITHUB_USERNAME;
   if (!username) throw new Error('GITHUB_USERNAME no está definido en .env');
