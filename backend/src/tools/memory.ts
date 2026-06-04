@@ -43,11 +43,10 @@ export async function getMemories(
   technicalLimit = 2,
   _personalLimit = 44,  // ignorado — ahora usamos tiers
 ): Promise<IMemory[]> {
-  // Tier 1 — familia, amigos, pareja: SIEMPRE primeros (top 15)
-  // Con char budget en getMemoriesSection el 413 está controlado por tamaño, no por cuenta.
-  // 15 cubre toda la familia cercana + amigos como Paula.
+  // Tier 1 — familia, amigos, pareja: SIEMPRE primeros (top 20)
+  // El char budget de 1800 en getMemoriesSection protege contra 413.
   const social = await Memory.find({ tags: { $in: SOCIAL_TAGS } })
-    .sort({ importance: -1, updatedAt: -1 }).limit(15);
+    .sort({ importance: -1, updatedAt: -1 }).limit(20);
 
   const socialIds = social.map(m => (m as any)._id);
 
