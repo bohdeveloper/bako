@@ -6,7 +6,7 @@ import { getWeather } from './weather';
 import { fetchGitHubData } from './github';
 import { getNotionTasks, createNotionTask } from './notion';
 import { getCalendarEvents, formatEventsForSpeech } from './calendar';
-import { getUnreadEmails, getEmailBody, createDraft, formatEmailsForSpeech, formatEmailsForText } from './gmail';
+import { getUnreadEmails, getEmailBody, createDraft, sendEmail, sendDraft, formatEmailsForSpeech, formatEmailsForText } from './gmail';
 import { getTrackerSummary, formatTrackerForSpeech, markTrackerRecord, getBlogComments, formatCommentsForSpeech, nowInSpain } from './cloudflare';
 import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
 import { generateVoiceBuffer, setVoice, getCurrentVoiceKey, VOCES_DISPONIBLES } from './tts';
@@ -283,6 +283,9 @@ interface Reminder {
 
 let nextReminderId = 1;
 const activeReminders: Reminder[] = [];
+
+interface PendingEmail { to: string; subject: string; body: string; draftId?: string }
+const pendingEmails = new Map<number, PendingEmail>();
 
 function parseReminderDelay(text: string): { ms: number; label: string } | null {
   // "en X minutos/horas/segundos"
@@ -1096,6 +1099,47 @@ export function startTelegramBot(): void {
     }
   });
 
+  // Callbacks de botones inline (confirmación de email)
+  bot.on('callback_query', async (query) => {
+    const chatId = query.message?.chat.id;
+    if (!chatId || !isAuthorized(chatId)) { await bot.answerCallbackQuery(query.id); return; }
+
+    const pending = pendingEmails.get(chatId);
+    await bot.answerCallbackQuery(query.id);
+
+    // Eliminar botones del mensaje original
+    try {
+      await bot.editMessageReplyMarkup(
+        { inline_keyboard: [] },
+        { chat_id: chatId, message_id: query.message!.message_id }
+      );
+    } catch { /* mensaje muy antiguo, ignorar */ }
+
+    if (!pending) {
+      await bot.sendMessage(chatId, '⚠️ No hay ningún email pendiente de confirmación.');
+      return;
+    }
+
+    if (query.data === 'email_send') {
+      try {
+        await sendEmail(pending.to, pending.subject, pending.body);
+        pendingEmails.delete(chatId);
+        await bot.sendMessage(chatId, `✅ *Email enviado* a ${pending.to}`, { parse_mode: 'Markdown' });
+        await sendVoiceReply(chatId, `Email enviado a ${pending.to}, señor.`);
+      } catch {
+        await bot.sendMessage(chatId, '❌ Error al enviar el email. Compruebe los scopes de Gmail en Render.');
+      }
+    } else if (query.data === 'email_draft') {
+      pendingEmails.delete(chatId);
+      await bot.sendMessage(chatId, `📁 Guardado como borrador en Gmail.\n_Ábralo en Gmail para revisarlo y enviarlo cuando quiera._`, { parse_mode: 'Markdown' });
+      await sendVoiceReply(chatId, 'Guardado como borrador en Gmail, señor.');
+    } else if (query.data === 'email_cancel') {
+      // Eliminar también el borrador de Gmail si existe
+      pendingEmails.delete(chatId);
+      await bot.sendMessage(chatId, '❌ Email cancelado.');
+    }
+  });
+
   // Mensajes de voz
   bot.on('voice', async (msg) => {
     const chatId = msg.chat.id;
@@ -1270,12 +1314,12 @@ export function startTelegramBot(): void {
         return;
       }
 
-      // Redactar email / respuesta
-      const draftMatch = text.match(/^(?:bako[,.]?\s*)?redacta(?:\s+una?)?\s+(?:respuesta|email|correo|mail)\s+(?:a|para|al?)\s+(.+?)(?:\s+(?:sobre|acerca\s+de|re(?:gardin)?:?)\s+(.+))?$/i);
+      // Redactar / enviar email
+      const draftMatch = text.match(/^(?:bako[,.]?\s*)?(?:redacta(?:\s+una?)?|env[ií]a(?:\s+un)?)\s+(?:respuesta|email|correo|mail)\s+(?:a|para|al?)\s+(.+?)(?:\s+(?:sobre|acerca\s+de|re(?:gardin)?:?)\s+(.+))?$/i);
       if (draftMatch) {
         const destino = draftMatch[1].trim();
         const asunto  = draftMatch[2]?.trim() ?? '';
-        await bot.sendMessage(chatId, `✍️ Redactando borrador para ${destino}${asunto ? ` sobre "${asunto}"` : ''}...`);
+        await bot.sendMessage(chatId, `✍️ Redactando email para ${destino}${asunto ? ` sobre "${asunto}"` : ''}...`);
         try {
           const memoriesSection = await getMemoriesSection(llmMode === 'groq' ? 20 : 5);
           const draftPrompt = `Redacta un email profesional pero cercano.
@@ -1284,16 +1328,27 @@ ${asunto ? `Asunto: ${asunto}` : ''}
 Remitente: Borja Olazabal (desarrollador fullstack, bohdeveloper.com)
 Idioma: español. Tono: directo y profesional. Sin asteriscos ni markdown.
 Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
-          const cuerpo = await askClaude(draftPrompt, {
-            systemPrompt: buildSystemPrompt('', memoriesSection),
+          const cuerpo  = await askClaude(draftPrompt, { systemPrompt: buildSystemPrompt('', memoriesSection) });
+          const subject = asunto || `Mensaje de Borja Olazabal`;
+
+          // Guarda borrador en Gmail y estado pendiente
+          const { draftId } = await createDraft(destino, subject, cuerpo);
+          pendingEmails.set(chatId, { to: destino, subject, body: cuerpo, draftId });
+
+          const preview = `📧 *Email listo para ${destino}*\n*Asunto:* ${subject}\n\n${cuerpo.slice(0, 600)}${cuerpo.length > 600 ? '…' : ''}`;
+          await bot.sendMessage(chatId, preview, {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [[
+                { text: '✅ Enviar ahora', callback_data: 'email_send' },
+                { text: '📁 Solo borrador', callback_data: 'email_draft' },
+                { text: '❌ Cancelar',      callback_data: 'email_cancel' },
+              ]],
+            },
           });
-          const subjectLine = asunto || `Mensaje de Borja Olazabal`;
-          const { draftId } = await createDraft(destino, subjectLine, cuerpo);
-          const confirmText = `✅ *Borrador creado en Gmail*\n\nPara: ${destino}\nAsunto: ${subjectLine}\n\n_ID: ${draftId}_\n\nRevíselo en Gmail antes de enviarlo.`;
-          await bot.sendMessage(chatId, confirmText, { parse_mode: 'Markdown' });
-          await sendVoiceReply(chatId, `Borrador creado para ${destino}. Revíselo en Gmail antes de enviarlo.`);
+          await sendVoiceReply(chatId, `Email redactado para ${destino}. ¿Lo envío, lo guardo como borrador o lo cancelo?`);
         } catch {
-          await bot.sendMessage(chatId, '⚠️ No pude crear el borrador. Verifique que Gmail esté autorizado.');
+          await bot.sendMessage(chatId, '⚠️ No pude redactar el email. Verifique que Gmail esté autorizado.');
         }
         return;
       }

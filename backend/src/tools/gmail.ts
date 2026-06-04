@@ -153,6 +153,35 @@ export async function createDraft(to: string, subject: string, body: string): Pr
   return { draftId: data.id ?? '' };
 }
 
+export async function sendEmail(to: string, subject: string, body: string): Promise<void> {
+  const auth  = getAuth();
+  const gmail = google.gmail({ version: 'v1', auth });
+
+  const raw = [
+    `To: ${to}`,
+    `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=utf-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    Buffer.from(body).toString('base64'),
+  ].join('\r\n');
+
+  await gmail.users.messages.send({
+    userId:      'me',
+    requestBody: { raw: Buffer.from(raw).toString('base64url') },
+  });
+}
+
+export async function sendDraft(draftId: string): Promise<void> {
+  const auth  = getAuth();
+  const gmail = google.gmail({ version: 'v1', auth });
+  await gmail.users.drafts.send({
+    userId:      'me',
+    requestBody: { id: draftId },
+  });
+}
+
 export function formatEmailsForSpeech(emails: GmailMessage[]): string {
   if (!emails.length) return 'No tiene correos sin leer en la bandeja de entrada.';
 
