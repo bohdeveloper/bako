@@ -100,7 +100,12 @@ export async function getCurrentLocation(): Promise<string> {
 const EXTRACTION_SYSTEM = `Eres el sistema de memoria de BAKO, asistente personal de Borja.
 Analiza la conversación y extrae SOLO hechos importantes y duraderos.
 
-NO extraer: consultas de tiempo, noticias, saludos, datos ya en el perfil base (nombre, ciudad, trabajo en Inetum, rutina conocida).
+NO extraer:
+- Consultas de tiempo, noticias, saludos
+- Datos ya en el perfil base (nombre, ciudad, trabajo en Inetum, rutina conocida)
+- Eventos de calendario, reuniones o citas con hora/fecha (son datos TRANSITORIOS que cambian; el calendario es la fuente de verdad)
+- Cualquier cosa que empiece por "tiene una reunión", "tiene una cita", "tiene un evento"
+
 SÍ extraer: bloqueos en proyectos, decisiones importantes, cambios de planes, preferencias nuevas, estados emocionales relevantes, actualizaciones de proyectos, metas nuevas.
 
 Responde ÚNICAMENTE con JSON válido (sin texto adicional):
