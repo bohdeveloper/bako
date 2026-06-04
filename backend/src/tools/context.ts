@@ -12,7 +12,7 @@ import { getTrackerSummary, TrackerDaySummary, todayStringSpain, nowInSpain } fr
 
 // Weather cacheado por ciudad (no único global)
 const weatherByCity = new Map<string, { data: WeatherData; ts: number }>();
-const WEATHER_TTL  = 30 * 60 * 1000; // 30 min
+const WEATHER_TTL  = 10 * 60 * 1000; // 10 min — reducido para mayor precisión
 
 let calendarCache: { data: CalendarEvent[]; ts: number } | null = null;
 const CALENDAR_TTL = 60 * 1000; // 1 min — eventos reflejan cambios rápidamente
@@ -86,9 +86,12 @@ export async function getAmbientContext(
     `📍 Ubicación actual: ${location}`,
   ];
 
-  // Tiempo — usar solo la ciudad para geocodificar (ej: "Inetum, Donostia" → "Donostia")
+  // Tiempo — extraer ciudad y normalizar Errentería→Donostia (misma área metro, mejor datos API)
   const commaIdx = location.indexOf(',');
-  const weatherCity = commaIdx > -1 ? location.slice(commaIdx + 1).trim() : location;
+  const rawCity  = commaIdx > -1 ? location.slice(commaIdx + 1).trim() : location;
+  const weatherCity = /errenteria|errentería|renteria|rentería/i.test(rawCity)
+    ? 'Donostia-San Sebastián'
+    : rawCity;
   const w = await cachedWeatherForCity(weatherCity);
   if (w) {
     parts.push(`🌤 Tiempo en ${w.city}: ${w.current.temp}°C, ${w.current.description}, humedad ${w.current.humidity}%, viento ${w.current.windSpeed} km/h`);

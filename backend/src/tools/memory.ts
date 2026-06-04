@@ -40,37 +40,39 @@ const PERSONAL_TAGS = [
 ];
 
 export async function getMemories(
-  technicalLimit = 5,
+  technicalLimit = 2,
   _personalLimit = 44,  // ignorado — ahora usamos tiers
 ): Promise<IMemory[]> {
-  // Tier 1 — familia, amigos, pareja: SIEMPRE primeros (top 8)
+  // Tier 1 — familia, amigos, pareja: SIEMPRE primeros (top 15)
+  // Con char budget en getMemoriesSection el 413 está controlado por tamaño, no por cuenta.
+  // 15 cubre toda la familia cercana + amigos como Paula.
   const social = await Memory.find({ tags: { $in: SOCIAL_TAGS } })
-    .sort({ importance: -1, updatedAt: -1 }).limit(8);
+    .sort({ importance: -1, updatedAt: -1 }).limit(15);
 
   const socialIds = social.map(m => (m as any)._id);
 
-  // Tier 2 — proyectos clave: top 7
+  // Tier 2 — proyectos clave: top 5
   const projects = await Memory.find({
     _id:  { $nin: socialIds },
     tags: { $in: PROJECT_TAGS },
-  }).sort({ importance: -1, updatedAt: -1 }).limit(7);
+  }).sort({ importance: -1, updatedAt: -1 }).limit(5);
 
   const projectIds = projects.map(m => (m as any)._id);
 
-  // Tier 3 — contexto personal: top 5
+  // Tier 3 — contexto personal: top 3
   const personal = await Memory.find({
     _id:  { $nin: [...socialIds, ...projectIds] },
     tags: { $in: PERSONAL_TAGS },
-  }).sort({ importance: -1, updatedAt: -1 }).limit(5);
+  }).sort({ importance: -1, updatedAt: -1 }).limit(3);
 
   const personalIds = personal.map(m => (m as any)._id);
 
-  // Tier 4 — técnico: según LLM (default 5)
+  // Tier 4 — técnico: según LLM (default 2)
   const technical = await Memory.find({
     _id: { $nin: [...socialIds, ...projectIds, ...personalIds] },
   }).sort({ updatedAt: -1 }).limit(technicalLimit);
 
-  // Total: 8+7+5+5 = 25 memorias max (~1500 chars, muy por debajo del límite 413)
+  // Total: 15+5+3+2 = 25 máx — el char budget de 1800 es la red de seguridad para 413
   return [...social, ...projects, ...personal, ...technical];
 }
 
