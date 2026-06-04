@@ -4,6 +4,7 @@ import { getNews, NewsItem } from '../tools/news';
 import { getNotionTasks, NotionTask } from '../tools/notion';
 import { getCalendarEvents, formatEventsForSpeech, CalendarEvent } from '../tools/calendar';
 import { getTrackerSummary, formatTrackerForSpeech, getBlogComments, formatCommentsForSpeech, nowInSpain } from '../tools/cloudflare';
+import { getUnreadEmails, formatEmailsForSpeech } from '../tools/gmail';
 import { speak } from '../tools/tts';
 
 function buildWeatherText(weather: WeatherData): string {
@@ -78,7 +79,7 @@ export async function runMorningBriefing(options: { speak?: boolean } = {}): Pro
   const hora = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
   const fecha = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
 
-  const [github, weather, news, notionTasks, calendarEvents, tracker, blogComments] = await Promise.allSettled([
+  const [github, weather, news, notionTasks, calendarEvents, tracker, blogComments, unreadEmails] = await Promise.allSettled([
     fetchGitHubData(),
     getWeather(),
     getNews(),
@@ -86,6 +87,7 @@ export async function runMorningBriefing(options: { speak?: boolean } = {}): Pro
     getCalendarEvents(2),
     getTrackerSummary(),
     getBlogComments(true),
+    getUnreadEmails(10),
   ]);
 
   const gh           = github.status         === 'fulfilled' ? github.value         : null;
@@ -95,6 +97,7 @@ export async function runMorningBriefing(options: { speak?: boolean } = {}): Pro
   const events       = calendarEvents.status === 'fulfilled' ? calendarEvents.value : [];
   const trackerData  = tracker.status        === 'fulfilled' ? tracker.value        : null;
   const comments     = blogComments.status   === 'fulfilled' ? blogComments.value   : [];
+  const emails       = unreadEmails.status   === 'fulfilled' ? unreadEmails.value   : [];
 
   const sections: string[] = [
     `Buenos días, señor. Son las ${hora} del ${fecha}. Soy BAKO, a su servicio.`,
@@ -109,6 +112,7 @@ export async function runMorningBriefing(options: { speak?: boolean } = {}): Pro
   if (gh)  sections.push(buildTasksText(tasks, gh));
   else if (tasks.length > 0) sections.push(buildTasksText(tasks, { repos: [], recentCommits: [], openPRs: [], issues: [], fetchedAt: '' }));
   if (trackerData && trackerData.tasks.length > 0) sections.push(formatTrackerForSpeech(trackerData));
+  if (emails.length > 0) sections.push(formatEmailsForSpeech(emails));
   if (comments.length > 0) sections.push(formatCommentsForSpeech(comments));
 
   const briefing = sections.join(' ');

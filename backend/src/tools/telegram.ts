@@ -6,6 +6,7 @@ import { getWeather } from './weather';
 import { fetchGitHubData } from './github';
 import { getNotionTasks, createNotionTask } from './notion';
 import { getCalendarEvents, formatEventsForSpeech } from './calendar';
+import { getUnreadEmails, getEmailBody, createDraft, formatEmailsForSpeech, formatEmailsForText } from './gmail';
 import { getTrackerSummary, formatTrackerForSpeech, markTrackerRecord, getBlogComments, formatCommentsForSpeech, nowInSpain } from './cloudflare';
 import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
 import { generateVoiceBuffer, setVoice, getCurrentVoiceKey, VOCES_DISPONIBLES } from './tts';
@@ -498,6 +499,9 @@ function detectDataIntent(text: string): string | null {
   // Briefing
   if (/\b(dame\s+(un\s+)?briefing|resumen\s+(de\s+)?(hoy|mi\s+d[ií]a|la\s+ma[nñ]ana)|c[oó]mo\s+(est[aá]|va)\s+todo\s+(hoy|el\s+d[ií]a))\b/.test(t)) return '/briefing';
 
+  // Gmail — correos sin leer, bandeja de entrada
+  if (/\b(correos?\s+(sin\s+leer|pendientes?|nuevos?)|qu[eé]\s+(correos?|emails?|mails?)\s+tengo|tengo\s+(correos?|emails?)|bandeja\s+(de\s+entrada)?|mis?\s+(correos?|emails?|mails?)\s+(de\s+)?(hoy|nuevos?|sin\s+leer)|revisa\s+(el\s+)?(correo|email|gmail))\b/.test(t)) return '/email';
+
   // Comentarios blog
   if (/\b(comentarios?\s+(del\s+)?blog|qu[eé]\s+comentarios?\s+(hay|tengo)|alguien\s+ha\s+comentado)\b/.test(t)) return '/comentarios';
 
@@ -915,6 +919,27 @@ async function handleCommand(chatId: number, command: string): Promise<void> {
     return;
   }
 
+  if (command.startsWith('/email')) {
+    await bot.sendMessage(chatId, '📬 Revisando la bandeja...');
+    try {
+      const limit = parseInt(command.split(' ')[1] ?? '10', 10) || 10;
+      const emails = await getUnreadEmails(Math.min(limit, 20));
+      if (!emails.length) {
+        await bot.sendMessage(chatId, '📭 No tiene correos sin leer, señor.');
+        await sendVoiceReply(chatId, 'No tiene correos sin leer en la bandeja de entrada.');
+        return;
+      }
+      await bot.sendMessage(chatId, formatEmailsForText(emails), { parse_mode: 'Markdown' });
+      await sendVoiceReply(chatId, formatEmailsForSpeech(emails));
+    } catch (err: any) {
+      const msg = err?.message?.includes('invalid_grant') || err?.message?.includes('Token has been expired')
+        ? '⚠️ El token de Google ha caducado. Es necesario re-autorizar Gmail ejecutando `npx ts-node scripts/auth-google.ts` en el servidor.'
+        : '⚠️ No pude acceder a Gmail. Verifique que Gmail esté autorizado.';
+      await bot.sendMessage(chatId, msg);
+    }
+    return;
+  }
+
   if (command === '/agenda') {
     await bot.sendMessage(chatId, '📅 Un momento...');
     const events = await getCalendarEvents(2);
@@ -1240,6 +1265,34 @@ export function startTelegramBot(): void {
                   : result === 'protected' ? '🔒 Ese recuerdo forma parte de mi conocimiento base y no puedo borrarlo. Si quiere eliminarlo, indíqueme el ID.'
                   :                          '⚠️ No encontré ese recuerdo.';
         await bot.sendMessage(chatId, msg);
+        return;
+      }
+
+      // Redactar email / respuesta
+      const draftMatch = text.match(/^(?:bako[,.]?\s*)?redacta(?:\s+una?)?\s+(?:respuesta|email|correo|mail)\s+(?:a|para|al?)\s+(.+?)(?:\s+(?:sobre|acerca\s+de|re(?:gardin)?:?)\s+(.+))?$/i);
+      if (draftMatch) {
+        const destino = draftMatch[1].trim();
+        const asunto  = draftMatch[2]?.trim() ?? '';
+        await bot.sendMessage(chatId, `✍️ Redactando borrador para ${destino}${asunto ? ` sobre "${asunto}"` : ''}...`);
+        try {
+          const memoriesSection = await getMemoriesSection(llmMode === 'groq' ? 20 : 5);
+          const draftPrompt = `Redacta un email profesional pero cercano.
+Destinatario: ${destino}
+${asunto ? `Asunto: ${asunto}` : ''}
+Remitente: Borja Olazabal (desarrollador fullstack, bohdeveloper.com)
+Idioma: español. Tono: directo y profesional. Sin asteriscos ni markdown.
+Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
+          const cuerpo = await askClaude(draftPrompt, {
+            systemPrompt: buildSystemPrompt('', memoriesSection),
+          });
+          const subjectLine = asunto || `Mensaje de Borja Olazabal`;
+          const { draftId } = await createDraft(destino, subjectLine, cuerpo);
+          const confirmText = `✅ *Borrador creado en Gmail*\n\nPara: ${destino}\nAsunto: ${subjectLine}\n\n_ID: ${draftId}_\n\nRevíselo en Gmail antes de enviarlo.`;
+          await bot.sendMessage(chatId, confirmText, { parse_mode: 'Markdown' });
+          await sendVoiceReply(chatId, `Borrador creado para ${destino}. Revíselo en Gmail antes de enviarlo.`);
+        } catch {
+          await bot.sendMessage(chatId, '⚠️ No pude crear el borrador. Verifique que Gmail esté autorizado.');
+        }
         return;
       }
 
