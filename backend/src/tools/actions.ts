@@ -192,7 +192,7 @@ Ejemplos de interpretación:
 
 const NOTION_TASK_CREATE = /crea[r]?\s+(una?\s+)?tarea|añade?\s+(una?\s+)?tarea|nueva\s+tarea|agrega[r]?\s+(una?\s+)?tarea/i;
 
-const CALENDAR_CREATE = /crea[r]?\s+(un[ao]?\s+)?evento|añade?\s+(un[ao]?\s+)?evento|nuevo\s+evento|agenda[r]?\s+(una?\s+)?(reuni[oó]n|cita|evento)|programa[r]?\s+(una?\s+)?(reuni[oó]n|cita)|bloquea[r]?\s+(tiempo|horas?)\s+en/i;
+const CALENDAR_CREATE = /crea[r]?\s+(un[ao]?\s+)?evento|añade?\s+(un[ao]?\s+)?evento|nuevo\s+evento|agenda[r]?\s+(una?\s+)?(reuni[oó]n|cita|evento)|programa[r]?\s+(una?\s+)?(reuni[oó]n|cita)|bloquea[r]?\s+(tiempo|horas?)\s+en|pon\s+(en\s+)?(mi\s+)?(agenda|calendario)|a[pñ]unt[ao][r]?\s+(en\s+)?(el\s+)?(calendario|agenda)|añade?\s+(a\s+)?(mi\s+)?(calendario|agenda)|met[e]?\s+(en\s+)?(mi\s+)?(calendario|agenda)|quiero\s+agendar|apunta\s+que\s+tengo|guarda[r]?\s+(en\s+)?(mi\s+)?(calendario|agenda)|recuerda[r]?\s+que\s+tengo\s+.+\s+(a\s+las?|mañana|el\s+\w+)/i;
 
 const GITHUB_ISSUE_CREATE = /crea[r]?\s+(un[ao]?\s+)?issue|abre?\s+(un[ao]?\s+)?issue|nuevo\s+issue|reporta[r]?\s+(un[ao]?\s+)?(bug|error|problema|issue)/i;
 

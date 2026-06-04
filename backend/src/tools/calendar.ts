@@ -1,6 +1,7 @@
 import { google } from 'googleapis';
 import * as fs from 'fs';
 import * as path from 'path';
+import { nowInSpain } from './cloudflare';
 
 export interface CalendarEvent {
   id: string;
@@ -45,13 +46,20 @@ export async function getCalendarEvents(days = 2): Promise<CalendarEvent[]> {
   const auth     = getAuth();
   const calendar = google.calendar({ version: 'v3', auth });
 
-  const now      = new Date();
-  const timeMax  = new Date(now);
+  // timeMin = inicio del día actual en Madrid (no el momento actual)
+  // así los eventos pasados de hoy también aparecen en la agenda
+  const nowMadrid      = nowInSpain();
+  const realNow        = new Date();
+  const offsetMs       = nowMadrid.getTime() - realNow.getTime();
+  const midnightMadrid = new Date(nowMadrid.getFullYear(), nowMadrid.getMonth(), nowMadrid.getDate(), 0, 0, 0, 0);
+  const timeMin        = new Date(midnightMadrid.getTime() - offsetMs);
+
+  const timeMax = new Date(timeMin);
   timeMax.setDate(timeMax.getDate() + days);
 
   const { data } = await calendar.events.list({
     calendarId:   'primary',
-    timeMin:      now.toISOString(),
+    timeMin:      timeMin.toISOString(),
     timeMax:      timeMax.toISOString(),
     singleEvents: true,
     orderBy:      'startTime',
