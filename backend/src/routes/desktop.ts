@@ -52,6 +52,19 @@ async function getFullSystemPrompt(): Promise<string> {
   return buildSystemPrompt(ambientCtx, memories, dynProfile);
 }
 
+// POST /api/desktop/transcribe — audio → solo transcripción (sin LLM)
+router.post('/transcribe', upload.single('audio'), async (req: Request, res: Response) => {
+  if (!isDesktopAuthorized(req)) { res.status(401).json({ error: 'No autorizado' }); return; }
+  if (!req.file) { res.status(400).json({ error: 'Se requiere campo "audio"' }); return; }
+  try {
+    const transcription = await transcribeAudio(req.file.buffer);
+    if (!transcription.trim()) { res.status(400).json({ error: 'No se detectó habla' }); return; }
+    res.json({ transcription });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 // POST /api/desktop/voice — audio WAV/OGG → texto + audio respuesta
 router.post('/voice', upload.single('audio'), async (req: Request, res: Response) => {
   if (!isDesktopAuthorized(req)) { res.status(401).json({ error: 'No autorizado' }); return; }
