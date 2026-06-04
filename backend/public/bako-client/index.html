@@ -382,6 +382,17 @@
     }
     .logout-btn:hover { border-color: var(--red); }
 
+    /* ── Contraseña visible ─────────────────────────────────────────────────── */
+    .pass-wrap { position: relative; display: flex; align-items: center; }
+    .pass-wrap input { flex: 1; padding-right: 40px; }
+    .eye-btn {
+      position: absolute; right: 10px;
+      background: none; border: none; cursor: pointer;
+      color: var(--dim); font-size: 16px; line-height: 1;
+      padding: 4px; transition: color 0.15s;
+    }
+    .eye-btn:hover { color: var(--text); }
+
     /* ── Botón presets ──────────────────────────────────────────────────────── */
     .btn-presets {
       width: 42px; height: 42px; border-radius: 50%;
@@ -445,7 +456,10 @@
     <div class="login-logo">BAKO</div>
     <div class="login-sub">Mayordomo Personal</div>
     <input class="login-input" id="loginUser" type="text" placeholder="Usuario" autocomplete="username" autocapitalize="none">
-    <input class="login-input" id="loginPass" type="password" placeholder="Contraseña" autocomplete="current-password">
+    <div class="pass-wrap">
+      <input class="login-input" id="loginPass" type="password" placeholder="Contraseña" autocomplete="current-password" style="width:100%">
+      <button class="eye-btn" type="button" data-target="loginPass" title="Mostrar/ocultar">👁</button>
+    </div>
     <button class="login-btn" id="loginBtn">Acceder</button>
     <div class="login-error" id="loginError"></div>
   </div>
@@ -463,7 +477,10 @@
   <div class="admin-section-title">Crear usuario</div>
   <div class="create-user-form">
     <input class="admin-input" id="newUserName" type="text" placeholder="Nombre de usuario" autocapitalize="none">
-    <input class="admin-input" id="newUserPass" type="password" placeholder="Contraseña">
+    <div class="pass-wrap">
+      <input class="admin-input" id="newUserPass" type="password" placeholder="Contraseña" style="width:100%">
+      <button class="eye-btn" type="button" data-target="newUserPass" title="Mostrar/ocultar">👁</button>
+    </div>
     <select class="admin-select" id="newUserRole">
       <option value="user">Usuario</option>
       <option value="superadmin">Superadmin</option>
@@ -649,6 +666,20 @@
     showLoginScreen();
   }
 
+  // Toggle visibilidad contraseña
+  function togglePassVisibility(inp, btn) {
+    const show = inp.type === 'password';
+    inp.type = show ? 'text' : 'password';
+    btn.textContent = show ? '🙈' : '👁';
+  }
+  // Delegar en todos los .eye-btn con data-target (login + crear usuario)
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.eye-btn[data-target]');
+    if (!btn) return;
+    const inp = document.getElementById(btn.dataset.target);
+    if (inp) togglePassVisibility(inp, btn);
+  });
+
   loginBtn.addEventListener('click', doLogin);
   loginPassEl.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
   loginUserEl.addEventListener('keydown', e => { if (e.key === 'Enter') loginPassEl.focus(); });
@@ -685,6 +716,7 @@
             <div class="user-name">${u.username}</div>
             <div class="user-meta">${u.role} · ${u.active ? 'activo' : 'inactivo'}</div>
           </div>
+          <button class="btn-user-action edit"   data-id="${u._id}" data-name="${u.username}" title="Editar">✏️</button>
           ${u.role !== 'superadmin' ? `
             <button class="btn-user-action toggle" data-id="${u._id}" title="${u.active ? 'Desactivar' : 'Activar'}">${u.active ? '🔒' : '🔓'}</button>
             <button class="btn-user-action del"    data-id="${u._id}" title="Eliminar">🗑</button>
@@ -692,6 +724,9 @@
         `;
         userList.appendChild(item);
       });
+      userList.querySelectorAll('.edit').forEach(btn => btn.addEventListener('click', e => {
+        openEditForm(e.currentTarget.dataset.id, e.currentTarget.dataset.name);
+      }));
       userList.querySelectorAll('.toggle').forEach(btn => btn.addEventListener('click', async e => {
         const id  = e.currentTarget.dataset.id;
         const res = await fetch(`${BAKO_URL}/api/auth/users/${id}/toggle`, { method: 'PATCH', headers: authHeaders() });
@@ -735,6 +770,73 @@
     adminFeedback.textContent = msg;
     adminFeedback.className   = 'admin-feedback ' + (ok ? 'ok' : 'err');
     setTimeout(() => { adminFeedback.textContent = ''; adminFeedback.className = 'admin-feedback'; }, 3000);
+  }
+
+  // ── Edición inline de usuario ─────────────────────────────────────────────
+  let editingId = null;
+
+  function openEditForm(id, currentName) {
+    // Si ya hay un form abierto para este usuario, cerrarlo
+    const existing = document.getElementById('edit-form-' + id);
+    if (existing) { existing.remove(); editingId = null; return; }
+    // Cerrar cualquier otro form abierto
+    document.querySelectorAll('.edit-inline-form').forEach(f => f.remove());
+    editingId = id;
+
+    const item = document.querySelector(`.edit[data-id="${id}"]`)?.closest('.user-item');
+    if (!item) return;
+
+    const form = document.createElement('div');
+    form.id = 'edit-form-' + id;
+    form.className = 'edit-inline-form create-user-form';
+    form.style.marginTop = '6px';
+    form.innerHTML = `
+      <div style="font-size:12px;color:var(--dim);margin-bottom:2px">Editar: <strong>${currentName}</strong></div>
+      <input class="admin-input edit-new-name" type="text" placeholder="Nuevo nombre de usuario" value="${currentName}" autocapitalize="none">
+      <div class="pass-wrap">
+        <input class="admin-input edit-new-pass" type="password" placeholder="Nueva contraseña (vacío = sin cambio)" style="width:100%">
+        <button class="eye-btn edit-eye" type="button" title="Mostrar/ocultar">👁</button>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-create-user edit-save-btn" style="flex:1">Guardar</button>
+        <button class="btn-create-user edit-cancel-btn" style="flex:0 0 auto;background:var(--bg3);color:var(--text)">✕</button>
+      </div>
+      <div class="admin-feedback edit-feedback"></div>
+    `;
+    item.insertAdjacentElement('afterend', form);
+
+    form.querySelector('.edit-cancel-btn').addEventListener('click', () => { form.remove(); editingId = null; });
+    form.querySelector('.edit-eye').addEventListener('click', () => {
+      const inp = form.querySelector('.edit-new-pass');
+      togglePassVisibility(inp, form.querySelector('.edit-eye'));
+    });
+
+    form.querySelector('.edit-save-btn').addEventListener('click', async () => {
+      const newName = form.querySelector('.edit-new-name').value.trim();
+      const newPass = form.querySelector('.edit-new-pass').value;
+      const fb      = form.querySelector('.edit-feedback');
+      if (!newName && !newPass) { fb.textContent = 'Nada que guardar'; fb.className = 'admin-feedback edit-feedback err'; return; }
+
+      form.querySelector('.edit-save-btn').disabled = true;
+      const body = {};
+      if (newName) body.username = newName;
+      if (newPass) body.password = newPass;
+
+      try {
+        const res  = await fetch(`${BAKO_URL}/api/auth/users/${id}`, {
+          method: 'PATCH', headers: authHeaders(), body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) { fb.textContent = data.error; fb.className = 'admin-feedback edit-feedback err'; form.querySelector('.edit-save-btn').disabled = false; return; }
+        form.remove(); editingId = null;
+        setAdminFeedback(`✓ ${data.user.username} actualizado`, true);
+        loadUsers();
+      } catch {
+        fb.textContent = 'Error de conexión';
+        fb.className = 'admin-feedback edit-feedback err';
+        form.querySelector('.edit-save-btn').disabled = false;
+      }
+    });
   }
 
   // ── DOM ────────────────────────────────────────────────────────────────────

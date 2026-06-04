@@ -50,6 +50,26 @@ router.patch('/users/:id/toggle', requireSuperAdmin, async (req: Request, res: R
   res.json({ username: user.username, active: user.active });
 });
 
+// ── PATCH /api/auth/users/:id (superadmin) — editar nombre y/o contraseña ────
+router.patch('/users/:id', requireSuperAdmin, async (req: Request, res: Response) => {
+  const { username, password } = req.body;
+  if (!username && !password) { res.status(400).json({ error: 'Nada que actualizar' }); return; }
+
+  const user = await User.findById(req.params.id);
+  if (!user) { res.status(404).json({ error: 'Usuario no encontrado' }); return; }
+
+  if (username) {
+    const taken = await User.findOne({ username: username.toLowerCase(), _id: { $ne: user._id } });
+    if (taken) { res.status(409).json({ error: 'Ese nombre de usuario ya existe' }); return; }
+    user.username = username.toLowerCase().trim();
+  }
+  if (password) {
+    user.passwordHash = await bcrypt.hash(password, 10);
+  }
+  await user.save();
+  res.json({ user: { id: user._id, username: user.username, role: user.role } });
+});
+
 // ── DELETE /api/auth/users/:id (superadmin) ──────────────────────────────────
 router.delete('/users/:id', requireSuperAdmin, async (req: Request, res: Response) => {
   const user = await User.findById(req.params.id);
