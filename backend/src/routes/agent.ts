@@ -118,13 +118,22 @@ router.delete('/memories/:id', async (req: Request, res: Response) => {
   res.json({ ok: true, deleted: req.params.id });
 });
 
-// POST /api/agent/seed-brain — siembra Projects y KnowledgeEntry en Atlas (idempotente)
+// POST /api/agent/seed-brain — siembra People, Projects y KnowledgeEntry en Atlas (idempotente)
 router.post('/seed-brain', async (_req: Request, res: Response) => {
   const { Project } = await import('../memory/Project');
   const { KnowledgeEntry } = await import('../memory/KnowledgeEntry');
+  const { Person } = await import('../memory/Person');
 
+  type PersonSeed = { nombre: string; relacion: any; descripcion?: string; cumpleaños?: string; ubicacion?: string; trabajo?: string; notas?: string[]; conexiones?: string[] };
   type PS = { nombre: string; slug?: string; tipo?: string; estado?: any; prioridad?: any; descripcion?: string; siguiente_accion?: string; stack?: string[]; urls?: string[]; horizonte?: string; notas?: string[] };
   type KS = { categoria: any; clave: string; valor: string; importancia: any; detalles?: string[] };
+
+  const PEOPLE: PersonSeed[] = [
+    { nombre:'Yaimy', relacion:'pareja', descripcion:'Pareja de Borja — cubana, 36 años. Trabaja en LAE (empresa gallega). Plan: mudarse a Galicia juntos a finales de 2026.', cumpleaños:'02-01', ubicacion:'Errentería', trabajo:'LAE (empresa en Galicia)', notas:['Aniversario con Borja: 9 de junio — 2 años en 2026','Sus padres (Sofi y Osvaldo) viven en Lezo','Yosiel (cuñado colombiano) vive en Lezo'], conexiones:['Sofi','Osvaldo','Yosiel'] },
+    { nombre:'Sofi', relacion:'familiar', descripcion:'Madre de Yaimy — cubana. Vive en Lezo con Osvaldo.', ubicacion:'Lezo', conexiones:['Yaimy','Osvaldo'] },
+    { nombre:'Osvaldo', relacion:'familiar', descripcion:'Padre de Yaimy — cubano. Vive en Lezo con Sofi.', ubicacion:'Lezo', conexiones:['Yaimy','Sofi'] },
+    { nombre:'Yosiel', relacion:'familiar', descripcion:'Cuñado de Borja — colombiano. Hermano de Yaimy. Vive en Lezo.', ubicacion:'Lezo', conexiones:['Yaimy'] },
+  ];
 
   const PROJECTS: PS[] = [
     { nombre:'BAKO', slug:'bako', tipo:'Sistema operativo personal con IA', estado:'activo', prioridad:'alta', descripcion:'Mayordomo digital omnisciente. Evoluciona hacia JARVIS: cuerpo robótico, presencia física, voz, Telegram, GitHub.', siguiente_accion:'Fase 7b-B desplegada — continuar con embeddings Ollama', stack:['Node.js','TypeScript','Express','MongoDB Atlas','Groq','Ollama','Render','Telegram Bot'], urls:['https://ai-personal-os.onrender.com'], horizonte:'3-5 años (robótico)', notas:['MVP en producción en Render','Visión final: Jarvis de Iron Man en la vida real'] },
@@ -155,7 +164,14 @@ router.post('/seed-brain', async (_req: Request, res: Response) => {
     { categoria:'otro', clave:'infraestructura_bako', valor:'Backend en Render (24/7). Ollama local vía Cloudflare Tunnel cuando PC encendido. Fallback automático a Groq.', detalles:['Modelo local: Ollama qwen2.5-coder:7b — sin límites, privado, gratuito','Modelo nube: Groq llama-3.1-8b-instant — fallback automático','Túnel: Cloudflare Tunnel bako-ollama vía Task Scheduler','Groq límites: 20k tokens/min, 14.4k peticiones/día (reset 01:00 hora España)'], importancia:'media' },
   ];
 
-  let projCreated = 0, projSkipped = 0, knowCreated = 0, knowSkipped = 0;
+  let peopleCreated = 0, peopleSkipped = 0;
+  let projCreated = 0, projSkipped = 0;
+  let knowCreated = 0, knowSkipped = 0;
+
+  for (const p of PEOPLE) {
+    const exists = await Person.findOne({ nombre: p.nombre });
+    if (exists) { peopleSkipped++; } else { await Person.create(p); peopleCreated++; }
+  }
 
   for (const p of PROJECTS) {
     const exists = await Project.findOne({ slug: p.slug });
@@ -167,7 +183,7 @@ router.post('/seed-brain', async (_req: Request, res: Response) => {
     if (exists) { knowSkipped++; } else { await KnowledgeEntry.create(k); knowCreated++; }
   }
 
-  res.json({ ok: true, projects: { created: projCreated, skipped: projSkipped }, knowledge: { created: knowCreated, skipped: knowSkipped } });
+  res.json({ ok: true, people: { created: peopleCreated, skipped: peopleSkipped }, projects: { created: projCreated, skipped: projSkipped }, knowledge: { created: knowCreated, skipped: knowSkipped } });
 });
 
 // POST /api/agent/memories/import — importar memorias en batch

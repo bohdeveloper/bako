@@ -1048,7 +1048,7 @@
       const res  = await fetch(`${BAKO_URL}/api/agent/seed-brain`, { method:'POST', headers: authHeaders() });
       const data = await res.json();
       if (res.ok) {
-        fb.textContent = `✓ Proyectos: +${data.projects.created} (${data.projects.skipped} ya existían) · Conocimiento: +${data.knowledge.created} (${data.knowledge.skipped} ya existían)`;
+        fb.textContent = `✓ Personas: +${data.people.created} · Proyectos: +${data.projects.created} · Conocimiento: +${data.knowledge.created}`;
         fb.className = 'admin-feedback ok';
       } else {
         fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
