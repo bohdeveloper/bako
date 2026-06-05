@@ -341,6 +341,91 @@ ${memList}`;
     else Object.assign(col.projects[idx], pp);
   }
 
+  // Complementar con conocimiento de profile.ts — fuente autoritativa (sin LLM)
+  const profileKnowledge: any[] = [
+    // ── Salud ────────────────────────────────────────────────────────────────
+    { categoria: 'salud', clave: 'habitos_salud', importancia: 'alta',
+      valor: 'Exfumador muy orgulloso de haberlo dejado. Rara vez bebe alcohol (como mucho una cerveza ocasional). Energía alta por naturaleza, varía según dieta.',
+    },
+    { categoria: 'salud', clave: 'suplementacion', importancia: 'media',
+      valor: 'Toma suplementos diariamente: vitaminas, té verde, magnesio, creatina y ashwagandha.',
+    },
+    { categoria: 'salud', clave: 'digestion', importancia: 'media',
+      valor: 'A veces hace mal la digestión y tiene ardores. Toma kéfir diariamente para mejorar la digestión.',
+    },
+    { categoria: 'salud', clave: 'sueno', importancia: 'media',
+      valor: 'Duerme entre 6 y 8 horas. Generalmente duerme bien. Objetivo activo: acostarse antes para madrugar más.',
+    },
+    { categoria: 'salud', clave: 'psicologo', importancia: 'alta',
+      valor: 'Asiste a psicólogo todos los jueves de 18:00 a 19:00 en Donostia. Parte fija de su rutina semanal.',
+    },
+    // ── Valores ──────────────────────────────────────────────────────────────
+    { categoria: 'valores', clave: 'filosofia_base', importancia: 'alta',
+      valor: 'Estoicismo como filosofía de vida: Marcus Aurelius, Jonas Salzgeber. Disciplina diaria y control de lo que depende de uno.',
+    },
+    { categoria: 'valores', clave: 'valores_core', importancia: 'alta',
+      valor: 'La libertad es su valor más importante — le preocupa profundamente la falta de ella. Quiere ser buena persona, estar en paz y tener una vida con propósito.',
+    },
+    // ── Carácter ─────────────────────────────────────────────────────────────
+    { categoria: 'caracter', clave: 'caracter_descripcion', importancia: 'alta',
+      valor: 'Se describe como impulsivo, caliente, enérgico, empático y leal. Perfeccionista, emprendedor y comprometido con sus metas.',
+      detalles: ['Mayor virtud: autosuperación constante', 'Mayor defecto: poco autocontrol', 'Valora en otros: que aporten, empatía, tranquilidad y buena energía'],
+    },
+    // ── Finanzas ─────────────────────────────────────────────────────────────
+    { categoria: 'finanzas', clave: 'situacion_financiera', importancia: 'alta',
+      valor: 'Sin deudas. Gasto fijo principal: alquiler 790€/mes en Errentería. Objetivo: ahorrar 5.000-10.000€ entre Borja y Yaimy.',
+      detalles: ['La mudanza a Galicia reducirá el gasto fijo en 200-300€/mes', 'No invierte aún — quiere aprender a invertir bien en el futuro'],
+    },
+    { categoria: 'finanzas', clave: 'estrategia_ingresos_pasivos', importancia: 'media',
+      valor: 'Objetivo gradual: complementar el sueldo con ingresos pasivos → igualar el sueldo → si se puede, superarlo.',
+      detalles: ['Criterios: bajo mantenimiento, modelo recurrente, escalable, alineado con su stack', 'Plataformas: Gumroad, Lemon Squeezy, Stripe, Udemy, GitHub Sponsors'],
+    },
+    // ── Historia ─────────────────────────────────────────────────────────────
+    { categoria: 'historia', clave: 'logros_personales', importancia: 'alta',
+      valor: 'Aprendió a programar desde cero por sus propios medios y consiguió vivir de ello. Dejó de fumar. Mantiene disciplina de entrenamiento diario.',
+    },
+    { categoria: 'historia', clave: 'momento_dificil', importancia: 'alta',
+      valor: 'Hace ~9 meses (septiembre 2025) atravesó el momento más difícil de su vida. Lo superó y es una persona nueva desde entonces. BAKO NO debe sacar este tema salvo que Borja lo mencione explícitamente.',
+    },
+    // ── Rutina ───────────────────────────────────────────────────────────────
+    { categoria: 'rutina', clave: 'rutina_diaria', importancia: 'alta',
+      valor: 'Se despierta a las 05:00. Kronoshin (Shaolin + flexibilidad) 05:20-06:00. Ducha fría, desayuno, preparación 06:00-06:30. Bus Errentería→Donostia 06:30. Inetum 07:00-14:00. Llega a casa a las 15:00.',
+      detalles: ['Lun y Vie 19:30-20:45: BIZIKI running', 'Mié 19:30-20:45: running', 'Mar y Jue 15:30-17:30: gym / Shaolin', 'Jue 18:00-19:00: psicólogo', 'Mar y Jue 21:00-22:00: lectura estoica', 'Sáb mañana: monte', 'Dom mañana: gym/Shaolin'],
+    },
+    { categoria: 'rutina', clave: 'entrenamiento', importancia: 'alta',
+      valor: 'Shaolin autodidacta en el Fuerte de Arramendi (Errentería). Kronoshin cada mañana L-V 05:20-06:00. Running con grupo BIZIKI (Donostia-Errentería). Gym martes y jueves.',
+    },
+    // ── Objetivos ────────────────────────────────────────────────────────────
+    { categoria: 'objetivos', clave: 'sueno_galicia', importancia: 'alta',
+      valor: 'Mudarse a Galicia con Yaimy a finales de 2026. Casa propia con terreno grande: espacio para laboratorio BAKO/JARVIS, zona para el kéfir artesanal, gimnasio exterior, taller para robótica e impresión 3D, terreno para cultivar y casa auxiliar para suegros.',
+    },
+    { categoria: 'objetivos', clave: 'busqueda_vivienda_galicia', importancia: 'alta',
+      valor: 'Busca alquiler <600€/mes dentro de ~30km de Pontevedra Y Vigo simultáneamente. Requisitos: pet-friendly, espacio exterior, fibra óptica, aparcamiento.',
+      detalles: ['Zonas candidatas: Caldas de Reis (top), Cerdedo-Cotobade, Cuntis, A Estrada, Ponte Caldelas'],
+    },
+    { categoria: 'objetivos', clave: 'independencia_profesional', importancia: 'alta',
+      valor: 'Vivir y trabajar en remoto desde Galicia. Si los proyectos e inversiones permiten vivir bien, dejaría de trabajar para otros. Familia: quieren tener hijos a medio-largo plazo y un perro grande.',
+    },
+    // ── Legal ────────────────────────────────────────────────────────────────
+    { categoria: 'legal', clave: 'proceso_judicial', importancia: 'alta',
+      valor: 'Involucrado como acusado en un proceso judicial. Fecha clave: 30 de junio de 2026 (declaración con su abogado). INFORMACIÓN SENSIBLE Y CONFIDENCIAL — BAKO no debe mencionar este tema a menos que Borja lo plantee directamente.',
+    },
+    // ── Hobbies ──────────────────────────────────────────────────────────────
+    { categoria: 'hobbies', clave: 'gustos_ocio', importancia: 'media',
+      valor: 'Videojuegos, tiempo con Yaimy, paseos en la naturaleza, meditación, cocinar y viajar.',
+      detalles: ['Comidas favoritas: alitas, pizza, endivias con aceitunas y atún, carnes, sushi, hamburguesas, pasta, comida cubana. Evita marisco.', 'Películas: Interstellar, Gladiator, Avatar, El Señor de los Anillos, Inception, Breaking Bad', 'Series: Vikings, Mr Robot. Anime: Naruto, One Piece', 'Música trabajando: tranquila/slowed. Entrenando: trap/rap energético'],
+    },
+  ];
+
+  // Fusionar profile > LLM para conocimiento
+  for (const pk of profileKnowledge) {
+    const k = (pk.clave || '').trim().toLowerCase();
+    if (!k) continue;
+    const idx = col.knowledge.findIndex((x: any) => (x.clave || '').trim().toLowerCase() === k);
+    if (idx === -1) col.knowledge.push(pk);
+    else Object.assign(col.knowledge[idx], pk);
+  }
+
   // Insertar en Atlas — idempotente + sanitización de enums + try/catch individual
   let pC = 0, pS = 0, pE = 0;
   let rC = 0, rS = 0, rE = 0;

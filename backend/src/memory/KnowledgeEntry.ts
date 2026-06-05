@@ -52,16 +52,21 @@ export const CATEGORY_LABELS: Record<KnowledgeCategory, string> = {
   otro:      '📌 Otro',
 };
 
-/** Formatea todas las entradas agrupadas por categoría para el system prompt */
+/** Formatea todas las entradas en prosa natural agrupada por categoría */
 export function formatKnowledgeForContext(entries: IKnowledgeEntry[]): string {
   if (!entries.length) return '';
   const byCategory: Record<string, string[]> = {};
   for (const e of entries) {
     if (!byCategory[e.categoria]) byCategory[e.categoria] = [];
-    const detail = e.detalles?.length ? ` (${e.detalles.join('; ')})` : '';
-    byCategory[e.categoria].push(`${e.clave}: ${e.valor}${detail}`);
+    const detalles = e.detalles?.length ? ' ' + e.detalles.join('. ') + '.' : '';
+    byCategory[e.categoria].push(`${e.valor}${detalles}`);
   }
+  const CAT_LABEL: Record<string, string> = {
+    salud: 'Salud', valores: 'Valores', caracter: 'Carácter',
+    finanzas: 'Finanzas', historia: 'Historia', rutina: 'Rutina',
+    objetivos: 'Objetivos vitales', legal: 'Situación legal', hobbies: 'Hobbies y ocio', otro: 'Otros',
+  };
   return Object.entries(byCategory)
-    .map(([cat, items]) => `[${cat}] ${items.join(' · ')}`)
+    .map(([cat, items]) => `${CAT_LABEL[cat] || cat}: ${items.join(' ')}`)
     .join('\n');
 }
