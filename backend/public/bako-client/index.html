@@ -641,6 +641,11 @@
       <button class="btn-create-user" id="btnCreateUser">Crear usuario</button>
       <div class="admin-feedback" id="adminFeedback"></div>
     </div>
+    <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
+      <div class="admin-section-title">Datos estructurados</div>
+      <button class="btn-create-user" id="btnSeedBrain" style="width:100%;margin-bottom:6px">🧠 Poblar Proyectos + Conocimiento en Atlas</button>
+      <div class="admin-feedback" id="seedFeedback"></div>
+    </div>
     <button class="logout-btn" id="logoutBtn">Cerrar sesión</button>
   </div>
 
@@ -1034,6 +1039,23 @@
   loginPassEl.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
   loginUserEl.addEventListener('keydown', e => { if (e.key === 'Enter') loginPassEl.focus(); });
   logoutBtn.addEventListener('click', doLogout);
+
+  document.getElementById('btnSeedBrain').addEventListener('click', async () => {
+    const btn = document.getElementById('btnSeedBrain');
+    const fb  = document.getElementById('seedFeedback');
+    btn.disabled = true; btn.textContent = '⏳ Poblando…';
+    try {
+      const res  = await fetch(`${BAKO_URL}/api/agent/seed-brain`, { method:'POST', headers: authHeaders() });
+      const data = await res.json();
+      if (res.ok) {
+        fb.textContent = `✓ Proyectos: +${data.projects.created} (${data.projects.skipped} ya existían) · Conocimiento: +${data.knowledge.created} (${data.knowledge.skipped} ya existían)`;
+        fb.className = 'admin-feedback ok';
+      } else {
+        fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
+      }
+    } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
+    finally { btn.disabled = false; btn.textContent = '🧠 Poblar Proyectos + Conocimiento en Atlas'; }
+  });
 
   // ── Admin panel ───────────────────────────────────────────────────────────
   function openAdmin() {
