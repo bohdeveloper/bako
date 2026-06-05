@@ -255,44 +255,40 @@ router.post('/deduplicate-memories', async (req: Request, res: Response) => {
   const dryRun = req.body?.dry_run === true;
   const { Memory } = await import('../memory/Memory');
 
-  const memories = await Memory.find({}).sort({ createdAt: 1 });
+  let memories: any[];
+  try {
+    memories = await Memory.find({}).sort({ createdAt: 1 });
+  } catch (err) {
+    res.status(500).json({ error: 'Error leyendo memorias', detail: (err as Error).message });
+    return;
+  }
+
   if (!memories.length) {
     res.json({ ok: true, message: 'No hay memorias', deleted: 0, merged: 0 });
     return;
   }
 
-  // Mapa de índice corto → MongoDB ID (el LLM trabaja con #N para reducir tamaño del payload)
+  // Índice corto (#N) → MongoDB ID para reducir payload al mínimo
   const idxToId: Record<number, string> = {};
   const memList = memories
-    .map((m, i) => {
+    .map((m: any, i: number) => {
       idxToId[i + 1] = String(m._id);
-      return `#${i + 1}|${(m.tags || []).slice(0, 3).join(',')}|${m.content.slice(0, 150)}`;
+      const tags = (m.tags || []).slice(0, 2).join(',');
+      const content = String(m.content || '').slice(0, 80);
+      return `#${i + 1}|${tags}|${content}`;
     })
     .join('\n');
 
-  const prompt = `Experto en gestión del conocimiento. Analiza estas ${memories.length} memorias de Borja e identifica duplicados.
-
-CRITERIOS:
-- DUPLICADO: misma información, diferente redacción → fusionar, borrar las demás
-- SUBCONJUNTO: una tiene TODA la info de otra y más → eliminar la menor
-- TEST/VACÍO/INÚTIL: eliminar directamente
-- COMPLEMENTARIAS: mismo tema, info única cada una → conservar o fusionar
-- DUDA: conservar ambas
-
-En merged_content incluye TODA la información única de todas las memorias del grupo.
-Usa los índices #N EXACTAMENTE como aparecen.
-
-JSON válido sin texto extra:
-{"merge_groups":[{"keep_idx":1,"merged_content":"texto completo","merged_tags":["t1"],"delete_idxs":[2,3],"razon":""}],"delete_standalone":[4]}
-
+  const prompt = `Analiza estas ${memories.length} memorias de Borja. Identifica duplicados y redundancias.
+Reglas: DUPLICADO (misma info) → fusionar; SUBCONJUNTO (una contiene toda la info de otra) → eliminar la menor; TEST/VACÍO → delete_standalone; DUDA → conservar.
+merged_content debe incluir TODA la info única del grupo. Usa índices #N exactos.
+JSON único sin texto extra: {"merge_groups":[{"keep_idx":1,"merged_content":"texto","merged_tags":["t1"],"delete_idxs":[2,3],"razon":""}],"delete_standalone":[4]}
 Sin duplicados: {"merge_groups":[],"delete_standalone":[]}
-
-MEMORIAS:
-${memList}`;
+MEMORIAS:\n${memList}`;
 
   let raw: string;
   try {
-    raw = await askClaude(prompt, { useCloud: true, maxTokens: 6000, temperature: 0 });
+    raw = await askClaude(prompt, { useCloud: true, maxTokens: 3000, temperature: 0 });
   } catch (err) {
     res.status(500).json({ error: 'Error llamando al LLM', detail: (err as Error).message });
     return;
