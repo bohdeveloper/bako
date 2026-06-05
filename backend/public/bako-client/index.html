@@ -754,6 +754,7 @@
       <button class="btn-create-user secondary" id="btnMigrateMemories" style="width:100%;margin-bottom:6px">Migrar memoria</button>
       <button class="btn-create-user secondary" id="btnDedupePreview" style="width:100%;margin-bottom:6px">Previsualizar deduplicación</button>
       <button class="btn-create-user secondary" id="btnDedupe" style="width:100%;margin-bottom:6px">Deduplicar memoria</button>
+      <button class="btn-create-user secondary" id="btnCleanManual" style="width:100%;margin-bottom:6px;border-color:#ef4444;color:#ef4444">Limpiar memorias importadas</button>
       <div class="admin-feedback" id="seedFeedback"></div>
     </div>
     <button class="logout-btn" id="logoutBtn">Cerrar sesión</button>
@@ -1210,6 +1211,25 @@
       }
     } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
     finally { btn.disabled = false; btn.textContent = '🧹 Deduplicar memoria'; }
+  });
+
+  document.getElementById('btnCleanManual').addEventListener('click', async () => {
+    const btn = document.getElementById('btnCleanManual');
+    const fb  = document.getElementById('seedFeedback');
+    if (!confirm('⚠️ Esto eliminará TODAS las memorias importadas (source=manual).\nLas memorias extraídas de conversaciones se conservan.\n¿Continuar?')) return;
+    btn.disabled = true; btn.textContent = '⏳ Eliminando memorias manuales…';
+    fb.textContent = ''; fb.className = 'admin-feedback';
+    try {
+      const res  = await fetch(`${BAKO_URL}/api/agent/clean-manual-memories`, { method:'POST', headers: authHeaders() });
+      const data = await res.json();
+      if (res.ok) {
+        fb.textContent = `✓ ${data.deleted} memorias manuales eliminadas · ${data.memorias_antes} → ${data.memorias_despues} memorias totales`;
+        fb.className = 'admin-feedback ok';
+      } else {
+        fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
+      }
+    } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
+    finally { btn.disabled = false; btn.textContent = '🗑️ Limpiar memorias importadas'; }
   });
 
   // ── Admin panel ───────────────────────────────────────────────────────────

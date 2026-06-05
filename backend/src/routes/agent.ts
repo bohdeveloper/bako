@@ -631,6 +631,20 @@ router.post('/deduplicate-memories', async (req: Request, res: Response) => {
   });
 });
 
+// POST /api/agent/clean-manual-memories — elimina todas las memorias source=manual (ya cubiertas por People/Projects/Knowledge)
+router.post('/clean-manual-memories', async (_req: Request, res: Response) => {
+  const { Memory } = await import('../memory/Memory');
+  try {
+    const antes = await Memory.countDocuments();
+    const result = await Memory.deleteMany({ source: 'manual' });
+    const despues = await Memory.countDocuments();
+    console.log(`🗑️ clean-manual-memories: ${result.deletedCount} memorias manuales eliminadas. ${antes} → ${despues}`);
+    res.json({ ok: true, deleted: result.deletedCount, memorias_antes: antes, memorias_despues: despues });
+  } catch (err) {
+    res.status(500).json({ error: 'Error eliminando memorias manuales', detail: (err as Error).message });
+  }
+});
+
 // POST /api/agent/memories/import — importar memorias en batch
 router.post('/memories/import', async (req: Request, res: Response) => {
   const { memories } = req.body;
