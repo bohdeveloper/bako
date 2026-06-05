@@ -359,6 +359,143 @@ Panel integrado en la PWA (no en bohdeveloper.com).
 - ❌ Edición de perfil ampliada — más campos que ProfileOverride (pendiente Fase 7b)
 - ❌ Widget de chat público en bohdeveloper.com (diferido)
 
+### Fase 7b — Memoria Cognitiva ❌ Pendiente
+> Convertir la memoria plana de 103 registros en un sistema cognitivo real: estructurado, semántico y auto-actualizable. **Coste objetivo: $0.**
+
+#### El problema actual
+La colección `Memory` es una tabla plana de texto libre. BAKO no sabe que "Paula" es una persona, que tiene relación contigo, o que su cumpleaños está vinculado a "amigos vascos". Son 103 fragmentos de texto desconectados. Además, solo acumula: si dices "dejé BIZIKI", crea una memoria nueva sin tocar la antigua que dice "corro con BIZIKI", generando contradicciones.
+
+Consecuencia directa: el sistema de tiers (social 20 + proyectos 5 + personal 3 + técnico 2 = 30 max) es un parche para meter el máximo contexto útil sin reventar el límite de tokens. Con memoria cognitiva real, 30 registros ricos valen más que 103 fragmentos planos.
+
+#### Arquitectura objetivo (todo en servicios gratuitos existentes)
+
+```
+ENTRADAS (voz / texto / PWA / Desktop)
+        │
+        ▼
+  MEMORIA DE TRABAJO  ←──── contexto de conversación actual (RAM, no persiste)
+        │
+        ▼
+┌───────────────────────────────────────┐
+│         MEMORIA A LARGO PLAZO         │  ← MongoDB Atlas M0 (gratis, 512MB)
+│                                       │
+│  [Personas]   [Proyectos]  [General]  │
+│  colección    colección    colección  │
+│  estructurada estructurada plana      │
+│       │            │           │      │
+│       └────────────┴─────── [Vectores]│  ← embeddings en arrays Float[]
+└───────────────────────────────────────┘
+        │
+        ▼
+  RECUPERACIÓN SEMÁNTICA
+  (búsqueda por similitud coseno en Node.js — sin Qdrant, sin coste)
+        │
+        ▼
+   LLM DECIDE: ¿actualizar memoria existente o crear nueva?
+        │
+        ▼
+SALIDAS (respuesta, voz, acciones Calendar/Notion/GitHub)
+```
+
+#### Fase A — Colecciones estructuradas (MongoDB M0, coste: $0)
+
+Nuevas colecciones en Atlas paralelas a `Memory`. No migración forzada: conviven.
+
+**`People` — personas en la vida de Borja:**
+```json
+{
+  "nombre": "Paula",
+  "relacion": "amiga de infancia",
+  "cumpleaños": "15-08",
+  "ubicacion": "Madrid",
+  "trabajo": "diseño gráfico",
+  "notas": ["conocidas desde el colegio", "quedamos cuando viene al norte"],
+  "conexiones": ["Ibon", "Julen"],
+  "ultima_actualizacion": "2026-06-04"
+}
+```
+Beneficio: una pregunta sobre Paula = una consulta directa a un registro, sin consumir tiers ni tokens en 20 memorias planas.
+
+**`Projects` — estado vivo de cada proyecto:**
+```json
+{
+  "nombre": "BAKO",
+  "estado": "producción",
+  "siguiente_accion": "Fase 7b memoria cognitiva",
+  "bloqueantes": [],
+  "decisiones_clave": ["usar Groq en cloud", "MongoDB Atlas M0"],
+  "ultima_sesion": "2026-06-05"
+}
+```
+
+**`Memory` (actual)** — conserva los hechos que no encajan en schema (observaciones, estados emocionales, eventos únicos). Se reduce drásticamente a medida que la info migra a colecciones estructuradas.
+
+#### Fase B — Búsqueda semántica (embeddings locales, coste: $0)
+
+Para que BAKO encuentre la memoria *correcta* ante "dejé BIZIKI" en lugar de buscar por keywords:
+
+- **Ollama local** genera embeddings de cada memoria al guardarla (`nomic-embed-text`, 768 dimensiones, 80MB modelo)
+- El vector se guarda como campo `embedding: Float[]` en MongoDB
+- Cuando llega un mensaje, se genera su embedding y se calcula **similitud coseno** en Node.js contra las memorias del tier relevante
+- Sin Qdrant, sin infraestructura adicional, sin coste — el cálculo es O(n) sobre 30-100 vectores, ~1ms
+- Cuando el PC está apagado y Ollama no disponible → **Cloudflare Workers AI** tiene embeddings gratuitos (100k inferencias/día) como fallback
+
+#### Fase C — Modificación activa de memoria (coste: tokens Groq mínimos)
+
+El flujo que convierte a BAKO en un mayordomo que aprende y corrige:
+
+```
+1. Usuario dice: "Ya no voy a BIZIKI, lo dejé por la rodilla"
+
+2. extractAndSaveMemories() extrae: {content: "dejó BIZIKI por lesión de rodilla", tags: ["entrenamiento","biziki"]}
+
+3. NUEVO — antes de guardar, búsqueda semántica:
+   → encuentra: "Borja corre con grupo BIZIKI lunes y viernes" (similitud 0.91)
+
+4. LLM decide (prompt pequeño, ~50 tokens):
+   → "¿Es una actualización de la memoria existente o un hecho nuevo?"
+   → Respuesta: ACTUALIZAR
+
+5. Se modifica la memoria existente:
+   → "Borja dejó BIZIKI en junio 2026 por lesión de rodilla"
+   → Se añade nota: "anteriormente corría L/V con el grupo"
+
+6. No se crea duplicado. Memoria coherente.
+```
+
+Para evitar modificaciones erróneas:
+- Similitud mínima de 0.85 para considerar candidata a actualización
+- El LLM solo puede actualizar (no borrar) sin confirmación explícita
+- Las memorias `source: 'manual'` (importadas desde XMLs) son **intocables** — solo lectura
+
+#### Impacto sobre los tiers y los límites
+
+| Situación actual | Con memoria cognitiva |
+|---|---|
+| 20 memorias sociales (textos planos) | 10-15 registros `People` (estructurados, ricos) |
+| 5 memorias de proyectos | 3-5 registros `Projects` (estado completo) |
+| 8 memorias personales | 5 registros generales relevantes por similitud |
+| **33 registros, ~1800 chars** | **~20 registros, ~800 chars, más información** |
+
+El sistema de tiers desaparece o se simplifica enormemente: en lugar de cargar los 20 más importantes por importancia/fecha (heurístico), se recuperan los más *relevantes semánticamente* para la pregunta concreta.
+
+#### Stack técnico (todo gratuito)
+| Componente | Solución | Coste |
+|---|---|---|
+| Colecciones estructuradas | MongoDB Atlas M0 (ya existe) | $0 |
+| Embeddings (PC encendido) | Ollama `nomic-embed-text` | $0 |
+| Embeddings (PC apagado) | Cloudflare Workers AI | $0 (100k/día) |
+| Búsqueda semántica | Node.js cosine similarity | $0 |
+| Decisión actualizar/crear | Groq Llama (prompt ~50 tokens) | $0 (cuota existente) |
+| Almacenamiento vectores | Campo Float[] en MongoDB | $0 |
+| Panel de gestión | PWA + Desktop admin (ya existe) | $0 |
+
+#### Orden de implementación recomendado
+1. **People + Projects collections** — impacto inmediato, sin complejidad técnica nueva
+2. **Embeddings con Ollama** — requiere modelo descargado en PC (80MB)
+3. **Búsqueda semántica** — función coseno en memory.ts
+4. **Modificación activa** — el paso más delicado, implementar con validación primero
+
 ### Fase 8 — Automatización (sin n8n) ✅ Completado (junio 2026)
 Implementado directamente en ProactivityService sin infraestructura adicional:
 - ✅ **Tech Radar semanal** (lunes 09:30) — 5 feeds tech (JS Weekly, Node, React, HN, TLDR AI) → LLM filtra top 5 relevantes para el stack de Borja · `/techradar` manual
