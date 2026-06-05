@@ -16,10 +16,11 @@ import { BAKO_PROFILE } from '../knowledge/profile';
 import { saveMemory, getMemories, searchMemories, formatMemoriesForPrompt, forgetMemory, extractAndSaveMemories, getCurrentLocation } from './memory';
 import { buildDynamicProfileContext, updateProfileField, detectProfileUpdate, PROFILE_FIELDS } from './profileDynamic';
 import { Rule } from '../memory/Rule';
+import { Person, formatPersonForContext } from '../memory/Person';
 import { tryExecuteAction } from './actions';
 import { getAmbientContext, invalidateCityWeatherCache, invalidateCalendarCache } from './context';
 
-export function buildSystemPrompt(extraContext = '', memoriesSection = '', dynamicProfileSection = ''): string {
+export function buildSystemPrompt(extraContext = '', memoriesSection = '', dynamicProfileSection = '', peopleSection = ''): string {
   const now   = nowInSpain();
   const hora  = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
   const fecha = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -68,7 +69,8 @@ CONTEXTO ACTUAL:
 - Situación probable: ${situacion}
 ${extraContext}
 ${dynamicProfileSection ? `\n${dynamicProfileSection}\n` : ''}
-${memoriesSection ? `RECUERDOS DINÁMICOS (lo que sabes sobre el señor — fuente de verdad):\n${memoriesSection}\n` : ''}
+${peopleSection ? `PERSONAS EN LA VIDA DEL SEÑOR (datos estructurados — fuente de verdad para cumpleaños, relaciones, ubicaciones):\n${peopleSection}\n` : ''}
+${memoriesSection ? `RECUERDOS DINÁMICOS (hechos, observaciones, estados — complementan las personas):\n${memoriesSection}\n` : ''}
 PERFIL BASE:
 ${JSON.stringify({
   identidad: BAKO_PROFILE.identidad,
@@ -83,6 +85,16 @@ ${JSON.stringify({
   },
   instrucciones_para_bako: BAKO_PROFILE.instrucciones_para_bako,
 })}`;
+}
+
+export async function getPeopleSection(): Promise<string> {
+  try {
+    const people = await Person.find({ activo: true }).sort({ relacion: 1, nombre: 1 });
+    if (!people.length) return '';
+    return people.map(formatPersonForContext).join('\n');
+  } catch {
+    return '';
+  }
 }
 
 export async function getMemoriesSection(technicalLimit = 5, personalLimit = 44, charBudget = 1800): Promise<string> {
@@ -1236,14 +1248,15 @@ export function startTelegramBot(): void {
       }
 
       const voiceLocation = await getCurrentLocation();
-      const [memoriesSection, ambientCtx, dynProfile] = await Promise.all([
+      const [memoriesSection, ambientCtx, dynProfile, peopleSection] = await Promise.all([
         getMemoriesSection(llmMode === 'groq' ? 20 : 5),
         getAmbientContext(voiceLocation),
         getDynamicProfileSection(),
+        getPeopleSection(),
       ]);
       const voiceHistory = getSessionHistory(chatId);
       const response = await askClaude(transcription, await resolveLlmOptions({
-        systemPrompt: buildSystemPrompt(ambientCtx, memoriesSection, dynProfile),
+        systemPrompt: buildSystemPrompt(ambientCtx, memoriesSection, dynProfile, peopleSection),
         conversationHistory: voiceHistory,
       }));
       await sendVoiceReply(chatId, response);
@@ -1476,10 +1489,11 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
 
       // Contexto ambiental siempre activo: tiempo (ciudad actual), ubicación, agenda, tracker
       const currentLocation = await getCurrentLocation();
-      const [memoriesSection, ambientCtx, dynProfile] = await Promise.all([
+      const [memoriesSection, ambientCtx, dynProfile, peopleSection] = await Promise.all([
         getMemoriesSection(llmMode === 'groq' ? 20 : 5),
         getAmbientContext(currentLocation),
         getDynamicProfileSection(),
+        getPeopleSection(),
       ]);
 
       // Contexto adicional según keywords específicos
@@ -1538,7 +1552,7 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
       const conversationHistory = getSessionHistory(chatId);
 
       const response = await askClaude(text, await resolveLlmOptions({
-        systemPrompt: buildSystemPrompt(extraContext, memoriesSection, dynProfile),
+        systemPrompt: buildSystemPrompt(extraContext, memoriesSection, dynProfile, peopleSection),
         conversationHistory,
       }));
       await sendVoiceReply(chatId, response);

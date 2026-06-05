@@ -475,6 +475,53 @@
     .mem-load-more { width: 100%; background: none; border: 1px solid var(--border); border-radius: 8px; padding: 8px; color: var(--dim); font-size: 13px; cursor: pointer; margin-top: 6px; }
     .mem-load-more:hover { border-color: var(--blue); color: var(--blue); }
 
+    /* ── Personas ────────────────────────────────────────────────────────────── */
+    .person-card {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px; margin-bottom: 8px;
+    }
+    .person-card-top { display: flex; align-items: flex-start; gap: 8px; }
+    .person-avatar {
+      width: 36px; height: 36px; border-radius: 50%; background: var(--blue);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 700; color: #fff; flex-shrink: 0;
+    }
+    .person-info { flex: 1; }
+    .person-name  { font-size: 14px; font-weight: 600; color: var(--text); }
+    .person-meta  { font-size: 12px; color: var(--dim); margin-top: 2px; }
+    .person-desc  { font-size: 12px; color: var(--text); margin-top: 4px; }
+    .person-actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .person-notes { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; }
+    .person-note-tag {
+      font-size: 11px; padding: 2px 8px; border-radius: 10px;
+      background: var(--bg2); color: var(--dim);
+    }
+    .person-conexion {
+      font-size: 11px; padding: 2px 8px; border-radius: 10px;
+      background: rgba(74,158,255,0.12); color: var(--blue);
+    }
+    .rel-badge {
+      display: inline-block; font-size: 10px; padding: 2px 7px;
+      border-radius: 8px; font-weight: 600; margin-left: 6px;
+    }
+    .rel-pareja    { background: rgba(239,68,68,0.15);   color: #f87171; }
+    .rel-familiar  { background: rgba(245,158,11,0.15);  color: #fbbf24; }
+    .rel-amigo     { background: rgba(16,185,129,0.15);  color: #10b981; }
+    .rel-compañero { background: rgba(139,92,246,0.15);  color: #a78bfa; }
+    .rel-conocido  { background: rgba(107,114,128,0.15); color: #9ca3af; }
+    .rel-otro      { background: rgba(107,114,128,0.15); color: #9ca3af; }
+
+    .person-form {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px; margin-bottom: 10px;
+      display: none; flex-direction: column; gap: 8px;
+    }
+    .person-form.visible { display: flex; }
+    .person-form-row { display: flex; gap: 6px; }
+    .person-form-row .admin-input { flex: 1; }
+    .person-form-title { font-size: 12px; color: var(--dim); font-weight: 600; margin-bottom: 2px; }
+    .person-edit-form { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--border); padding-top: 8px; }
+
     /* ── Contraseña visible ─────────────────────────────────────────────────── */
     .pass-wrap { position: relative; display: flex; align-items: center; }
     .pass-wrap input { flex: 1; padding-right: 40px; }
@@ -570,6 +617,7 @@
   <!-- Tabs -->
   <div class="admin-tabs">
     <button class="admin-tab-btn active" id="tabBtnUsers"    data-tab="tabUsers">👥 Usuarios</button>
+    <button class="admin-tab-btn"        id="tabBtnPeople"   data-tab="tabPeople">👤 Personas</button>
     <button class="admin-tab-btn"        id="tabBtnMemories" data-tab="tabMemories">🧠 Memorias</button>
   </div>
 
@@ -592,6 +640,47 @@
       <div class="admin-feedback" id="adminFeedback"></div>
     </div>
     <button class="logout-btn" id="logoutBtn">Cerrar sesión</button>
+  </div>
+
+  <!-- Tab: Personas -->
+  <div class="admin-tab-content" id="tabPeople">
+
+    <!-- Formulario nueva persona -->
+    <div class="person-form" id="personCreateForm">
+      <div class="person-form-title">Nueva persona</div>
+      <div class="person-form-row">
+        <input class="admin-input" id="pNombre"    type="text" placeholder="Nombre *">
+        <select class="admin-select" id="pRelacion">
+          <option value="amigo">Amigo</option>
+          <option value="familiar">Familiar</option>
+          <option value="pareja">Pareja</option>
+          <option value="compañero">Compañero</option>
+          <option value="conocido">Conocido</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+      <input class="admin-input" id="pDescripcion" type="text" placeholder="Descripción breve (ej: amiga de infancia de Bilbao)">
+      <div class="person-form-row">
+        <input class="admin-input" id="pCumple"    type="text" placeholder="Cumpleaños DD-MM (ej: 15-08)">
+        <input class="admin-input" id="pUbicacion" type="text" placeholder="Dónde vive">
+      </div>
+      <div class="person-form-row">
+        <input class="admin-input" id="pTrabajo"   type="text" placeholder="Trabajo / profesión">
+        <input class="admin-input" id="pConexiones" type="text" placeholder="Conexiones (Ibon, Julen…)">
+      </div>
+      <input class="admin-input" id="pNotas" type="text" placeholder="Notas separadas por · (ej: le gusta el surf · vive en Madrid)">
+      <div class="mem-edit-actions">
+        <button class="btn-mem-save"   id="btnSaveNewPerson">Guardar</button>
+        <button class="btn-mem-cancel" id="btnCancelNewPerson">Cancelar</button>
+      </div>
+      <div class="admin-feedback" id="personCreateFeedback"></div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="admin-section-title" style="margin:0">Personas registradas</div>
+      <button class="btn-new-mem" id="btnNewPerson">+ Añadir</button>
+    </div>
+    <div id="peopleList"><div style="color:var(--dim);font-size:13px">Cargando…</div></div>
   </div>
 
   <!-- Tab: Memorias -->
@@ -942,7 +1031,177 @@
       btn.classList.add('active');
       document.getElementById(btn.dataset.tab).classList.add('active');
       if (btn.dataset.tab === 'tabMemories') loadMemories();
+      if (btn.dataset.tab === 'tabPeople')   loadPeople();
     });
+  });
+
+  // ── Personas ──────────────────────────────────────────────────────────────
+  const REL_LABELS = { pareja:'Pareja', familiar:'Familiar', amigo:'Amigo', compañero:'Compañero', conocido:'Conocido', otro:'Otro' };
+
+  function personAvatar(nombre) {
+    return (nombre || '?')[0].toUpperCase();
+  }
+
+  async function loadPeople() {
+    document.getElementById('peopleList').innerHTML = '<div style="color:var(--dim);font-size:13px">Cargando…</div>';
+    try {
+      const res  = await fetch(`${BAKO_URL}/api/people`, { headers: authHeaders() });
+      const data = await res.json();
+      renderPeople(data.people || []);
+    } catch {
+      document.getElementById('peopleList').innerHTML = '<div style="color:var(--red)">Error al cargar personas</div>';
+    }
+  }
+
+  function renderPeople(people) {
+    const list = document.getElementById('peopleList');
+    list.innerHTML = '';
+    if (!people.length) {
+      list.innerHTML = '<div style="color:var(--dim);font-size:13px;text-align:center;padding:16px">Sin personas registradas — añade la primera</div>';
+      return;
+    }
+    people.forEach(p => list.appendChild(buildPersonCard(p)));
+  }
+
+  function buildPersonCard(p) {
+    const card = document.createElement('div');
+    card.className = 'person-card';
+    card.id = 'person-' + p._id;
+
+    const cumple = p.cumpleaños ? `🎂 ${p.cumpleaños}` : '';
+    const loc    = p.ubicacion  ? `📍 ${p.ubicacion}`  : '';
+    const work   = p.trabajo    ? `💼 ${p.trabajo}`    : '';
+    const meta   = [cumple, loc, work].filter(Boolean).join(' · ');
+
+    const notesHtml = (p.notas || []).map(n => `<span class="person-note-tag">${escHtml(n)}</span>`).join('');
+    const connHtml  = (p.conexiones || []).map(c => `<span class="person-conexion">🔗 ${escHtml(c)}</span>`).join('');
+
+    card.innerHTML = `
+      <div class="person-card-top">
+        <div class="person-avatar">${personAvatar(p.nombre)}</div>
+        <div class="person-info">
+          <div class="person-name">${escHtml(p.nombre)}<span class="rel-badge rel-${p.relacion}">${REL_LABELS[p.relacion] || p.relacion}</span></div>
+          ${p.descripcion ? `<div class="person-desc">${escHtml(p.descripcion)}</div>` : ''}
+          ${meta ? `<div class="person-meta">${meta}</div>` : ''}
+        </div>
+        <div class="person-actions">
+          <button class="btn-mem-action edit" data-id="${p._id}" title="Editar">✏️</button>
+          <button class="btn-mem-action del"  data-id="${p._id}" title="Eliminar">🗑</button>
+        </div>
+      </div>
+      ${(notesHtml || connHtml) ? `<div class="person-notes">${notesHtml}${connHtml}</div>` : ''}
+    `;
+
+    card.querySelector('.edit').addEventListener('click', () => togglePersonEdit(p, card));
+    card.querySelector('.del').addEventListener('click',  () => deletePerson(p._id, card));
+    return card;
+  }
+
+  function togglePersonEdit(p, card) {
+    const existing = card.querySelector('.person-edit-form');
+    if (existing) { existing.remove(); return; }
+
+    const form = document.createElement('div');
+    form.className = 'person-edit-form';
+    form.innerHTML = `
+      <div class="person-form-row">
+        <input class="admin-input ep-nombre"    type="text" value="${escHtml(p.nombre)}" placeholder="Nombre">
+        <select class="admin-select ep-relacion">
+          ${['pareja','familiar','amigo','compañero','conocido','otro'].map(r =>
+            `<option value="${r}" ${p.relacion===r?'selected':''}>${REL_LABELS[r]}</option>`).join('')}
+        </select>
+      </div>
+      <input class="admin-input ep-desc"       type="text" value="${escHtml(p.descripcion||'')}" placeholder="Descripción breve">
+      <div class="person-form-row">
+        <input class="admin-input ep-cumple"    type="text" value="${escHtml(p.cumpleaños||'')}" placeholder="Cumpleaños DD-MM">
+        <input class="admin-input ep-ubicacion" type="text" value="${escHtml(p.ubicacion||'')}"  placeholder="Dónde vive">
+      </div>
+      <div class="person-form-row">
+        <input class="admin-input ep-trabajo"   type="text" value="${escHtml(p.trabajo||'')}"   placeholder="Trabajo">
+        <input class="admin-input ep-conexiones"type="text" value="${escHtml((p.conexiones||[]).join(', '))}" placeholder="Conexiones">
+      </div>
+      <input class="admin-input ep-notas" type="text" value="${escHtml((p.notas||[]).join(' · '))}" placeholder="Notas separadas por ·">
+      <div class="mem-edit-actions">
+        <button class="btn-mem-save ep-save">Guardar</button>
+        <button class="btn-mem-cancel ep-cancel">Cancelar</button>
+      </div>
+      <div class="admin-feedback ep-fb"></div>
+    `;
+    card.appendChild(form);
+
+    form.querySelector('.ep-cancel').addEventListener('click', () => form.remove());
+    form.querySelector('.ep-save').addEventListener('click', async () => {
+      const body = {
+        nombre:      form.querySelector('.ep-nombre').value.trim(),
+        relacion:    form.querySelector('.ep-relacion').value,
+        descripcion: form.querySelector('.ep-desc').value.trim(),
+        cumpleaños:  form.querySelector('.ep-cumple').value.trim(),
+        ubicacion:   form.querySelector('.ep-ubicacion').value.trim(),
+        trabajo:     form.querySelector('.ep-trabajo').value.trim(),
+        conexiones:  form.querySelector('.ep-conexiones').value.split(',').map(s=>s.trim()).filter(Boolean),
+        notas:       form.querySelector('.ep-notas').value.split('·').map(s=>s.trim()).filter(Boolean),
+      };
+      if (!body.nombre) return;
+      form.querySelector('.ep-save').disabled = true;
+      const res  = await fetch(`${BAKO_URL}/api/people/${p._id}`, {
+        method: 'PUT', headers: authHeaders(), body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        Object.assign(p, data.person);
+        const newCard = buildPersonCard(p);
+        card.replaceWith(newCard);
+      } else {
+        const fb = form.querySelector('.ep-fb');
+        fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
+        form.querySelector('.ep-save').disabled = false;
+      }
+    });
+  }
+
+  async function deletePerson(id, card) {
+    if (!confirm('¿Eliminar esta persona?')) return;
+    const res = await fetch(`${BAKO_URL}/api/people/${id}`, { method: 'DELETE', headers: authHeaders() });
+    if (res.ok) card.remove();
+  }
+
+  // Crear persona
+  document.getElementById('btnNewPerson').addEventListener('click', () => {
+    const f = document.getElementById('personCreateForm');
+    f.classList.toggle('visible');
+    if (f.classList.contains('visible')) document.getElementById('pNombre').focus();
+  });
+  document.getElementById('btnCancelNewPerson').addEventListener('click', () => {
+    document.getElementById('personCreateForm').classList.remove('visible');
+  });
+  document.getElementById('btnSaveNewPerson').addEventListener('click', async () => {
+    const nombre = document.getElementById('pNombre').value.trim();
+    const fb     = document.getElementById('personCreateFeedback');
+    if (!nombre) { fb.textContent = 'El nombre es obligatorio'; fb.className = 'admin-feedback err'; return; }
+    document.getElementById('btnSaveNewPerson').disabled = true;
+    const body = {
+      nombre,
+      relacion:    document.getElementById('pRelacion').value,
+      descripcion: document.getElementById('pDescripcion').value.trim(),
+      cumpleaños:  document.getElementById('pCumple').value.trim(),
+      ubicacion:   document.getElementById('pUbicacion').value.trim(),
+      trabajo:     document.getElementById('pTrabajo').value.trim(),
+      conexiones:  document.getElementById('pConexiones').value.split(',').map(s=>s.trim()).filter(Boolean),
+      notas:       document.getElementById('pNotas').value.split('·').map(s=>s.trim()).filter(Boolean),
+    };
+    try {
+      const res  = await fetch(`${BAKO_URL}/api/people`, { method:'POST', headers: authHeaders(), body: JSON.stringify(body) });
+      const data = await res.json();
+      if (res.ok) {
+        fb.textContent = `✓ ${data.person.nombre} añadido`; fb.className = 'admin-feedback ok';
+        ['pNombre','pDescripcion','pCumple','pUbicacion','pTrabajo','pConexiones','pNotas'].forEach(id => { document.getElementById(id).value = ''; });
+        setTimeout(() => { document.getElementById('personCreateForm').classList.remove('visible'); fb.textContent = ''; }, 1200);
+        await loadPeople();
+      } else {
+        fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
+      }
+    } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
+    finally { document.getElementById('btnSaveNewPerson').disabled = false; }
   });
 
   // ── Memorias — tiers ──────────────────────────────────────────────────────

@@ -632,6 +632,8 @@ class BakoDesktopApp:
                     frm.pack(fill='both', expand=True)
                     if name == 'memories':
                         load_memories()
+                    if name == 'people':
+                        load_people()
                 else:
                     btn.config(fg=self.t['dim'], relief='flat')
                     frm.pack_forget()
@@ -649,7 +651,8 @@ class BakoDesktopApp:
             return frm
 
         # ── Tab Usuarios ─────────────────────────────────────────────────────
-        users_tab = make_tab('users', '👥 Usuarios')
+        users_tab   = make_tab('users',    '👥 Usuarios')
+        _people_tab = make_tab('people',   '👤 Personas')  # noqa — usado en switch_tab
 
         def _scrollable(parent):
             c  = tk.Canvas(parent, bg=self.t['bg2'], highlightthickness=0)
@@ -765,8 +768,232 @@ class BakoDesktopApp:
                   bg=self.t['bg2'], fg=self.t['red'], relief='flat',
                   font=self.f_normal, pady=8, cursor='hand2').pack(fill='x', padx=10, pady=(0, 10))
 
+        # ── Tab Personas ─────────────────────────────────────────────────────
+        people_tab = make_tab('people', '👤 Personas')
+        p_inner    = _scrollable(people_tab)
+
+        REL_LABELS = {'pareja':'Pareja','familiar':'Familiar','amigo':'Amigo',
+                      'compañero':'Compañero','conocido':'Conocido','otro':'Otro'}
+        _all_people = []
+
+        # Toolbar personas
+        p_toolbar = tk.Frame(p_inner, bg=self.t['bg2'])
+        p_toolbar.pack(fill='x', padx=8, pady=(6, 4))
+        tk.Button(p_toolbar, text='+ Añadir persona', bg=self.t['accent'], fg=self.t['bg'],
+                  relief='flat', font=self.f_small, cursor='hand2',
+                  command=lambda: toggle_person_form()).pack(side='right')
+
+        p_list_frame = tk.Frame(p_inner, bg=self.t['bg2'])
+        p_list_frame.pack(fill='x', padx=8, pady=4)
+
+        # Formulario crear persona (oculto)
+        p_create_frame = tk.Frame(p_inner, bg=self.t['bg3'])
+        pf_visible = [False]
+        pf_vars = {k: tk.StringVar() for k in ['nombre','descripcion','cumpleaños','ubicacion','trabajo','conexiones','notas']}
+        pf_rel  = tk.StringVar(value='amigo')
+
+        def toggle_person_form():
+            pf_visible[0] = not pf_visible[0]
+            if pf_visible[0]:
+                p_create_frame.pack(fill='x', padx=8, pady=4, before=p_list_frame)
+                # focus first field
+            else:
+                p_create_frame.pack_forget()
+
+        tk.Label(p_create_frame, text='Nueva persona', font=self.f_small,
+                 bg=self.t['bg3'], fg=self.t['dim']).pack(anchor='w', padx=8, pady=(6,2))
+
+        for ph, key in [('Nombre *','nombre'),('Descripción breve','descripcion'),
+                        ('Cumpleaños DD-MM','cumpleaños'),('Dónde vive','ubicacion'),
+                        ('Trabajo/profesión','trabajo'),('Conexiones (separar por coma)','conexiones'),
+                        ('Notas (separar por ·)','notas')]:
+            tk.Entry(p_create_frame, textvariable=pf_vars[key], bg=self.t['bg2'], fg=self.t['text'],
+                     relief='flat', font=self.f_small, insertbackground=self.t['text'],
+                     width=44).pack(fill='x', padx=8, ipady=4, pady=1)
+
+        rel_frame = tk.Frame(p_create_frame, bg=self.t['bg3'])
+        rel_frame.pack(fill='x', padx=8, pady=2)
+        tk.Label(rel_frame, text='Relación:', bg=self.t['bg3'], fg=self.t['dim'],
+                 font=self.f_small).pack(side='left')
+        for lbl, val in REL_LABELS.items():
+            tk.Radiobutton(rel_frame, text=val, variable=pf_rel, value=lbl,
+                           bg=self.t['bg3'], fg=self.t['text'], selectcolor=self.t['bg2'],
+                           activebackground=self.t['bg3'], font=self.f_small).pack(side='left', padx=3)
+
+        pf_fb   = tk.Label(p_create_frame, text='', bg=self.t['bg3'], font=self.f_small)
+        pf_fb.pack()
+        pf_btns = tk.Frame(p_create_frame, bg=self.t['bg3'])
+        pf_btns.pack(fill='x', padx=8, pady=(2, 8))
+
+        def save_person():
+            nombre = pf_vars['nombre'].get().strip()
+            if not nombre: pf_fb.config(text='El nombre es obligatorio', fg=self.t['red']); return
+            body = {
+                'nombre':      nombre,
+                'relacion':    pf_rel.get(),
+                'descripcion': pf_vars['descripcion'].get().strip(),
+                'cumpleaños':  pf_vars['cumpleaños'].get().strip(),
+                'ubicacion':   pf_vars['ubicacion'].get().strip(),
+                'trabajo':     pf_vars['trabajo'].get().strip(),
+                'conexiones':  [c.strip() for c in pf_vars['conexiones'].get().split(',') if c.strip()],
+                'notas':       [n.strip() for n in pf_vars['notas'].get().split('·') if n.strip()],
+            }
+            def _req():
+                try:
+                    r = requests.post(f'{BAKO_URL}/api/people', json=body,
+                                      headers=self._get_headers(), timeout=10)
+                    if r.ok:
+                        for v in pf_vars.values(): v.set('')
+                        self.root.after(0, lambda: [pf_fb.config(text=f'✓ {nombre} añadido', fg=self.t['green']),
+                                                    load_people()])
+                    else:
+                        msg = r.json().get('error','Error')
+                        self.root.after(0, lambda: pf_fb.config(text=msg, fg=self.t['red']))
+                except Exception:
+                    self.root.after(0, lambda: pf_fb.config(text='Error de conexión', fg=self.t['red']))
+            threading.Thread(target=_req, daemon=True).start()
+
+        tk.Button(pf_btns, text='Guardar', command=save_person,
+                  bg=self.t['accent'], fg=self.t['bg'], relief='flat',
+                  font=self.f_small, pady=4, cursor='hand2').pack(side='left', padx=(0,6))
+        tk.Button(pf_btns, text='Cancelar', command=toggle_person_form,
+                  bg=self.t['bg3'], fg=self.t['dim'], relief='flat',
+                  font=self.f_small, pady=4, cursor='hand2').pack(side='left')
+
+        def load_people():
+            for w in p_list_frame.winfo_children(): w.destroy()
+            tk.Label(p_list_frame, text='Cargando…', fg=self.t['dim'],
+                     bg=self.t['bg2'], font=self.f_small).pack()
+            def _req():
+                try:
+                    r = requests.get(f'{BAKO_URL}/api/people', headers=self._get_headers(), timeout=10)
+                    people = r.json().get('people', []) if r.ok else []
+                    _all_people.clear(); _all_people.extend(people)
+                    self.root.after(0, lambda: render_people(people))
+                except Exception:
+                    pass
+            threading.Thread(target=_req, daemon=True).start()
+
+        def render_people(people):
+            for w in p_list_frame.winfo_children(): w.destroy()
+            if not people:
+                tk.Label(p_list_frame, text='Sin personas registradas', fg=self.t['dim'],
+                         bg=self.t['bg2'], font=self.f_small).pack(pady=12)
+                return
+            for p in people:
+                build_person_card(p)
+
+        def build_person_card(p):
+            card = tk.Frame(p_list_frame, bg=self.t['bg3'])
+            card.pack(fill='x', pady=3)
+
+            header = tk.Frame(card, bg=self.t['bg3'])
+            header.pack(fill='x', padx=10, pady=(8, 2))
+
+            rel_lbl = REL_LABELS.get(p.get('relacion',''), p.get('relacion',''))
+            name_text = f"{p['nombre']}  [{rel_lbl}]"
+            tk.Label(header, text=name_text, fg=self.t['text'],
+                     bg=self.t['bg3'], font=self.f_bold).pack(side='left')
+
+            actions = tk.Frame(header, bg=self.t['bg3'])
+            actions.pack(side='right')
+
+            def edit_person(person=p, c=card):
+                toggle_person_edit(person, c)
+            def del_person(pid=p['_id'], c=card):
+                if messagebox.askyesno('Confirmar', f'¿Eliminar a {p["nombre"]}?'):
+                    def _req():
+                        requests.delete(f'{BAKO_URL}/api/people/{pid}',
+                                        headers=self._get_headers(), timeout=10)
+                        self.root.after(0, load_people)
+                    threading.Thread(target=_req, daemon=True).start()
+
+            tk.Button(actions, text='✏️', bg=self.t['bg3'], fg=self.t['dim'], relief='flat',
+                      cursor='hand2', font=self.f_small, command=edit_person).pack(side='left')
+            tk.Button(actions, text='🗑', bg=self.t['bg3'], fg=self.t['dim'], relief='flat',
+                      cursor='hand2', font=self.f_small, command=del_person).pack(side='left')
+
+            # Meta info
+            meta_parts = []
+            if p.get('descripcion'): meta_parts.append(p['descripcion'])
+            if p.get('cumpleaños'): meta_parts.append(f"🎂 {p['cumpleaños']}")
+            if p.get('ubicacion'):  meta_parts.append(f"📍 {p['ubicacion']}")
+            if p.get('trabajo'):    meta_parts.append(f"💼 {p['trabajo']}")
+            if meta_parts:
+                tk.Label(card, text='  '.join(meta_parts), fg=self.t['dim'],
+                         bg=self.t['bg3'], font=self.f_small,
+                         wraplength=360, anchor='w').pack(fill='x', padx=10, pady=(0, 4))
+
+            if p.get('notas'):
+                tk.Label(card, text=' · '.join(p['notas']), fg=self.t['dim'],
+                         bg=self.t['bg3'], font=self.f_small,
+                         wraplength=360, anchor='w').pack(fill='x', padx=10, pady=(0, 6))
+
+        def toggle_person_edit(p, card):
+            existing = getattr(card, '_edit_frame', None)
+            if existing and existing.winfo_exists():
+                existing.destroy(); card._edit_frame = None; return
+
+            ef = tk.Frame(card, bg=self.t['bg2'])
+            ef.pack(fill='x', padx=10, pady=(0, 8))
+            card._edit_frame = ef
+
+            ev = {k: tk.StringVar() for k in ['nombre','descripcion','cumpleaños','ubicacion','trabajo','conexiones','notas']}
+            ev['nombre'].set(p.get('nombre',''))
+            ev['descripcion'].set(p.get('descripcion',''))
+            ev['cumpleaños'].set(p.get('cumpleaños',''))
+            ev['ubicacion'].set(p.get('ubicacion',''))
+            ev['trabajo'].set(p.get('trabajo',''))
+            ev['conexiones'].set(', '.join(p.get('conexiones',[])))
+            ev['notas'].set(' · '.join(p.get('notas',[])))
+            e_rel = tk.StringVar(value=p.get('relacion','amigo'))
+
+            for ph, key in [('Nombre','nombre'),('Descripción','descripcion'),
+                            ('Cumpleaños DD-MM','cumpleaños'),('Ubicación','ubicacion'),
+                            ('Trabajo','trabajo'),('Conexiones','conexiones'),('Notas (·)','notas')]:
+                tk.Entry(ef, textvariable=ev[key], bg=self.t['bg2'], fg=self.t['text'],
+                         relief='flat', font=self.f_small, insertbackground=self.t['text']).pack(fill='x', ipady=4, pady=1)
+
+            e_fb = tk.Label(ef, text='', bg=self.t['bg2'], font=self.f_small)
+            e_fb.pack()
+            e_btns = tk.Frame(ef, bg=self.t['bg2'])
+            e_btns.pack(fill='x', pady=(2,0))
+
+            def do_save():
+                body = {
+                    'nombre':      ev['nombre'].get().strip(),
+                    'relacion':    e_rel.get(),
+                    'descripcion': ev['descripcion'].get().strip(),
+                    'cumpleaños':  ev['cumpleaños'].get().strip(),
+                    'ubicacion':   ev['ubicacion'].get().strip(),
+                    'trabajo':     ev['trabajo'].get().strip(),
+                    'conexiones':  [c.strip() for c in ev['conexiones'].get().split(',') if c.strip()],
+                    'notas':       [n.strip() for n in ev['notas'].get().split('·') if n.strip()],
+                }
+                if not body['nombre']: return
+                def _req():
+                    try:
+                        r = requests.put(f'{BAKO_URL}/api/people/{p["_id"]}', json=body,
+                                         headers=self._get_headers(), timeout=10)
+                        if r.ok:
+                            p.update(r.json().get('person', {}))
+                            self.root.after(0, load_people)
+                        else:
+                            msg = r.json().get('error','Error')
+                            self.root.after(0, lambda: e_fb.config(text=msg, fg=self.t['red']))
+                    except Exception:
+                        self.root.after(0, lambda: e_fb.config(text='Error de conexión', fg=self.t['red']))
+                threading.Thread(target=_req, daemon=True).start()
+
+            tk.Button(e_btns, text='Guardar', command=do_save,
+                      bg=self.t['accent'], fg=self.t['bg'], relief='flat',
+                      font=self.f_small, pady=4, cursor='hand2').pack(side='left', padx=(0,6))
+            tk.Button(e_btns, text='Cancelar', command=ef.destroy,
+                      bg=self.t['bg2'], fg=self.t['dim'], relief='flat',
+                      font=self.f_small, pady=4, cursor='hand2').pack(side='left')
+
         # ── Tab Memorias ─────────────────────────────────────────────────────
-        mem_tab = make_tab('memories', '🧠 Memorias')
+        mem_tab     = make_tab('memories', '🧠 Memorias')
 
         SOCIAL_T  = {'familia','amigos','familia-politica','pareja','suegros','cuniada','cuniado','hermana','padre','madre','padres','yaimy','paula','julen','ibon','sofi','nati','elena','oscar','osvaldo'}
         PROJECT_T = {'bako','diamadmin','unyona','kefir','ai-personal-os','matrix-game','bohdeveloper','ingresos-pasivos','robotica','busqueda-empleo','proyectos'}
