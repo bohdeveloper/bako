@@ -118,40 +118,68 @@ router.delete('/memories/:id', async (req: Request, res: Response) => {
   res.json({ ok: true, deleted: req.params.id });
 });
 
-// POST /api/agent/migrate-memories — procesa memorias en lotes para evitar límites de payload del LLM
+// POST /api/agent/migrate-memories — procesa memorias en lotes, sanitiza enums, maneja errores
 router.post('/migrate-memories', async (_req: Request, res: Response) => {
   const { Memory }         = await import('../memory/Memory');
   const { Person }         = await import('../memory/Person');
   const { Project }        = await import('../memory/Project');
   const { KnowledgeEntry } = await import('../memory/KnowledgeEntry');
 
-  const memories = await Memory.find({}).sort({ importance: -1, createdAt: -1 });
+  let memories: any[];
+  try {
+    memories = await Memory.find({}).sort({ importance: -1, createdAt: -1 });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al leer memorias de MongoDB', detail: (err as Error).message });
+    return;
+  }
+
   if (!memories.length) {
     res.json({ ok: true, message: 'No hay memorias', people: 0, projects: 0, knowledge: 0 });
     return;
   }
 
+  // Valores válidos de enum por colección
+  const RELACIONES   = ['pareja','familiar','amigo','compañero','conocido','otro'];
+  const ESTADOS      = ['activo','diferido','completado','pausado','abandonado'];
+  const PRIORIDADES  = ['alta','media','baja'];
+  const CATEGORIAS   = ['salud','valores','caracter','finanzas','historia','rutina','objetivos','legal','hobbies','otro'];
+  const IMPORTANCIAS = ['alta','media','baja'];
+
+  const fixEnum = (v: any, valid: string[], fb: string) => {
+    const s = String(v || '').trim().toLowerCase();
+    return valid.includes(s) ? s : fb;
+  };
+
   const SCHEMA = `{"people":[{"nombre":"","relacion":"pareja|familiar|amigo|compañero|conocido|otro","descripcion":"","cumpleaños":"DD-MM","ubicacion":"","trabajo":"","notas":[],"conexiones":[]}],"projects":[{"nombre":"","slug":"kebab","tipo":"","estado":"activo|diferido|completado|pausado|abandonado","prioridad":"alta|media|baja","descripcion":"","siguiente_accion":"","stack":[],"horizonte":"","notas":[]}],"knowledge":[{"categoria":"salud|valores|caracter|finanzas|historia|rutina|objetivos|legal|hobbies|otro","clave":"snake_case","valor":"","detalles":[],"importancia":"alta|media|baja"}]}`;
 
-  // Procesar en lotes de 50 para no superar límites de payload de Groq
   const BATCH = 50;
-  const collected: { people: any[]; projects: any[]; knowledge: any[] } = { people: [], projects: [], knowledge: [] };
+  const col = { people: [] as any[], projects: [] as any[], knowledge: [] as any[] };
   let batchesOk = 0;
 
+  // Helper de merge sin genéricos TypeScript
+  const merge = (dest: any[], items: any[], getKey: (x: any) => string) => {
+    for (const item of (items || [])) {
+      const k = getKey(item)?.toString().trim().toLowerCase();
+      if (!k) continue;
+      const idx = dest.findIndex(x => getKey(x)?.toString().trim().toLowerCase() === k);
+      if (idx === -1) dest.push(item);
+      else if (JSON.stringify(item).length > JSON.stringify(dest[idx]).length) Object.assign(dest[idx], item);
+    }
+  };
+
   for (let i = 0; i < memories.length; i += BATCH) {
-    const batch = memories.slice(i, i + BATCH);
-    const batchNum = Math.floor(i / BATCH) + 1;
+    const batch      = memories.slice(i, i + BATCH);
+    const batchNum   = Math.floor(i / BATCH) + 1;
     const totalBatches = Math.ceil(memories.length / BATCH);
 
     const memList = batch
-      .map(m => `${(m.tags || []).slice(0, 3).join(',')}|${m.content.slice(0, 200)}`)
+      .map((m: any) => `${(m.tags || []).slice(0, 3).join(',')}|${String(m.content || '').slice(0, 200)}`)
       .join('\n');
 
-    const prompt = `Extrae datos estructurados de estas ${batch.length} memorias del sistema personal de Borja (lote ${batchNum}/${totalBatches}).
-Extrae SOLO lo explícito. Personas con nombre propio. Proyectos de software/negocio concretos. Conocimiento personal.
-Cumpleaños formato DD-MM. Slug en kebab-case. Clave en snake_case.
-Responde ÚNICAMENTE con JSON válido (arrays vacíos si no hay datos para esa colección):
-${SCHEMA}
+    const prompt = `Extrae datos estructurados de estas ${batch.length} memorias de Borja (lote ${batchNum}/${totalBatches}).
+Solo extrae lo explícito. Personas con nombre propio. Proyectos software/negocio. Conocimiento personal.
+Cumpleaños DD-MM. Slug kebab-case. Clave snake_case. Arrays vacíos si no hay datos.
+Responde ÚNICAMENTE JSON válido: ${SCHEMA}
 
 MEMORIAS:
 ${memList}`;
@@ -160,63 +188,64 @@ ${memList}`;
     try {
       raw = await askClaude(prompt, { useCloud: true, maxTokens: 2500, temperature: 0 });
     } catch (err) {
-      console.error(`Lote ${batchNum}/${totalBatches} falló:`, (err as Error).message);
+      console.error(`Lote ${batchNum}/${totalBatches} error LLM:`, (err as Error).message);
       continue;
     }
 
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) { console.warn(`Lote ${batchNum}: sin JSON`); continue; }
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (!m) { console.warn(`Lote ${batchNum}: sin JSON válido`); continue; }
 
-    let ext: { people?: any[]; projects?: any[]; knowledge?: any[] };
-    try { ext = JSON.parse(jsonMatch[0]); } catch { continue; }
+    let ext: any;
+    try { ext = JSON.parse(m[0]); } catch { console.warn(`Lote ${batchNum}: JSON parse error`); continue; }
 
-    // Merge — el mismo nombre/slug/clave de múltiples lotes se fusiona conservando el más completo
-    const mergeByKey = <T extends Record<string, any>>(col: T[], newItems: T[], key: (x: T) => string) => {
-      for (const item of newItems) {
-        if (!key(item)?.trim()) continue;
-        const k = key(item).trim().toLowerCase();
-        const idx = col.findIndex(x => key(x)?.trim().toLowerCase() === k);
-        if (idx === -1) col.push(item);
-        else if (JSON.stringify(item).length > JSON.stringify(col[idx]).length) Object.assign(col[idx], item);
-      }
-    };
-
-    mergeByKey(collected.people,    ext.people    || [], x => x.nombre);
-    mergeByKey(collected.projects,  ext.projects  || [], x => x.slug || x.nombre?.toLowerCase().replace(/\s+/g,'-'));
-    mergeByKey(collected.knowledge, ext.knowledge || [], x => x.clave);
+    merge(col.people,    ext.people,    (x: any) => x.nombre);
+    merge(col.projects,  ext.projects,  (x: any) => x.slug || String(x.nombre || '').toLowerCase().replace(/\s+/g, '-'));
+    merge(col.knowledge, ext.knowledge, (x: any) => x.clave);
     batchesOk++;
   }
 
-  // Insertar en Atlas — idempotente
-  let peopleCreated = 0, peopleSkipped = 0;
-  let projCreated   = 0, projSkipped   = 0;
-  let knowCreated   = 0, knowSkipped   = 0;
+  // Insertar en Atlas — idempotente + sanitización de enums + try/catch individual
+  let pC = 0, pS = 0, pE = 0;
+  let rC = 0, rS = 0, rE = 0;
+  let kC = 0, kS = 0, kE = 0;
 
-  for (const p of collected.people) {
+  for (const p of col.people) {
     if (!p.nombre?.trim()) continue;
-    const exists = await Person.findOne({ nombre: new RegExp(`^${p.nombre.trim()}$`, 'i') });
-    if (exists) { peopleSkipped++; } else { await Person.create(p); peopleCreated++; }
+    try {
+      const safe = { ...p, relacion: fixEnum(p.relacion, RELACIONES, 'conocido') };
+      const esc  = p.nombre.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const ok   = await Person.findOne({ nombre: new RegExp(`^${esc}$`, 'i') });
+      if (ok) { pS++; } else { await Person.create(safe); pC++; }
+    } catch (e) { console.error(`Person.create(${p.nombre}):`, (e as Error).message); pE++; }
   }
-  for (const p of collected.projects) {
+
+  for (const p of col.projects) {
     if (!p.nombre?.trim()) continue;
-    const slug = p.slug?.trim() || p.nombre.trim().toLowerCase().replace(/\s+/g, '-');
-    const exists = await Project.findOne({ slug });
-    if (exists) { projSkipped++; } else { await Project.create({ ...p, slug }); projCreated++; }
+    try {
+      const slug = (p.slug?.trim() || p.nombre.trim().toLowerCase().replace(/\s+/g, '-'));
+      const safe = { ...p, slug, estado: fixEnum(p.estado, ESTADOS, 'activo'), prioridad: fixEnum(p.prioridad, PRIORIDADES, 'media') };
+      const ok   = await Project.findOne({ slug });
+      if (ok) { rS++; } else { await Project.create(safe); rC++; }
+    } catch (e) { console.error(`Project.create(${p.nombre}):`, (e as Error).message); rE++; }
   }
-  for (const k of collected.knowledge) {
+
+  for (const k of col.knowledge) {
     if (!k.clave?.trim()) continue;
-    const exists = await KnowledgeEntry.findOne({ clave: k.clave.trim() });
-    if (exists) { knowSkipped++; } else { await KnowledgeEntry.create(k); knowCreated++; }
+    try {
+      const safe = { ...k, clave: k.clave.trim(), fuente: 'extracted', categoria: fixEnum(k.categoria, CATEGORIAS, 'otro'), importancia: fixEnum(k.importancia, IMPORTANCIAS, 'media') };
+      const ok   = await KnowledgeEntry.findOne({ clave: safe.clave });
+      if (ok) { kS++; } else { await KnowledgeEntry.create(safe); kC++; }
+    } catch (e) { console.error(`Knowledge.create(${k.clave}):`, (e as Error).message); kE++; }
   }
 
-  console.log(`🧠 migrate-memories: ${batchesOk} lotes ok · people +${peopleCreated} | projects +${projCreated} | knowledge +${knowCreated}`);
+  console.log(`🧠 migrate-memories: ${batchesOk}/${Math.ceil(memories.length / BATCH)} lotes ok · p+${pC}(e${pE}) r+${rC}(e${rE}) k+${kC}(e${kE})`);
   res.json({
     ok: true,
     memorias_leidas: memories.length,
     lotes: `${batchesOk}/${Math.ceil(memories.length / BATCH)}`,
-    people:    { created: peopleCreated, skipped: peopleSkipped, total: collected.people.length },
-    projects:  { created: projCreated,   skipped: projSkipped,   total: collected.projects.length },
-    knowledge: { created: knowCreated,   skipped: knowSkipped,   total: collected.knowledge.length },
+    people:    { created: pC, skipped: pS, errors: pE, total: col.people.length },
+    projects:  { created: rC, skipped: rS, errors: rE, total: col.projects.length },
+    knowledge: { created: kC, skipped: kS, errors: kE, total: col.knowledge.length },
   });
 });
 
