@@ -61,6 +61,80 @@ async function askGroq(messages: Message[], maxTokens?: number, temperature?: nu
   return data.choices[0]?.message?.content ?? 'Sin respuesta';
 }
 
+// ── Streaming ─────────────────────────────────────────────────────────────
+
+async function* streamOllama(messages: Message[], maxTokens?: number, temperature?: number): AsyncGenerator<string> {
+  const response = await axios.post(
+    `${OLLAMA_URL}/api/chat`,
+    { model: OLLAMA_MODEL, messages, stream: true, options: { num_ctx: 4096, ...(maxTokens ? { num_predict: maxTokens } : {}), ...(temperature !== undefined ? { temperature } : {}) } },
+    { responseType: 'stream', timeout: 60000 }
+  );
+  let buf = '';
+  for await (const raw of response.data as AsyncIterable<Buffer>) {
+    buf += raw.toString();
+    const lines = buf.split('\n');
+    buf = lines.pop() ?? '';
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const obj = JSON.parse(line);
+        if (obj.message?.content) yield obj.message.content as string;
+        if (obj.done) return;
+      } catch { /* skip */ }
+    }
+  }
+}
+
+async function* streamGroq(messages: Message[], maxTokens?: number, temperature?: number): AsyncGenerator<string> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error('GROQ_API_KEY no definido');
+  const response = await axios.post(
+    'https://api.groq.com/openai/v1/chat/completions',
+    { model: GROQ_MODEL, messages, stream: true, ...(maxTokens ? { max_tokens: maxTokens } : {}), temperature: temperature ?? 0.4 },
+    { headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }, responseType: 'stream', timeout: 60000 }
+  );
+  let buf = '';
+  for await (const raw of response.data as AsyncIterable<Buffer>) {
+    buf += raw.toString();
+    const lines = buf.split('\n');
+    buf = lines.pop() ?? '';
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t.startsWith('data: ')) continue;
+      const payload = t.slice(6);
+      if (payload === '[DONE]') return;
+      try {
+        const obj = JSON.parse(payload);
+        const content = obj.choices?.[0]?.delta?.content as string | undefined;
+        if (content) yield content;
+      } catch { /* skip */ }
+    }
+  }
+}
+
+export async function* askClaudeStream(
+  prompt: string,
+  options: AskClaudeOptions = {}
+): AsyncGenerator<string> {
+  const { systemPrompt, maxTokens, temperature, useCloud = false, private: isPrivate = false, conversationHistory } = options;
+  const messages: Message[] = [];
+  if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+  if (conversationHistory?.length) for (const m of conversationHistory) messages.push({ role: m.role, content: m.content });
+  messages.push({ role: 'user', content: prompt });
+
+  if (isPrivate) { yield* streamOllama(messages, maxTokens, temperature); console.log('🔒 BAKO stream: Ollama privado'); return; }
+  if (useCloud)  { yield* streamGroq(messages, maxTokens, temperature);   console.log('☁️  BAKO stream: Groq');         return; }
+
+  try {
+    yield* streamOllama(messages, maxTokens, temperature);
+    console.log('🏠 BAKO stream: Ollama (local)');
+  } catch {
+    console.warn('⚠️  Ollama stream no disponible → Groq...');
+    yield* streamGroq(messages, maxTokens, temperature);
+    console.log('☁️  BAKO stream: Groq (fallback)');
+  }
+}
+
 export async function isOllamaAvailable(): Promise<boolean> {
   try {
     await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 6000 });

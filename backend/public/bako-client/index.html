@@ -2583,35 +2583,30 @@
     if (e.key === 'Enter') { e.preventDefault(); sendTextInput(); }
   });
 
-  // ── Envío a BAKO ───────────────────────────────────────────────────────────
+  // ── Envío a BAKO (streaming SSE) ──────────────────────────────────────────
   async function sendMessage(text) {
     if (isCoolingDown()) return;
-
     await waitGapIfNeeded();
 
     addMessage('user', text);
     const loadingEl = addStatusMsg('⏳ BAKO está pensando…');
-    setMicState('processing');  // PRIMERO el estado, LUEGO deshabilitar UI
-    setUiEnabled(false);        // así setUiEnabled ve micState='processing' y deja el mic clickable
+    setMicState('processing');
+    setUiEnabled(false);
     setStatus('Enviando…', 'warn');
 
     currentController = new AbortController();
 
     try {
-      const res = await fetch(`${BAKO_URL}/api/desktop/text`, {
+      const res = await fetch(`${BAKO_URL}/api/desktop/stream`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ message: text }),
         signal: currentController.signal,
       });
-      currentController = null;
       lastRequestMs = Date.now();
       loadingEl.remove();
 
-      if (res.status === 401) {
-        doLogout();
-        return;
-      }
+      if (res.status === 401) { doLogout(); return; }
 
       if (res.status === 429) {
         const data = await res.json().catch(() => ({}));
@@ -2623,50 +2618,67 @@
 
       if (res.status === 413) {
         addStatusMsg('⚠️ El contexto es demasiado grande. Intenta de nuevo en un momento.');
-        setMicState('idle');
-        setUiEnabled(true);
-        setStatus('Listo');
+        setMicState('idle'); setUiEnabled(true); setStatus('Listo');
         return;
       }
-
-      const data = await res.json();
 
       if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
         addStatusMsg(`⚠️ ${data.error || 'Error del servidor'}`);
-        setMicState('idle');
-        setUiEnabled(true);
-        setStatus('Listo');
+        setMicState('idle'); setUiEnabled(true); setStatus('Listo');
         return;
       }
 
-      const responseText = stripMd(data.response || '');
-      if (responseText) addMessage('bako', responseText);
+      // Crear burbuja vacía e ir llenándola con los chunks
+      const msgDiv = addMessage('bako', '');
+      const bubble  = msgDiv.querySelector('.msg-bubble');
+      const reuseBtn = msgDiv.querySelector('.msg-reuse');
+      let fullText = '';
+      let sseBuf   = '';
 
-      if (data.audio) {
-        setMicState('playing');
-        setStatus('BAKO está hablando…', 'ok');
-        const bytes = atob(data.audio);
-        const arr   = new Uint8Array(bytes.length);
-        for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
-        const url = URL.createObjectURL(new Blob([arr], { type: 'audio/webm' }));
-        currentAudio = new Audio(url);
-        currentAudio.onended = () => { URL.revokeObjectURL(url); currentAudio = null; setMicState('idle'); setStatus('Listo'); setUiEnabled(true); };
-        currentAudio.onerror  = () => { currentAudio = null; setMicState('idle'); setUiEnabled(true); setStatus('Listo'); };
-        await currentAudio.play().catch(() => {});
-      } else {
-        setMicState('idle');
-        setUiEnabled(true);
-        setStatus('Listo');
+      setStatus('Respondiendo…', 'ok');
+
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      outer: while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        sseBuf += decoder.decode(value, { stream: true });
+        const lines = sseBuf.split('\n');
+        sseBuf = lines.pop() ?? '';
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6).trim();
+          if (payload === '[DONE]') break outer;
+          try {
+            const { chunk, error } = JSON.parse(payload);
+            if (error) { addStatusMsg(`⚠️ ${error}`); break outer; }
+            if (chunk) {
+              fullText += chunk;
+              bubble.textContent = stripMd(fullText);
+              chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
+          } catch { /* skip malformed */ }
+        }
       }
+
+      // Actualizar botón ↩ con el texto completo
+      if (reuseBtn && fullText) {
+        const final = stripMd(fullText);
+        reuseBtn.onclick = () => { textInput.value = final; textInput.focus(); };
+      }
+
+      currentController = null;
+      setMicState('idle');
+      setUiEnabled(true);
+      setStatus('Listo');
 
     } catch (err) {
       currentController = null;
       loadingEl?.remove();
-      if (err && err.name === 'AbortError') {
-        // Interrumpido por el usuario — no mostrar error
-        setMicState('idle');
-        setUiEnabled(true);
-        setStatus('Listo');
+      if (err?.name === 'AbortError') {
+        setMicState('idle'); setUiEnabled(true); setStatus('Listo');
         return;
       }
       addStatusMsg('⚠️ Sin conexión con BAKO');

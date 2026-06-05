@@ -9,7 +9,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import axios from 'axios';
 import FormData from 'form-data';
-import { askClaude, isOllamaAvailable } from '../llm/claude';
+import { askClaude, askClaudeStream, isOllamaAvailable } from '../llm/claude';
 import { generateVoiceBuffer, cleanForVoice } from '../tools/tts';
 import { getMemoriesSection, getDynamicProfileSection, getPeopleSection, getProjectsSection, getKnowledgeSection, buildSystemPrompt } from '../tools/telegram';
 import { getAmbientContext } from '../tools/context';
@@ -178,6 +178,47 @@ router.post('/text', async (req: Request, res: Response) => {
     if (isRateLimit(err))        { res.status(429).json({ error: 'Rate limit de Groq alcanzado.', rateLimited: true }); return; }
     if (isContextTooLarge(err))  { res.status(413).json({ error: 'Contexto demasiado grande. Intenta de nuevo.' }); return; }
     res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// POST /api/desktop/stream — SSE: texto aparece letra a letra en el cliente
+router.post('/stream', async (req: Request, res: Response) => {
+  const { message } = req.body;
+  if (!message) { res.status(400).json({ error: 'Se requiere campo "message"' }); return; }
+
+  try {
+    // Todo el trabajo previo antes de abrir el stream (permite devolver errores HTTP reales)
+    const action      = await tryExecuteAction(message);
+    const ollamaOk    = await getCachedOllamaStatus();
+    const systemPrompt = action ? '' : await getFullSystemPrompt(message);
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    if (action) {
+      res.write(`data: ${JSON.stringify({ chunk: action.text })}\n\n`);
+      res.write('data: [DONE]\n\n');
+      res.end();
+      return;
+    }
+
+    for await (const chunk of askClaudeStream(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud: !ollamaOk })) {
+      res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+    }
+    res.write('data: [DONE]\n\n');
+    res.end();
+
+  } catch (err) {
+    console.error('❌ Desktop /stream:', (err as Error).message);
+    if (!res.headersSent) {
+      if (isRateLimit(err))       { res.status(429).json({ error: 'Rate limit de Groq alcanzado.', rateLimited: true }); return; }
+      if (isContextTooLarge(err)) { res.status(413).json({ error: 'Contexto demasiado grande. Intenta de nuevo.' }); return; }
+      res.status(500).json({ error: (err as Error).message }); return;
+    }
+    res.write(`data: ${JSON.stringify({ error: 'Error generando respuesta' })}\n\n`);
+    res.end();
   }
 });
 
