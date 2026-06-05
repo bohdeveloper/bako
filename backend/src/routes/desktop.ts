@@ -11,7 +11,7 @@ import axios from 'axios';
 import FormData from 'form-data';
 import { askClaude } from '../llm/claude';
 import { generateVoiceBuffer, cleanForVoice } from '../tools/tts';
-import { getMemoriesSection, getDynamicProfileSection, getPeopleSection, buildSystemPrompt } from '../tools/telegram';
+import { getMemoriesSection, getDynamicProfileSection, getPeopleSection, getProjectsSection, getKnowledgeSection, buildSystemPrompt } from '../tools/telegram';
 import { getAmbientContext } from '../tools/context';
 import { getCurrentLocation } from '../tools/memory';
 import { tryExecuteAction } from '../tools/actions';
@@ -73,16 +73,18 @@ async function getEmailContext(message: string): Promise<string> {
 
 async function getFullSystemPrompt(message = ''): Promise<string> {
   const location = await getCurrentLocation();
-  const [memories, dynProfile, ambientCtx, emailCtx, people] = await Promise.all([
+  const [memories, dynProfile, ambientCtx, emailCtx, people, projects, knowledge] = await Promise.all([
     getMemoriesSection(5, 44, 1800),
     getDynamicProfileSection(),
     getAmbientContext(location),
     getEmailContext(message),
     getPeopleSection(),
+    getProjectsSection(),
+    getKnowledgeSection(),
   ]);
   const fullAmbient = ambientCtx + emailCtx;
-  const prompt = buildSystemPrompt(fullAmbient, memories, dynProfile, people);
-  console.log(`📊 Desktop prompt: ${prompt.length} chars | people: ${people.length} chars | memories: ${memories.length} chars`);
+  const prompt = buildSystemPrompt(fullAmbient, memories, dynProfile, people, projects, knowledge);
+  console.log(`📊 Desktop prompt: ${prompt.length} chars | people: ${people.length} chars | projects: ${projects.length} chars | knowledge: ${knowledge.length} chars | memories: ${memories.length} chars`);
   return prompt;
 }
 

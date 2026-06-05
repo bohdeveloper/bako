@@ -618,6 +618,8 @@
   <div class="admin-tabs">
     <button class="admin-tab-btn active" id="tabBtnUsers"    data-tab="tabUsers">👥 Usuarios</button>
     <button class="admin-tab-btn"        id="tabBtnPeople"   data-tab="tabPeople">👤 Personas</button>
+    <button class="admin-tab-btn"        id="tabBtnProjects" data-tab="tabProjects">🚀 Proyectos</button>
+    <button class="admin-tab-btn"        id="tabBtnKnow"     data-tab="tabKnow">📚 Conocimiento</button>
     <button class="admin-tab-btn"        id="tabBtnMemories" data-tab="tabMemories">🧠 Memorias</button>
   </div>
 
@@ -681,6 +683,103 @@
       <button class="btn-new-mem" id="btnNewPerson">+ Añadir</button>
     </div>
     <div id="peopleList"><div style="color:var(--dim);font-size:13px">Cargando…</div></div>
+  </div>
+
+  <!-- Tab: Proyectos -->
+  <div class="admin-tab-content" id="tabProjects">
+    <!-- Formulario nuevo proyecto -->
+    <div class="person-form" id="projCreateForm">
+      <div class="person-form-title">Nuevo proyecto</div>
+      <div class="person-form-row">
+        <input class="admin-input" id="prjNombre"    type="text" placeholder="Nombre *">
+        <input class="admin-input" id="prjSlug"      type="text" placeholder="Slug (bako, diamadmin…)">
+      </div>
+      <div class="person-form-row">
+        <select class="admin-select" id="prjEstado">
+          <option value="activo">Activo</option>
+          <option value="diferido">Diferido</option>
+          <option value="pausado">Pausado</option>
+          <option value="completado">Completado</option>
+          <option value="abandonado">Abandonado</option>
+        </select>
+        <select class="admin-select" id="prjPrioridad">
+          <option value="alta">Alta</option>
+          <option value="media" selected>Media</option>
+          <option value="baja">Baja</option>
+        </select>
+      </div>
+      <input class="admin-input" id="prjTipo"        type="text" placeholder="Tipo (SaaS, portfolio, hobby…)">
+      <input class="admin-input" id="prjDescripcion" type="text" placeholder="Descripción">
+      <input class="admin-input" id="prjSiguiente"   type="text" placeholder="Siguiente acción">
+      <input class="admin-input" id="prjStack"       type="text" placeholder="Stack (React, Node… separados por coma)">
+      <input class="admin-input" id="prjUrls"        type="text" placeholder="URLs (separadas por coma)">
+      <input class="admin-input" id="prjHorizonte"   type="text" placeholder="Horizonte (2026, post-Galicia…)">
+      <input class="admin-input" id="prjNotas"       type="text" placeholder="Notas separadas por · ">
+      <div class="mem-edit-actions">
+        <button class="btn-mem-save"   id="btnSaveNewProj">Guardar</button>
+        <button class="btn-mem-cancel" id="btnCancelNewProj">Cancelar</button>
+      </div>
+      <div class="admin-feedback" id="projCreateFeedback"></div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="admin-section-title" style="margin:0">Proyectos registrados</div>
+      <button class="btn-new-mem" id="btnNewProj">+ Añadir</button>
+    </div>
+    <div id="projectsList"><div style="color:var(--dim);font-size:13px">Cargando…</div></div>
+  </div>
+
+  <!-- Tab: Conocimiento -->
+  <div class="admin-tab-content" id="tabKnow">
+    <!-- Formulario nueva entrada -->
+    <div class="person-form" id="knowCreateForm">
+      <div class="person-form-title">Nueva entrada</div>
+      <div class="person-form-row">
+        <select class="admin-select" id="knwCategoria">
+          <option value="salud">🩺 Salud</option>
+          <option value="valores">⚖️ Valores</option>
+          <option value="caracter">🧠 Carácter</option>
+          <option value="finanzas">💰 Finanzas</option>
+          <option value="historia">📖 Historia</option>
+          <option value="rutina">🔄 Rutina</option>
+          <option value="objetivos">🎯 Objetivos</option>
+          <option value="legal">⚖️ Legal</option>
+          <option value="hobbies">🎮 Hobbies</option>
+          <option value="otro">📌 Otro</option>
+        </select>
+        <select class="admin-select" id="knwImportancia">
+          <option value="alta">Alta</option>
+          <option value="media" selected>Media</option>
+          <option value="baja">Baja</option>
+        </select>
+      </div>
+      <input class="admin-input" id="knwClave" type="text" placeholder="Clave (filosofia_base, ahorros_actuales…) *">
+      <input class="admin-input" id="knwValor" type="text" placeholder="Valor principal *">
+      <input class="admin-input" id="knwDetalles" type="text" placeholder="Detalles adicionales (separados por ·)">
+      <div class="mem-edit-actions">
+        <button class="btn-mem-save"   id="btnSaveNewKnow">Guardar</button>
+        <button class="btn-mem-cancel" id="btnCancelNewKnow">Cancelar</button>
+      </div>
+      <div class="admin-feedback" id="knowCreateFeedback"></div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <select class="mem-filter" id="knowFilterCat" style="flex:1;margin-right:8px">
+        <option value="">Todas las categorías</option>
+        <option value="salud">🩺 Salud</option>
+        <option value="valores">⚖️ Valores</option>
+        <option value="caracter">🧠 Carácter</option>
+        <option value="finanzas">💰 Finanzas</option>
+        <option value="historia">📖 Historia</option>
+        <option value="rutina">🔄 Rutina</option>
+        <option value="objetivos">🎯 Objetivos</option>
+        <option value="legal">⚖️ Legal</option>
+        <option value="hobbies">🎮 Hobbies</option>
+        <option value="otro">📌 Otro</option>
+      </select>
+      <button class="btn-new-mem" id="btnNewKnow">+ Añadir</button>
+    </div>
+    <div id="knowledgeList"><div style="color:var(--dim);font-size:13px">Cargando…</div></div>
   </div>
 
   <!-- Tab: Memorias -->
@@ -1030,8 +1129,10 @@
       document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById(btn.dataset.tab).classList.add('active');
-      if (btn.dataset.tab === 'tabMemories') loadMemories();
-      if (btn.dataset.tab === 'tabPeople')   loadPeople();
+      if (btn.dataset.tab === 'tabMemories')  loadMemories();
+      if (btn.dataset.tab === 'tabPeople')    loadPeople();
+      if (btn.dataset.tab === 'tabProjects')  loadProjects();
+      if (btn.dataset.tab === 'tabKnow')      loadKnowledge();
     });
   });
 
@@ -1202,6 +1303,343 @@
       }
     } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
     finally { document.getElementById('btnSaveNewPerson').disabled = false; }
+  });
+
+  // ── Proyectos ─────────────────────────────────────────────────────────────
+  const ESTADO_LABELS   = { activo:'✅ Activo', diferido:'⏸ Diferido', pausado:'⏸ Pausado', completado:'✔ Completado', abandonado:'✖ Abandonado' };
+  const PRIORIDAD_BADGE = { alta:'🔴', media:'🟡', baja:'🟢' };
+
+  async function loadProjects() {
+    document.getElementById('projectsList').innerHTML = '<div style="color:var(--dim);font-size:13px">Cargando…</div>';
+    try {
+      const res  = await fetch(`${BAKO_URL}/api/projects`, { headers: authHeaders() });
+      const data = await res.json();
+      renderProjects(data.projects || []);
+    } catch {
+      document.getElementById('projectsList').innerHTML = '<div style="color:var(--red)">Error al cargar proyectos</div>';
+    }
+  }
+
+  function renderProjects(projects) {
+    const list = document.getElementById('projectsList');
+    list.innerHTML = '';
+    if (!projects.length) {
+      list.innerHTML = '<div style="color:var(--dim);font-size:13px;text-align:center;padding:16px">Sin proyectos registrados — añade el primero</div>';
+      return;
+    }
+    projects.forEach(p => list.appendChild(buildProjectCard(p)));
+  }
+
+  function buildProjectCard(p) {
+    const card = document.createElement('div');
+    card.className = 'person-card';
+    card.id = 'project-' + p._id;
+
+    const estadoBadge    = ESTADO_LABELS[p.estado]   || p.estado;
+    const prioridadBadge = PRIORIDAD_BADGE[p.prioridad] || '';
+    const sigAcc = p.siguiente_accion ? `<div class="person-desc">→ ${escHtml(p.siguiente_accion)}</div>` : '';
+    const stackHtml = (p.stack || []).map(s => `<span class="person-note-tag">${escHtml(s)}</span>`).join('');
+    const notasHtml = (p.notas || []).map(n => `<span class="person-note-tag">${escHtml(n)}</span>`).join('');
+    const bloqHtml  = (p.bloqueantes || []).map(b => `<span class="person-note-tag" style="background:rgba(239,68,68,.15);color:var(--red)">⚠ ${escHtml(b)}</span>`).join('');
+    const horizon   = p.horizonte ? `<span style="color:var(--dim);font-size:11px">📅 ${escHtml(p.horizonte)}</span>` : '';
+
+    card.innerHTML = `
+      <div class="person-card-top">
+        <div class="person-avatar" style="font-size:20px;background:rgba(74,158,255,.1)">🚀</div>
+        <div class="person-info">
+          <div class="person-name">${escHtml(p.nombre)} ${prioridadBadge}<span class="rel-badge" style="background:rgba(74,158,255,.15);color:var(--blue)">${estadoBadge}</span></div>
+          ${p.tipo ? `<div class="person-desc" style="color:var(--dim)">${escHtml(p.tipo)}</div>` : ''}
+          ${p.descripcion ? `<div class="person-desc">${escHtml(p.descripcion)}</div>` : ''}
+          ${sigAcc}
+          ${horizon}
+        </div>
+        <div class="person-actions">
+          <button class="btn-mem-action edit" data-id="${p._id}" title="Editar">✏️</button>
+          <button class="btn-mem-action del"  data-id="${p._id}" title="Eliminar">🗑</button>
+        </div>
+      </div>
+      ${(stackHtml || notasHtml || bloqHtml) ? `<div class="person-notes">${bloqHtml}${stackHtml}${notasHtml}</div>` : ''}
+    `;
+
+    card.querySelector('.edit').addEventListener('click', () => toggleProjectEdit(p, card));
+    card.querySelector('.del').addEventListener('click',  () => deleteProject(p._id, card));
+    return card;
+  }
+
+  function toggleProjectEdit(p, card) {
+    const existing = card.querySelector('.person-edit-form');
+    if (existing) { existing.remove(); return; }
+    const form = document.createElement('div');
+    form.className = 'person-edit-form';
+    form.innerHTML = `
+      <div class="person-form-row">
+        <input class="admin-input ep-nombre"    type="text" value="${escHtml(p.nombre)}" placeholder="Nombre">
+        <input class="admin-input ep-slug"      type="text" value="${escHtml(p.slug||'')}" placeholder="Slug">
+      </div>
+      <div class="person-form-row">
+        <select class="admin-select ep-estado">
+          ${['activo','diferido','pausado','completado','abandonado'].map(s =>
+            `<option value="${s}" ${p.estado===s?'selected':''}>${ESTADO_LABELS[s]||s}</option>`).join('')}
+        </select>
+        <select class="admin-select ep-prioridad">
+          ${['alta','media','baja'].map(s =>
+            `<option value="${s}" ${p.prioridad===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <input class="admin-input ep-tipo"        type="text" value="${escHtml(p.tipo||'')}" placeholder="Tipo">
+      <input class="admin-input ep-descripcion" type="text" value="${escHtml(p.descripcion||'')}" placeholder="Descripción">
+      <input class="admin-input ep-siguiente"   type="text" value="${escHtml(p.siguiente_accion||'')}" placeholder="Siguiente acción">
+      <input class="admin-input ep-stack"       type="text" value="${escHtml((p.stack||[]).join(', '))}" placeholder="Stack (coma)">
+      <input class="admin-input ep-urls"        type="text" value="${escHtml((p.urls||[]).join(', '))}" placeholder="URLs (coma)">
+      <input class="admin-input ep-bloqueantes" type="text" value="${escHtml((p.bloqueantes||[]).join(', '))}" placeholder="Bloqueantes (coma)">
+      <input class="admin-input ep-horizonte"   type="text" value="${escHtml(p.horizonte||'')}" placeholder="Horizonte">
+      <input class="admin-input ep-notas"       type="text" value="${escHtml((p.notas||[]).join(' · '))}" placeholder="Notas (·)">
+      <div class="mem-edit-actions">
+        <button class="btn-mem-save ep-save">Guardar</button>
+        <button class="btn-mem-cancel ep-cancel">Cancelar</button>
+      </div>
+      <div class="admin-feedback ep-fb"></div>
+    `;
+    card.appendChild(form);
+    form.querySelector('.ep-cancel').addEventListener('click', () => form.remove());
+    form.querySelector('.ep-save').addEventListener('click', async () => {
+      const body = {
+        nombre:           form.querySelector('.ep-nombre').value.trim(),
+        slug:             form.querySelector('.ep-slug').value.trim(),
+        estado:           form.querySelector('.ep-estado').value,
+        prioridad:        form.querySelector('.ep-prioridad').value,
+        tipo:             form.querySelector('.ep-tipo').value.trim(),
+        descripcion:      form.querySelector('.ep-descripcion').value.trim(),
+        siguiente_accion: form.querySelector('.ep-siguiente').value.trim(),
+        stack:            form.querySelector('.ep-stack').value.split(',').map(s=>s.trim()).filter(Boolean),
+        urls:             form.querySelector('.ep-urls').value.split(',').map(s=>s.trim()).filter(Boolean),
+        bloqueantes:      form.querySelector('.ep-bloqueantes').value.split(',').map(s=>s.trim()).filter(Boolean),
+        horizonte:        form.querySelector('.ep-horizonte').value.trim(),
+        notas:            form.querySelector('.ep-notas').value.split('·').map(s=>s.trim()).filter(Boolean),
+      };
+      if (!body.nombre) return;
+      form.querySelector('.ep-save').disabled = true;
+      const res  = await fetch(`${BAKO_URL}/api/projects/${p._id}`, {
+        method: 'PUT', headers: authHeaders(), body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        Object.assign(p, data.project);
+        const newCard = buildProjectCard(p);
+        card.replaceWith(newCard);
+      } else {
+        const fb = form.querySelector('.ep-fb');
+        fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
+        form.querySelector('.ep-save').disabled = false;
+      }
+    });
+  }
+
+  async function deleteProject(id, card) {
+    if (!confirm('¿Eliminar este proyecto?')) return;
+    const res = await fetch(`${BAKO_URL}/api/projects/${id}`, { method: 'DELETE', headers: authHeaders() });
+    if (res.ok) card.remove();
+  }
+
+  document.getElementById('btnNewProj').addEventListener('click', () => {
+    const f = document.getElementById('projCreateForm');
+    f.classList.toggle('visible');
+    if (f.classList.contains('visible')) document.getElementById('prjNombre').focus();
+  });
+  document.getElementById('btnCancelNewProj').addEventListener('click', () => {
+    document.getElementById('projCreateForm').classList.remove('visible');
+  });
+  document.getElementById('btnSaveNewProj').addEventListener('click', async () => {
+    const nombre = document.getElementById('prjNombre').value.trim();
+    const fb     = document.getElementById('projCreateFeedback');
+    if (!nombre) { fb.textContent = 'El nombre es obligatorio'; fb.className = 'admin-feedback err'; return; }
+    document.getElementById('btnSaveNewProj').disabled = true;
+    const body = {
+      nombre,
+      slug:             document.getElementById('prjSlug').value.trim(),
+      estado:           document.getElementById('prjEstado').value,
+      prioridad:        document.getElementById('prjPrioridad').value,
+      tipo:             document.getElementById('prjTipo').value.trim(),
+      descripcion:      document.getElementById('prjDescripcion').value.trim(),
+      siguiente_accion: document.getElementById('prjSiguiente').value.trim(),
+      stack:            document.getElementById('prjStack').value.split(',').map(s=>s.trim()).filter(Boolean),
+      urls:             document.getElementById('prjUrls').value.split(',').map(s=>s.trim()).filter(Boolean),
+      horizonte:        document.getElementById('prjHorizonte').value.trim(),
+      notas:            document.getElementById('prjNotas').value.split('·').map(s=>s.trim()).filter(Boolean),
+    };
+    try {
+      const res  = await fetch(`${BAKO_URL}/api/projects`, { method:'POST', headers: authHeaders(), body: JSON.stringify(body) });
+      const data = await res.json();
+      if (res.ok) {
+        fb.textContent = `✓ ${data.project.nombre} añadido`; fb.className = 'admin-feedback ok';
+        ['prjNombre','prjSlug','prjTipo','prjDescripcion','prjSiguiente','prjStack','prjUrls','prjHorizonte','prjNotas'].forEach(id => { document.getElementById(id).value = ''; });
+        setTimeout(() => { document.getElementById('projCreateForm').classList.remove('visible'); fb.textContent = ''; }, 1200);
+        await loadProjects();
+      } else {
+        fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
+      }
+    } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
+    finally { document.getElementById('btnSaveNewProj').disabled = false; }
+  });
+
+  // ── Conocimiento ───────────────────────────────────────────────────────────
+  const KNOW_CAT_LABELS = { salud:'🩺 Salud', valores:'⚖️ Valores', caracter:'🧠 Carácter', finanzas:'💰 Finanzas', historia:'📖 Historia', rutina:'🔄 Rutina', objetivos:'🎯 Objetivos', legal:'⚖️ Legal', hobbies:'🎮 Hobbies', otro:'📌 Otro' };
+  const KNOW_IMP_BADGE  = { alta:'🔴', media:'🟡', baja:'🟢' };
+
+  async function loadKnowledge() {
+    document.getElementById('knowledgeList').innerHTML = '<div style="color:var(--dim);font-size:13px">Cargando…</div>';
+    const cat = document.getElementById('knowFilterCat').value;
+    const url = `${BAKO_URL}/api/knowledge${cat ? `?categoria=${cat}` : ''}`;
+    try {
+      const res  = await fetch(url, { headers: authHeaders() });
+      const data = await res.json();
+      renderKnowledge(data.entries || []);
+    } catch {
+      document.getElementById('knowledgeList').innerHTML = '<div style="color:var(--red)">Error al cargar conocimiento</div>';
+    }
+  }
+
+  function renderKnowledge(entries) {
+    const list = document.getElementById('knowledgeList');
+    list.innerHTML = '';
+    if (!entries.length) {
+      list.innerHTML = '<div style="color:var(--dim);font-size:13px;text-align:center;padding:16px">Sin entradas — añade la primera</div>';
+      return;
+    }
+    // Agrupar por categoría
+    const byCat = {};
+    for (const e of entries) {
+      if (!byCat[e.categoria]) byCat[e.categoria] = [];
+      byCat[e.categoria].push(e);
+    }
+    for (const [cat, items] of Object.entries(byCat)) {
+      const grp = document.createElement('div');
+      grp.style.cssText = 'margin-bottom:12px';
+      grp.innerHTML = `<div class="admin-section-title">${KNOW_CAT_LABELS[cat]||cat}</div>`;
+      items.forEach(e => grp.appendChild(buildKnowCard(e)));
+      list.appendChild(grp);
+    }
+  }
+
+  function buildKnowCard(e) {
+    const card = document.createElement('div');
+    card.className = 'person-card';
+    card.id = 'know-' + e._id;
+    const imp = KNOW_IMP_BADGE[e.importancia] || '';
+    const detHtml = (e.detalles||[]).map(d => `<span class="person-note-tag">${escHtml(d)}</span>`).join('');
+    card.innerHTML = `
+      <div class="person-card-top">
+        <div class="person-info">
+          <div class="person-name">${imp} ${escHtml(e.clave)}</div>
+          <div class="person-desc">${escHtml(e.valor)}</div>
+        </div>
+        <div class="person-actions">
+          <button class="btn-mem-action edit" data-id="${e._id}" title="Editar">✏️</button>
+          <button class="btn-mem-action del"  data-id="${e._id}" title="Eliminar">🗑</button>
+        </div>
+      </div>
+      ${detHtml ? `<div class="person-notes">${detHtml}</div>` : ''}
+    `;
+    card.querySelector('.edit').addEventListener('click', () => toggleKnowEdit(e, card));
+    card.querySelector('.del').addEventListener('click',  () => deleteKnow(e._id, card));
+    return card;
+  }
+
+  function toggleKnowEdit(e, card) {
+    const existing = card.querySelector('.person-edit-form');
+    if (existing) { existing.remove(); return; }
+    const form = document.createElement('div');
+    form.className = 'person-edit-form';
+    form.innerHTML = `
+      <div class="person-form-row">
+        <select class="admin-select ek-cat">
+          ${Object.entries(KNOW_CAT_LABELS).map(([v,l]) =>
+            `<option value="${v}" ${e.categoria===v?'selected':''}>${l}</option>`).join('')}
+        </select>
+        <select class="admin-select ek-imp">
+          ${['alta','media','baja'].map(s =>
+            `<option value="${s}" ${e.importancia===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+      </div>
+      <input class="admin-input ek-clave"    type="text" value="${escHtml(e.clave)}" placeholder="Clave *">
+      <input class="admin-input ek-valor"    type="text" value="${escHtml(e.valor)}" placeholder="Valor *">
+      <input class="admin-input ek-detalles" type="text" value="${escHtml((e.detalles||[]).join(' · '))}" placeholder="Detalles (·)">
+      <div class="mem-edit-actions">
+        <button class="btn-mem-save ek-save">Guardar</button>
+        <button class="btn-mem-cancel ek-cancel">Cancelar</button>
+      </div>
+      <div class="admin-feedback ek-fb"></div>
+    `;
+    card.appendChild(form);
+    form.querySelector('.ek-cancel').addEventListener('click', () => form.remove());
+    form.querySelector('.ek-save').addEventListener('click', async () => {
+      const body = {
+        categoria:   form.querySelector('.ek-cat').value,
+        importancia: form.querySelector('.ek-imp').value,
+        clave:       form.querySelector('.ek-clave').value.trim(),
+        valor:       form.querySelector('.ek-valor').value.trim(),
+        detalles:    form.querySelector('.ek-detalles').value.split('·').map(s=>s.trim()).filter(Boolean),
+      };
+      if (!body.clave || !body.valor) return;
+      form.querySelector('.ek-save').disabled = true;
+      const res  = await fetch(`${BAKO_URL}/api/knowledge/${e._id}`, {
+        method: 'PUT', headers: authHeaders(), body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        Object.assign(e, data.entry);
+        const newCard = buildKnowCard(e);
+        card.replaceWith(newCard);
+      } else {
+        const fb = form.querySelector('.ek-fb');
+        fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
+        form.querySelector('.ek-save').disabled = false;
+      }
+    });
+  }
+
+  async function deleteKnow(id, card) {
+    if (!confirm('¿Eliminar esta entrada?')) return;
+    const res = await fetch(`${BAKO_URL}/api/knowledge/${id}`, { method: 'DELETE', headers: authHeaders() });
+    if (res.ok) card.remove();
+  }
+
+  document.getElementById('knowFilterCat').addEventListener('change', loadKnowledge);
+
+  document.getElementById('btnNewKnow').addEventListener('click', () => {
+    const f = document.getElementById('knowCreateForm');
+    f.classList.toggle('visible');
+    if (f.classList.contains('visible')) document.getElementById('knwClave').focus();
+  });
+  document.getElementById('btnCancelNewKnow').addEventListener('click', () => {
+    document.getElementById('knowCreateForm').classList.remove('visible');
+  });
+  document.getElementById('btnSaveNewKnow').addEventListener('click', async () => {
+    const clave = document.getElementById('knwClave').value.trim();
+    const valor = document.getElementById('knwValor').value.trim();
+    const fb    = document.getElementById('knowCreateFeedback');
+    if (!clave || !valor) { fb.textContent = 'Clave y valor son obligatorios'; fb.className = 'admin-feedback err'; return; }
+    document.getElementById('btnSaveNewKnow').disabled = true;
+    const body = {
+      categoria:   document.getElementById('knwCategoria').value,
+      importancia: document.getElementById('knwImportancia').value,
+      clave,
+      valor,
+      detalles:    document.getElementById('knwDetalles').value.split('·').map(s=>s.trim()).filter(Boolean),
+    };
+    try {
+      const res  = await fetch(`${BAKO_URL}/api/knowledge`, { method:'POST', headers: authHeaders(), body: JSON.stringify(body) });
+      const data = await res.json();
+      if (res.ok) {
+        fb.textContent = `✓ ${data.entry.clave} guardado`; fb.className = 'admin-feedback ok';
+        ['knwClave','knwValor','knwDetalles'].forEach(id => { document.getElementById(id).value = ''; });
+        setTimeout(() => { document.getElementById('knowCreateForm').classList.remove('visible'); fb.textContent = ''; }, 1200);
+        await loadKnowledge();
+      } else {
+        fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
+      }
+    } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
+    finally { document.getElementById('btnSaveNewKnow').disabled = false; }
   });
 
   // ── Memorias — tiers ──────────────────────────────────────────────────────

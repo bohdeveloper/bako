@@ -17,10 +17,12 @@ import { saveMemory, getMemories, searchMemories, formatMemoriesForPrompt, forge
 import { buildDynamicProfileContext, updateProfileField, detectProfileUpdate, PROFILE_FIELDS } from './profileDynamic';
 import { Rule } from '../memory/Rule';
 import { Person, formatPersonForContext } from '../memory/Person';
+import { Project, formatProjectForContext } from '../memory/Project';
+import { KnowledgeEntry, formatKnowledgeForContext } from '../memory/KnowledgeEntry';
 import { tryExecuteAction } from './actions';
 import { getAmbientContext, invalidateCityWeatherCache, invalidateCalendarCache } from './context';
 
-export function buildSystemPrompt(extraContext = '', memoriesSection = '', dynamicProfileSection = '', peopleSection = ''): string {
+export function buildSystemPrompt(extraContext = '', memoriesSection = '', dynamicProfileSection = '', peopleSection = '', projectsSection = '', knowledgeSection = ''): string {
   const now   = nowInSpain();
   const hora  = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
   const fecha = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -70,7 +72,9 @@ CONTEXTO ACTUAL:
 ${extraContext}
 ${dynamicProfileSection ? `\n${dynamicProfileSection}\n` : ''}
 ${peopleSection ? `PERSONAS EN LA VIDA DEL SEÑOR (datos estructurados — fuente de verdad para cumpleaños, relaciones, ubicaciones):\n${peopleSection}\n` : ''}
-${memoriesSection ? `RECUERDOS DINÁMICOS (hechos, observaciones, estados — complementan las personas):\n${memoriesSection}\n` : ''}
+${projectsSection ? `PROYECTOS DEL SEÑOR (datos estructurados — fuente de verdad para estado, siguiente acción y bloqueantes):\n${projectsSection}\n` : ''}
+${knowledgeSection ? `CONOCIMIENTO PERSONAL DEL SEÑOR (datos estructurados — salud, valores, finanzas, historia, rutina, objetivos):\n${knowledgeSection}\n` : ''}
+${memoriesSection ? `RECUERDOS DINÁMICOS (hechos, observaciones, estados — complementan el perfil estructurado):\n${memoriesSection}\n` : ''}
 PERFIL BASE:
 ${JSON.stringify({
   identidad: BAKO_PROFILE.identidad,
@@ -92,6 +96,26 @@ export async function getPeopleSection(): Promise<string> {
     const people = await Person.find({ activo: true }).sort({ relacion: 1, nombre: 1 });
     if (!people.length) return '';
     return people.map(formatPersonForContext).join('\n');
+  } catch {
+    return '';
+  }
+}
+
+export async function getProjectsSection(): Promise<string> {
+  try {
+    const projects = await Project.find({ activo: true }).sort({ prioridad: 1, nombre: 1 });
+    if (!projects.length) return '';
+    return projects.map(formatProjectForContext).join('\n');
+  } catch {
+    return '';
+  }
+}
+
+export async function getKnowledgeSection(): Promise<string> {
+  try {
+    const entries = await KnowledgeEntry.find({ activo: true }).sort({ categoria: 1, importancia: 1 });
+    if (!entries.length) return '';
+    return formatKnowledgeForContext(entries);
   } catch {
     return '';
   }
@@ -1248,15 +1272,17 @@ export function startTelegramBot(): void {
       }
 
       const voiceLocation = await getCurrentLocation();
-      const [memoriesSection, ambientCtx, dynProfile, peopleSection] = await Promise.all([
+      const [memoriesSection, ambientCtx, dynProfile, peopleSection, projectsSection, knowledgeSection] = await Promise.all([
         getMemoriesSection(llmMode === 'groq' ? 20 : 5),
         getAmbientContext(voiceLocation),
         getDynamicProfileSection(),
         getPeopleSection(),
+        getProjectsSection(),
+        getKnowledgeSection(),
       ]);
       const voiceHistory = getSessionHistory(chatId);
       const response = await askClaude(transcription, await resolveLlmOptions({
-        systemPrompt: buildSystemPrompt(ambientCtx, memoriesSection, dynProfile, peopleSection),
+        systemPrompt: buildSystemPrompt(ambientCtx, memoriesSection, dynProfile, peopleSection, projectsSection, knowledgeSection),
         conversationHistory: voiceHistory,
       }));
       await sendVoiceReply(chatId, response);
@@ -1489,11 +1515,13 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
 
       // Contexto ambiental siempre activo: tiempo (ciudad actual), ubicación, agenda, tracker
       const currentLocation = await getCurrentLocation();
-      const [memoriesSection, ambientCtx, dynProfile, peopleSection] = await Promise.all([
+      const [memoriesSection, ambientCtx, dynProfile, peopleSection, projectsSection, knowledgeSection] = await Promise.all([
         getMemoriesSection(llmMode === 'groq' ? 20 : 5),
         getAmbientContext(currentLocation),
         getDynamicProfileSection(),
         getPeopleSection(),
+        getProjectsSection(),
+        getKnowledgeSection(),
       ]);
 
       // Contexto adicional según keywords específicos
@@ -1552,7 +1580,7 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
       const conversationHistory = getSessionHistory(chatId);
 
       const response = await askClaude(text, await resolveLlmOptions({
-        systemPrompt: buildSystemPrompt(extraContext, memoriesSection, dynProfile, peopleSection),
+        systemPrompt: buildSystemPrompt(extraContext, memoriesSection, dynProfile, peopleSection, projectsSection, knowledgeSection),
         conversationHistory,
       }));
       await sendVoiceReply(chatId, response);

@@ -634,6 +634,10 @@ class BakoDesktopApp:
                         load_memories()
                     if name == 'people':
                         load_people()
+                    if name == 'projects':
+                        load_projects()
+                    if name == 'knowledge':
+                        load_knowledge()
                 else:
                     btn.config(fg=self.t['dim'], relief='flat')
                     frm.pack_forget()
@@ -991,6 +995,342 @@ class BakoDesktopApp:
             tk.Button(e_btns, text='Cancelar', command=ef.destroy,
                       bg=self.t['bg2'], fg=self.t['dim'], relief='flat',
                       font=self.f_small, pady=4, cursor='hand2').pack(side='left')
+
+        # ── Tab Proyectos ────────────────────────────────────────────────────
+        projects_tab = make_tab('projects', '🚀 Proyectos')
+        pr_inner     = _scrollable(projects_tab)
+
+        ESTADO_LABELS  = {'activo':'✅ Activo','diferido':'⏸ Diferido','pausado':'⏸ Pausado','completado':'✔ Completado','abandonado':'✖ Abandonado'}
+        PRIORIDAD_LBL  = {'alta':'🔴 Alta','media':'🟡 Media','baja':'🟢 Baja'}
+        _all_projects  = []
+
+        pr_toolbar = tk.Frame(pr_inner, bg=self.t['bg2'])
+        pr_toolbar.pack(fill='x', padx=8, pady=(6, 4))
+        tk.Button(pr_toolbar, text='+ Añadir proyecto', bg=self.t['accent'], fg=self.t['bg'],
+                  relief='flat', font=self.f_small, cursor='hand2',
+                  command=lambda: toggle_proj_form()).pack(side='right')
+
+        pr_list_frame = tk.Frame(pr_inner, bg=self.t['bg2'])
+        pr_list_frame.pack(fill='x', padx=8, pady=4)
+
+        pr_create_frame = tk.Frame(pr_inner, bg=self.t['bg3'])
+        prf_visible = [False]
+        prf_vars = {k: tk.StringVar() for k in ['nombre','slug','tipo','descripcion','siguiente_accion','stack','urls','horizonte','notas']}
+        prf_estado    = tk.StringVar(value='activo')
+        prf_prioridad = tk.StringVar(value='media')
+
+        def toggle_proj_form():
+            prf_visible[0] = not prf_visible[0]
+            if prf_visible[0]:
+                pr_create_frame.pack(fill='x', padx=8, pady=4, before=pr_list_frame)
+            else:
+                pr_create_frame.pack_forget()
+
+        tk.Label(pr_create_frame, text='Nuevo proyecto', font=self.f_small,
+                 bg=self.t['bg3'], fg=self.t['dim']).pack(anchor='w', padx=8, pady=(6,2))
+
+        for ph, key in [('Nombre *','nombre'),('Slug (bako, diamadmin…)','slug'),
+                        ('Tipo (SaaS, portfolio, hobby…)','tipo'),
+                        ('Descripción','descripcion'),
+                        ('Siguiente acción','siguiente_accion'),
+                        ('Stack (React, Node… coma)','stack'),
+                        ('URLs (coma)','urls'),
+                        ('Horizonte (2026, post-Galicia)','horizonte'),
+                        ('Notas (separar por ·)','notas')]:
+            tk.Entry(pr_create_frame, textvariable=prf_vars[key], bg=self.t['bg2'], fg=self.t['text'],
+                     relief='flat', font=self.f_small, insertbackground=self.t['text'],
+                     width=44).pack(fill='x', padx=8, ipady=4, pady=1)
+
+        estado_frame = tk.Frame(pr_create_frame, bg=self.t['bg3'])
+        estado_frame.pack(fill='x', padx=8, pady=2)
+        tk.Label(estado_frame, text='Estado:', bg=self.t['bg3'], fg=self.t['dim'],
+                 font=self.f_small).pack(side='left')
+        for val, lbl in ESTADO_LABELS.items():
+            tk.Radiobutton(estado_frame, text=lbl, variable=prf_estado, value=val,
+                           bg=self.t['bg3'], fg=self.t['text'], selectcolor=self.t['bg2'],
+                           activebackground=self.t['bg3'], font=self.f_small).pack(side='left', padx=2)
+
+        prio_frame = tk.Frame(pr_create_frame, bg=self.t['bg3'])
+        prio_frame.pack(fill='x', padx=8, pady=2)
+        tk.Label(prio_frame, text='Prioridad:', bg=self.t['bg3'], fg=self.t['dim'],
+                 font=self.f_small).pack(side='left')
+        for val, lbl in PRIORIDAD_LBL.items():
+            tk.Radiobutton(prio_frame, text=lbl, variable=prf_prioridad, value=val,
+                           bg=self.t['bg3'], fg=self.t['text'], selectcolor=self.t['bg2'],
+                           activebackground=self.t['bg3'], font=self.f_small).pack(side='left', padx=2)
+
+        prf_fb   = tk.Label(pr_create_frame, text='', bg=self.t['bg3'], font=self.f_small)
+        prf_fb.pack()
+        prf_btns = tk.Frame(pr_create_frame, bg=self.t['bg3'])
+        prf_btns.pack(fill='x', padx=8, pady=(2, 8))
+
+        def save_project():
+            nombre = prf_vars['nombre'].get().strip()
+            if not nombre: prf_fb.config(text='El nombre es obligatorio', fg=self.t['red']); return
+            body = {
+                'nombre':           nombre,
+                'slug':             prf_vars['slug'].get().strip(),
+                'tipo':             prf_vars['tipo'].get().strip(),
+                'descripcion':      prf_vars['descripcion'].get().strip(),
+                'siguiente_accion': prf_vars['siguiente_accion'].get().strip(),
+                'stack':            [s.strip() for s in prf_vars['stack'].get().split(',') if s.strip()],
+                'urls':             [s.strip() for s in prf_vars['urls'].get().split(',') if s.strip()],
+                'horizonte':        prf_vars['horizonte'].get().strip(),
+                'notas':            [n.strip() for n in prf_vars['notas'].get().split('·') if n.strip()],
+                'estado':           prf_estado.get(),
+                'prioridad':        prf_prioridad.get(),
+            }
+            def _req():
+                try:
+                    r = requests.post(f'{BAKO_URL}/api/projects', json=body,
+                                      headers=self._get_headers(), timeout=10)
+                    if r.ok:
+                        for v in prf_vars.values(): v.set('')
+                        self.root.after(0, lambda: [prf_fb.config(text=f'✓ {nombre} añadido', fg=self.t['green']),
+                                                    load_projects()])
+                    else:
+                        msg = r.json().get('error','Error')
+                        self.root.after(0, lambda: prf_fb.config(text=msg, fg=self.t['red']))
+                except Exception:
+                    self.root.after(0, lambda: prf_fb.config(text='Error de conexión', fg=self.t['red']))
+            threading.Thread(target=_req, daemon=True).start()
+
+        tk.Button(prf_btns, text='Guardar', command=save_project,
+                  bg=self.t['accent'], fg=self.t['bg'], relief='flat',
+                  font=self.f_small, pady=4, cursor='hand2').pack(side='left', padx=(0,6))
+        tk.Button(prf_btns, text='Cancelar', command=toggle_proj_form,
+                  bg=self.t['bg3'], fg=self.t['dim'], relief='flat',
+                  font=self.f_small, pady=4, cursor='hand2').pack(side='left')
+
+        def load_projects():
+            for w in pr_list_frame.winfo_children(): w.destroy()
+            tk.Label(pr_list_frame, text='Cargando…', fg=self.t['dim'],
+                     bg=self.t['bg2'], font=self.f_small).pack()
+            def _req():
+                try:
+                    r = requests.get(f'{BAKO_URL}/api/projects', headers=self._get_headers(), timeout=10)
+                    projects = r.json().get('projects', []) if r.ok else []
+                    _all_projects.clear(); _all_projects.extend(projects)
+                    self.root.after(0, lambda: render_projects(projects))
+                except Exception:
+                    pass
+            threading.Thread(target=_req, daemon=True).start()
+
+        def render_projects(projects):
+            for w in pr_list_frame.winfo_children(): w.destroy()
+            if not projects:
+                tk.Label(pr_list_frame, text='Sin proyectos registrados', fg=self.t['dim'],
+                         bg=self.t['bg2'], font=self.f_small).pack(pady=12)
+                return
+            for p in projects:
+                build_project_card(p)
+
+        def build_project_card(p):
+            card = tk.Frame(pr_list_frame, bg=self.t['bg3'])
+            card.pack(fill='x', pady=3)
+            header = tk.Frame(card, bg=self.t['bg3'])
+            header.pack(fill='x', padx=10, pady=(8, 2))
+            estado_lbl = ESTADO_LABELS.get(p.get('estado',''), p.get('estado',''))
+            prio_lbl   = PRIORIDAD_LBL.get(p.get('prioridad',''), '')
+            name_text  = f"🚀 {p['nombre']}  {prio_lbl}  [{estado_lbl}]"
+            tk.Label(header, text=name_text, fg=self.t['text'],
+                     bg=self.t['bg3'], font=self.f_bold).pack(side='left')
+            actions = tk.Frame(header, bg=self.t['bg3'])
+            actions.pack(side='right')
+
+            def del_proj(pid=p['_id'], c=card, pname=p['nombre']):
+                if messagebox.askyesno('Confirmar', f'¿Eliminar {pname}?'):
+                    def _req():
+                        requests.delete(f'{BAKO_URL}/api/projects/{pid}',
+                                        headers=self._get_headers(), timeout=10)
+                        self.root.after(0, load_projects)
+                    threading.Thread(target=_req, daemon=True).start()
+
+            tk.Button(actions, text='🗑', bg=self.t['bg3'], fg=self.t['dim'], relief='flat',
+                      cursor='hand2', font=self.f_small, command=del_proj).pack(side='left')
+
+            meta_parts = []
+            if p.get('tipo'):             meta_parts.append(p['tipo'])
+            if p.get('descripcion'):      meta_parts.append(p['descripcion'])
+            if p.get('siguiente_accion'): meta_parts.append(f"→ {p['siguiente_accion']}")
+            if p.get('horizonte'):        meta_parts.append(f"📅 {p['horizonte']}")
+            if meta_parts:
+                tk.Label(card, text='  ·  '.join(meta_parts), fg=self.t['dim'],
+                         bg=self.t['bg3'], font=self.f_small,
+                         wraplength=360, anchor='w').pack(fill='x', padx=10, pady=(0, 6))
+
+        # ── Tab Conocimiento ─────────────────────────────────────────────────
+        know_tab  = make_tab('knowledge', '📚 Conocimiento')
+        kn_inner  = _scrollable(know_tab)
+
+        CAT_LABELS  = {'salud':'🩺 Salud','valores':'⚖️ Valores','caracter':'🧠 Carácter',
+                       'finanzas':'💰 Finanzas','historia':'📖 Historia','rutina':'🔄 Rutina',
+                       'objetivos':'🎯 Objetivos','legal':'⚖️ Legal','hobbies':'🎮 Hobbies','otro':'📌 Otro'}
+        IMP_BADGE   = {'alta':'🔴','media':'🟡','baja':'🟢'}
+        _all_know   = []
+
+        kn_toolbar = tk.Frame(kn_inner, bg=self.t['bg2'])
+        kn_toolbar.pack(fill='x', padx=8, pady=(6, 4))
+
+        kn_cat_var = tk.StringVar(value='')
+        cat_opts   = [('Todas','')] + list(CAT_LABELS.items())
+        kn_cat_menu = tk.OptionMenu(kn_toolbar, kn_cat_var,
+                                    *[v for _, v in cat_opts])
+        kn_cat_menu.config(bg=self.t['bg2'], fg=self.t['text'], relief='flat', font=self.f_small)
+        kn_cat_menu.pack(side='left')
+
+        tk.Button(kn_toolbar, text='+ Añadir', bg=self.t['accent'], fg=self.t['bg'],
+                  relief='flat', font=self.f_small, cursor='hand2',
+                  command=lambda: toggle_know_form()).pack(side='right')
+
+        kn_list_frame = tk.Frame(kn_inner, bg=self.t['bg2'])
+        kn_list_frame.pack(fill='x', padx=8, pady=4)
+
+        kn_create_frame = tk.Frame(kn_inner, bg=self.t['bg3'])
+        knf_visible = [False]
+        knf_vars = {k: tk.StringVar() for k in ['clave','valor','detalles']}
+        knf_cat  = tk.StringVar(value='salud')
+        knf_imp  = tk.StringVar(value='media')
+
+        def toggle_know_form():
+            knf_visible[0] = not knf_visible[0]
+            if knf_visible[0]:
+                kn_create_frame.pack(fill='x', padx=8, pady=4, before=kn_list_frame)
+            else:
+                kn_create_frame.pack_forget()
+
+        tk.Label(kn_create_frame, text='Nueva entrada de conocimiento', font=self.f_small,
+                 bg=self.t['bg3'], fg=self.t['dim']).pack(anchor='w', padx=8, pady=(6,2))
+
+        cat_frame2 = tk.Frame(kn_create_frame, bg=self.t['bg3'])
+        cat_frame2.pack(fill='x', padx=8, pady=2)
+        tk.Label(cat_frame2, text='Categoría:', bg=self.t['bg3'], fg=self.t['dim'],
+                 font=self.f_small).pack(side='left')
+        kn_cat_create_menu = tk.OptionMenu(cat_frame2, knf_cat, *list(CAT_LABELS.keys()))
+        kn_cat_create_menu.config(bg=self.t['bg2'], fg=self.t['text'], relief='flat', font=self.f_small)
+        kn_cat_create_menu.pack(side='left', padx=4)
+
+        imp_frame2 = tk.Frame(kn_create_frame, bg=self.t['bg3'])
+        imp_frame2.pack(fill='x', padx=8, pady=2)
+        tk.Label(imp_frame2, text='Importancia:', bg=self.t['bg3'], fg=self.t['dim'],
+                 font=self.f_small).pack(side='left')
+        for val in ['alta','media','baja']:
+            tk.Radiobutton(imp_frame2, text=val, variable=knf_imp, value=val,
+                           bg=self.t['bg3'], fg=self.t['text'], selectcolor=self.t['bg2'],
+                           activebackground=self.t['bg3'], font=self.f_small).pack(side='left', padx=3)
+
+        for ph, key in [('Clave * (filosofia_base, ahorros…)','clave'),
+                        ('Valor principal *','valor'),
+                        ('Detalles adicionales (separar por ·)','detalles')]:
+            tk.Entry(kn_create_frame, textvariable=knf_vars[key], bg=self.t['bg2'], fg=self.t['text'],
+                     relief='flat', font=self.f_small, insertbackground=self.t['text'],
+                     width=44).pack(fill='x', padx=8, ipady=4, pady=1)
+
+        knf_fb   = tk.Label(kn_create_frame, text='', bg=self.t['bg3'], font=self.f_small)
+        knf_fb.pack()
+        knf_btns = tk.Frame(kn_create_frame, bg=self.t['bg3'])
+        knf_btns.pack(fill='x', padx=8, pady=(2, 8))
+
+        def save_know():
+            clave = knf_vars['clave'].get().strip()
+            valor = knf_vars['valor'].get().strip()
+            if not clave or not valor:
+                knf_fb.config(text='Clave y valor son obligatorios', fg=self.t['red']); return
+            body = {
+                'categoria':   knf_cat.get(),
+                'importancia': knf_imp.get(),
+                'clave':       clave,
+                'valor':       valor,
+                'detalles':    [d.strip() for d in knf_vars['detalles'].get().split('·') if d.strip()],
+            }
+            def _req():
+                try:
+                    r = requests.post(f'{BAKO_URL}/api/knowledge', json=body,
+                                      headers=self._get_headers(), timeout=10)
+                    if r.ok:
+                        for v in knf_vars.values(): v.set('')
+                        self.root.after(0, lambda: [knf_fb.config(text=f'✓ {clave} guardado', fg=self.t['green']),
+                                                    load_knowledge()])
+                    else:
+                        msg = r.json().get('error','Error')
+                        self.root.after(0, lambda: knf_fb.config(text=msg, fg=self.t['red']))
+                except Exception:
+                    self.root.after(0, lambda: knf_fb.config(text='Error de conexión', fg=self.t['red']))
+            threading.Thread(target=_req, daemon=True).start()
+
+        tk.Button(knf_btns, text='Guardar', command=save_know,
+                  bg=self.t['accent'], fg=self.t['bg'], relief='flat',
+                  font=self.f_small, pady=4, cursor='hand2').pack(side='left', padx=(0,6))
+        tk.Button(knf_btns, text='Cancelar', command=toggle_know_form,
+                  bg=self.t['bg3'], fg=self.t['dim'], relief='flat',
+                  font=self.f_small, pady=4, cursor='hand2').pack(side='left')
+
+        def load_knowledge():
+            for w in kn_list_frame.winfo_children(): w.destroy()
+            tk.Label(kn_list_frame, text='Cargando…', fg=self.t['dim'],
+                     bg=self.t['bg2'], font=self.f_small).pack()
+            cat_filter = kn_cat_var.get()
+            url = f'{BAKO_URL}/api/knowledge'
+            if cat_filter:
+                url += f'?categoria={cat_filter}'
+            def _req():
+                try:
+                    r = requests.get(url, headers=self._get_headers(), timeout=10)
+                    entries = r.json().get('entries', []) if r.ok else []
+                    _all_know.clear(); _all_know.extend(entries)
+                    self.root.after(0, lambda: render_knowledge(entries))
+                except Exception:
+                    pass
+            threading.Thread(target=_req, daemon=True).start()
+
+        def render_knowledge(entries):
+            for w in kn_list_frame.winfo_children(): w.destroy()
+            if not entries:
+                tk.Label(kn_list_frame, text='Sin entradas registradas', fg=self.t['dim'],
+                         bg=self.t['bg2'], font=self.f_small).pack(pady=12)
+                return
+            # Agrupar por categoría
+            by_cat = {}
+            for e in entries:
+                by_cat.setdefault(e['categoria'], []).append(e)
+            for cat, items in by_cat.items():
+                cat_lbl = CAT_LABELS.get(cat, cat)
+                tk.Label(kn_list_frame, text=cat_lbl, fg=self.t['dim'],
+                         bg=self.t['bg2'], font=self.f_small).pack(anchor='w', padx=4, pady=(8,2))
+                for e in items:
+                    build_know_card(e)
+
+        def build_know_card(e):
+            card = tk.Frame(kn_list_frame, bg=self.t['bg3'])
+            card.pack(fill='x', pady=2)
+            header = tk.Frame(card, bg=self.t['bg3'])
+            header.pack(fill='x', padx=10, pady=(6, 2))
+            imp = IMP_BADGE.get(e.get('importancia',''), '')
+            tk.Label(header, text=f"{imp} {e['clave']}", fg=self.t['text'],
+                     bg=self.t['bg3'], font=self.f_bold).pack(side='left')
+            actions = tk.Frame(header, bg=self.t['bg3'])
+            actions.pack(side='right')
+
+            def del_know(kid=e['_id'], c=card, kclave=e['clave']):
+                if messagebox.askyesno('Confirmar', f'¿Eliminar {kclave}?'):
+                    def _req():
+                        requests.delete(f'{BAKO_URL}/api/knowledge/{kid}',
+                                        headers=self._get_headers(), timeout=10)
+                        self.root.after(0, load_knowledge)
+                    threading.Thread(target=_req, daemon=True).start()
+
+            tk.Button(actions, text='🗑', bg=self.t['bg3'], fg=self.t['dim'], relief='flat',
+                      cursor='hand2', font=self.f_small, command=del_know).pack(side='left')
+
+            tk.Label(card, text=e.get('valor',''), fg=self.t['dim'],
+                     bg=self.t['bg3'], font=self.f_small,
+                     wraplength=360, anchor='w').pack(fill='x', padx=10, pady=(0, 4))
+            if e.get('detalles'):
+                tk.Label(card, text=' · '.join(e['detalles']), fg=self.t['dim'],
+                         bg=self.t['bg3'], font=self.f_small,
+                         wraplength=360, anchor='w').pack(fill='x', padx=10, pady=(0, 6))
+
+        kn_cat_var.trace_add('write', lambda *_: load_knowledge())
 
         # ── Tab Memorias ─────────────────────────────────────────────────────
         mem_tab     = make_tab('memories', '🧠 Memorias')

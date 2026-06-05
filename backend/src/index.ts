@@ -10,6 +10,8 @@ import desktopRoutes from './routes/desktop';
 import bakoClientRoutes from './routes/bakoClient';
 import authRoutes  from './routes/auth';
 import peopleRoutes from './routes/people';
+import projectsRoutes from './routes/projects';
+import knowledgeRoutes from './routes/knowledge';
 import { startTelegramBot } from './tools/telegram';
 import { startProactivityService } from './services/ProactivityService';
 import { User } from './memory/User';
@@ -31,8 +33,10 @@ app.get('/ping', (_req, res) => {
 // Archivos estáticos del cliente web
 app.use('/bako-client', express.static(path.join(__dirname, '../public/bako-client')));
 
-app.use('/api/auth',    authRoutes);
-app.use('/api/people',  peopleRoutes);
+app.use('/api/auth',      authRoutes);
+app.use('/api/people',    peopleRoutes);
+app.use('/api/projects',  projectsRoutes);
+app.use('/api/knowledge', knowledgeRoutes);
 app.use('/api/agent',   requireAuth, agentRoutes);
 app.use('/api/desktop', desktopRoutes);
 app.use('/bako-client', bakoClientRoutes);
