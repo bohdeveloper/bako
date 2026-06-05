@@ -92,6 +92,9 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | System prompt optimizado — eliminado BAKO_PROFILE JSON redundante, budget proyectos 3000 chars | ✅ |
 | PWA — limpiar chat clicando en BAKO (con confirmación), sin subtítulo "MAYORDOMO PERSONAL" | ✅ |
 | Panel admin v2 — 5 columnas desktop, navbar z-index, mobile wrap, textareas, texto seleccionable | ✅ |
+| Badge LLM en navbar — Ollama (teal) o Groq (amarillo), refresco cada 60s | ✅ |
+| Desktop optimizado — llama3.2:3b, prompt compacto para Ollama (sin Knowledge, budget reducido), num_ctx 2048, timeout 45s | ✅ |
+| Embeddings semánticos — nomic-embed-text (Ollama) + bge-small-en-v1.5 (Cloudflare Workers AI fallback), cosine similarity en Node.js | ✅ |
 
 ---
 
@@ -100,10 +103,11 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | Tarea | Estado |
 |---|---|
 | Ollama autostart en inicio de sesión | ✅ Vía Ollama.lnk en carpeta Startup |
-| Cloudflare Tunnel bako-ollama | ✅ Task Scheduler arranca cloudflared al login |
+| Cloudflare Tunnel bako-ollama | ✅ Task Scheduler "BAKO-Ollama-Tunnel" — `Start-ScheduledTask -TaskName "BAKO-Ollama-Tunnel"` |
 | Render usa Ollama local vía túnel | ✅ OLLAMA_URL=https://ollama.bohdeveloper.com |
-| Fallback automático a Groq si PC apagado | ✅ isOllamaAvailable() con timeout 3s |
+| Fallback automático a Groq si PC apagado | ✅ isOllamaAvailable() timeout 6s + askOllama timeout 45s |
 | Selector manual de LLM | ✅ /llm ollama\|groq\|auto + lenguaje natural |
+| Modelo Ollama chat | ✅ llama3.2:3b (2GB, ~5-6s respuesta) — antes qwen2.5-coder:7b (4.7GB, ~50s) |
 
 ---
 
@@ -111,7 +115,7 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 
 | Servicio | Plan | Límite | Cuándo aplica |
 |---|---|---|---|
-| **Ollama** (qwen2.5-coder:7b) | Local | Sin límites | PC encendido |
+| **Ollama** (llama3.2:3b) | Local | Sin límites | PC encendido |
 | **Groq Chat** (llama-3.1-8b-instant) | Free | 20.000 tokens/min · 14.400 req/día · reset 01:00h España | PC apagado |
 | **Groq Whisper** (voz→texto) | Free | 20 req/min · ~33 min audio/día · reset 01:00h España | PC apagado |
 | **Cloudflare D1** | Free | 5M lecturas/día · 100K escrituras/día | Siempre |
@@ -524,10 +528,13 @@ El sistema de tiers desaparece o se simplifica enormemente: en lugar de cargar l
   - Solo queda 1 línea de identidad; People/Projects/Knowledge cubren todo lo demás
   - `getProjectsSection()` con charBudget=3000 chars; notas limitadas a 4 por proyecto
 
-**Fase 7b-B — Embeddings semánticos ❌ Pendiente**
-- Ollama `nomic-embed-text` al guardar cada memoria
-- Fallback: Cloudflare Workers AI (100k inferencias/día)
-- Campo `embedding: Float[]` en MongoDB
+**Fase 7b-B — Embeddings semánticos ✅ Completado (junio 2026)**
+- ✅ Ollama `nomic-embed-text` (768 dims) al guardar cada memoria — background, no bloquea respuesta
+- ✅ Fallback: Cloudflare Workers AI `bge-small-en-v1.5` (384 dims, 100k/día)
+- ✅ Campo `embedding: Float[]` + `embeddingDim` + `embeddingModel` en MongoDB `Memory`
+- ✅ `searchMemories()` usa similitud coseno en Node.js — fallback keyword si <3 candidatos
+- ✅ Endpoint `POST /api/agent/embed-memories` — backfill memorias existentes sin embedding
+- ✅ Botón "Generar embeddings" en panel admin
 
 **Fase 7b-C — Búsqueda semántica ❌ Pendiente**
 - Similitud coseno en Node.js (sin Qdrant)
@@ -698,7 +705,7 @@ Agentes especializados trabajando en paralelo. Patrón ReAct (Reason + Act) — 
 | Base de datos | MongoDB Atlas | MongoDB + vector DB (Qdrant) |
 | Portfolio DB | Cloudflare D1 (Tracker, Blog) | Cloudflare D1 expandido |
 | LLM cloud | Groq (Llama 3.3) | Groq + modelo fine-tuneado |
-| LLM local | Ollama qwen2.5-coder | Llama 3.2 fine-tuneado |
+| LLM local | Ollama llama3.2:3b | Llama 3.2 fine-tuneado |
 | Voz salida | msedge-tts AlvaroNeural | Modelo TTS propio |
 | Voz entrada | Whisper (Groq) | Whisper local |
 | Wake word | — | OpenWakeWord |
