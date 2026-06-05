@@ -245,6 +245,102 @@ ${memList}`;
     else Object.assign(col.people[idx], pp); // profile sobrescribe al LLM
   }
 
+  // Complementar con proyectos de profile.ts — fuente autoritativa (sin LLM)
+  const profileProjects: any[] = [
+    {
+      nombre: "BAKO (Borja's Autonomous Knowledge Operator)",
+      slug: 'bako',
+      tipo: 'Asistente personal IA',
+      estado: 'activo',
+      prioridad: 'alta',
+      descripcion: 'Sistema operativo personal con IA — asistente autónomo, voz, Telegram, GitHub. Visión final: mayordomo digital con presencia física robótica (JARVIS).',
+      stack: ['Node.js', 'TypeScript', 'Express', 'MongoDB', 'Ollama', 'Groq', 'Render'],
+      urls: ['https://ai-personal-os.onrender.com'],
+      horizonte: 'En producción — evolución continua hacia robótica',
+    },
+    {
+      nombre: 'bohdeveloper.com',
+      slug: 'bohdeveloper',
+      tipo: 'Portfolio personal',
+      estado: 'activo',
+      prioridad: 'alta',
+      descripcion: 'Portfolio personal y hub de herramientas privadas. Incluye Tracker diario y blog. Objetivo: conseguir clientes freelance.',
+      stack: ['Next.js', 'Cloudflare Pages', 'Cloudflare D1'],
+      urls: ['bohdeveloper.com'],
+      horizonte: 'Desarrollo continuo',
+    },
+    {
+      nombre: 'Diamadmin',
+      slug: 'diamadmin',
+      tipo: 'SaaS propio',
+      estado: 'activo',
+      prioridad: 'alta',
+      descripcion: 'SaaS propio con roadmap definido.',
+      stack: ['Angular', 'Spring Boot', 'PostgreSQL'],
+      urls: ['app.diamadmin.com', 'diamadmin.com'],
+      siguiente_accion: 'Llegar a producción con usuarios reales de pago',
+    },
+    {
+      nombre: 'Unyona',
+      slug: 'unyona',
+      tipo: 'SaaS en validación',
+      estado: 'activo',
+      prioridad: 'media',
+      descripcion: 'Landing para capturar leads antes de construir el producto.',
+      urls: ['unyona.com'],
+      siguiente_accion: 'Validar demanda real antes de invertir en desarrollo',
+    },
+    {
+      nombre: 'Nitflex',
+      slug: 'nitflex',
+      tipo: 'App streaming — proyecto portfolio',
+      estado: 'pausado',
+      prioridad: 'baja',
+      descripcion: 'Plataforma de streaming personal. Home screen funcionando — no prioritario.',
+      stack: ['React', 'TypeScript', 'Express', 'MongoDB', 'TMDB API'],
+    },
+    {
+      nombre: 'Drones FPV y cinematografía aérea',
+      slug: 'drones-fpv',
+      tipo: 'Hobby personal',
+      estado: 'diferido',
+      prioridad: 'baja',
+      descripcion: 'Aprender a pilotar drones FPV y hacer cinematografía aérea 4K en entornos naturales de Galicia.',
+      horizonte: 'Post-mudanza a Galicia (finales 2026 o posterior)',
+      notas: ['Ruta: Simulador Liftoff → licencia A2 AESA → primer drone 5"', 'Presupuesto fase 1: ~2.000-2.500€ escalonado'],
+    },
+    {
+      nombre: 'Matrix Game',
+      slug: 'matrix-game',
+      tipo: 'Videojuego open-world',
+      estado: 'diferido',
+      prioridad: 'baja',
+      descripcion: 'GTA V + Cyberpunk + Matrix lore. Mundo 5km², 200+ NPCs, economía funcional, facciones. Engine: Unreal Engine 5.',
+      stack: ['Unreal Engine 5', 'C++', 'Blender', 'FMOD'],
+      horizonte: '4-6 años, post-Galicia',
+    },
+    {
+      nombre: 'Proyecto Kefir Artesanal',
+      slug: 'kefir-artesanal',
+      tipo: 'Negocio artesanal + e-commerce',
+      estado: 'diferido',
+      prioridad: 'media',
+      descripcion: 'Productor y vendedor de kefir artesanal en Galicia. Venta directa + suscripción recurrente semanal/quincenal.',
+      stack: ['Next.js', 'PostgreSQL', 'Stripe'],
+      horizonte: 'Post-mudanza a Galicia (finales 2026 o posterior)',
+      notas: ['Objetivo: 1.500-2.500€/mes complementarios en 6-12 meses desde lanzamiento', 'Tiene hongo kéfir activo creciendo en casa'],
+    },
+  ];
+
+  // Fusionar profile > LLM: profile.ts es autoritativo para proyectos conocidos
+  for (const pp of profileProjects) {
+    const k = (pp.slug || '').trim().toLowerCase();
+    if (!k) continue;
+    const idx = col.projects.findIndex((x: any) => (x.slug || '').trim().toLowerCase() === k);
+    if (idx === -1) col.projects.push(pp);
+    else Object.assign(col.projects[idx], pp);
+  }
+
   // Insertar en Atlas — idempotente + sanitización de enums + try/catch individual
   let pC = 0, pS = 0, pE = 0;
   let rC = 0, rS = 0, rE = 0;

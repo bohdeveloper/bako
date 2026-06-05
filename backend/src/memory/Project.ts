@@ -47,13 +47,18 @@ const ProjectSchema = new Schema<IProject>(
 export const Project = mongoose.model<IProject>('Project', ProjectSchema);
 
 export function formatProjectForContext(p: IProject): string {
-  const parts: string[] = [`${p.nombre} (${p.estado})`];
-  if (p.tipo)             parts.push(p.tipo);
-  if (p.descripcion)      parts.push(p.descripcion);
-  if (p.siguiente_accion) parts.push(`siguiente: ${p.siguiente_accion}`);
-  if (p.bloqueantes?.length) parts.push(`bloqueantes: ${p.bloqueantes.join(', ')}`);
-  if (p.stack?.length)    parts.push(`stack: ${p.stack.join(', ')}`);
-  if (p.horizonte)        parts.push(`horizonte: ${p.horizonte}`);
-  if (p.notas?.length)    parts.push(p.notas.join('. '));
-  return parts.join(' — ');
+  const estadoLabel: Record<string, string> = {
+    activo: 'activo', diferido: 'diferido', completado: 'completado',
+    pausado: 'pausado', abandonado: 'abandonado',
+  };
+  let frase = `${p.nombre} es un proyecto ${p.tipo ? `de tipo ${p.tipo} ` : ''}actualmente ${estadoLabel[p.estado] || p.estado}`;
+  if (p.descripcion) frase += `. ${p.descripcion}`;
+  const detalles: string[] = [];
+  if (p.siguiente_accion) detalles.push(`la siguiente acción es ${p.siguiente_accion}`);
+  if (p.bloqueantes?.length) detalles.push(`tiene bloqueantes: ${p.bloqueantes.join(', ')}`);
+  if (p.stack?.length) detalles.push(`stack: ${p.stack.join(', ')}`);
+  if (p.horizonte) detalles.push(`horizonte ${p.horizonte}`);
+  if (detalles.length) frase += '. ' + detalles.join('; ') + '.';
+  if (p.notas?.length) frase += ' ' + p.notas.join('. ') + '.';
+  return frase;
 }
