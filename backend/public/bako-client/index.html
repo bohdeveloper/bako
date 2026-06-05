@@ -343,7 +343,7 @@
       transform: translateX(100%); transition: transform 0.3s cubic-bezier(.4,0,.2,1);
     }
     .admin-panel.visible { transform: translateX(0); }
-    .admin-body { flex: 1; overflow-y: auto; padding: 16px 24px 40px; }
+    .admin-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 24px 40px; }
     .admin-header {
       display: flex; align-items: center; gap: 12px;
       padding: 14px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
@@ -635,44 +635,59 @@
 
     /* ── Admin: desktop layout ───────────────────────────────────────────────── */
     @media (min-width: 768px) {
-      /* Header stays visible via z-index; admin panel fills area below it */
-
-      /* Hide tab buttons — all sections shown simultaneously */
+      /* Ocultar tabs — todas las secciones visibles a la vez */
       .admin-tabs { display: none; }
 
-      /* Show all tab sections at once */
-      .admin-tab-content { display: block !important; }
+      /* Body: grid sin scroll propio — cada sección scrollea internamente */
+      .admin-body {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr 1fr;
+        gap: 12px 20px;
+        padding: 12px 24px 16px;
+        max-width: 1100px;
+        width: 100%;
+        margin: 0 auto;
+        box-sizing: border-box;
+        align-items: stretch;
+      }
 
-      /* Section labels via pseudo-element */
+      /* Cada sección: scroll propio, aspecto de card */
+      .admin-tab-content {
+        display: block !important;
+        overflow-y: auto;
+        min-height: 0;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 0 14px 14px;
+        background: var(--bg2);
+      }
+
+      /* Cabecera de sección — sticky dentro del scroll de la card */
       .admin-tab-content::before {
         content: attr(data-section);
         display: block;
-        font-size: 12px;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: var(--bg2);
+        padding: 9px 0 8px;
+        margin-bottom: 10px;
+        font-size: 11px;
         font-weight: 700;
         letter-spacing: 1.5px;
         text-transform: uppercase;
         color: var(--teal);
-        padding-bottom: 10px;
-        margin-bottom: 14px;
-        border-bottom: 2px solid var(--teal);
+        border-bottom: 1px solid var(--border);
       }
 
-      /* Admin body: centered, max-width, 2-column grid */
-      .admin-body {
-        max-width: 1060px;
-        margin: 0 auto;
-        padding: 24px 32px 48px;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 24px 32px;
-        align-items: start;
-        overflow-y: auto;
-      }
-
-      /* Memorias ocupa ancho completo */
+      /* Memorias ocupa el ancho completo (fila 3) */
       #tabMemories { grid-column: 1 / -1; }
 
-      /* Formularios inline en desktop también con wrapping seguro */
+      /* Inputs en fila sin overflow */
       .person-form-row .admin-input,
       .person-form-row .admin-select { min-width: 0; }
     }
