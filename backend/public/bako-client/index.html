@@ -2374,6 +2374,31 @@
     wave.classList.toggle('active', state === 'recording');
   }
 
+  // Reproduce audio base64 — devuelve Promise que resuelve cuando termina o se interrumpe
+  function playBase64Audio(b64) {
+    return new Promise(resolve => {
+      try {
+        const bytes  = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        const blob   = new Blob([bytes], { type: 'audio/mpeg' });
+        const url    = URL.createObjectURL(blob);
+        const audio  = new Audio(url);
+        currentAudio = audio;
+        setMicState('playing');
+        setUiEnabled(false);
+        setStatus('Hablando…', 'ok');
+        audio.onended = audio.onerror = () => {
+          URL.revokeObjectURL(url);
+          currentAudio = null;
+          setMicState('idle');
+          setUiEnabled(true);
+          setStatus('Listo');
+          resolve();
+        };
+        audio.play().catch(() => resolve());
+      } catch { resolve(); }
+    });
+  }
+
   // Cancela cualquier respuesta en curso (fetch o audio)
   function stopBako() {
     if (currentController) { currentController.abort(); currentController = null; }
@@ -2641,6 +2666,8 @@
       const reader  = res.body.getReader();
       const decoder = new TextDecoder();
 
+      let pendingAudio = null;
+
       outer: while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -2652,13 +2679,14 @@
           const payload = line.slice(6).trim();
           if (payload === '[DONE]') break outer;
           try {
-            const { chunk, error } = JSON.parse(payload);
-            if (error) { addStatusMsg(`⚠️ ${error}`); break outer; }
-            if (chunk) {
-              fullText += chunk;
+            const evt = JSON.parse(payload);
+            if (evt.error) { addStatusMsg(`⚠️ ${evt.error}`); break outer; }
+            if (evt.chunk) {
+              fullText += evt.chunk;
               bubble.textContent = stripMd(fullText);
               chatHistory.scrollTop = chatHistory.scrollHeight;
             }
+            if (evt.audio) { pendingAudio = evt.audio; }
           } catch { /* skip malformed */ }
         }
       }
@@ -2670,9 +2698,15 @@
       }
 
       currentController = null;
-      setMicState('idle');
-      setUiEnabled(true);
-      setStatus('Listo');
+
+      // Reproducir audio si llegó junto al stream
+      if (pendingAudio) {
+        await playBase64Audio(pendingAudio);
+      } else {
+        setMicState('idle');
+        setUiEnabled(true);
+        setStatus('Listo');
+      }
 
     } catch (err) {
       currentController = null;

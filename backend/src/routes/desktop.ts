@@ -188,8 +188,7 @@ router.post('/stream', async (req: Request, res: Response) => {
 
   try {
     // Todo el trabajo previo antes de abrir el stream (permite devolver errores HTTP reales)
-    const action      = await tryExecuteAction(message);
-    const ollamaOk    = await getCachedOllamaStatus();
+    const action       = await tryExecuteAction(message);
     const systemPrompt = action ? '' : await getFullSystemPrompt(message);
 
     res.setHeader('Content-Type', 'text/event-stream');
@@ -204,9 +203,19 @@ router.post('/stream', async (req: Request, res: Response) => {
       return;
     }
 
-    for await (const chunk of askClaudeStream(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud: !ollamaOk })) {
+    // Desktop usa Groq (rápido, ~1s TTFT). Ollama queda para Telegram /privado.
+    let fullText = '';
+    for await (const chunk of askClaudeStream(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud: true })) {
+      fullText += chunk;
       res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
     }
+
+    // Generar audio TTS y enviarlo como evento final
+    try {
+      const audioBuffer = await generateVoiceBuffer(cleanForVoice(fullText));
+      res.write(`data: ${JSON.stringify({ audio: audioBuffer.toString('base64') })}\n\n`);
+    } catch { /* TTS opcional — no bloquea */ }
+
     res.write('data: [DONE]\n\n');
     res.end();
 
