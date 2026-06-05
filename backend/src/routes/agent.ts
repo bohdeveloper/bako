@@ -186,6 +186,138 @@ router.post('/seed-brain', async (_req: Request, res: Response) => {
   res.json({ ok: true, people: { created: peopleCreated, skipped: peopleSkipped }, projects: { created: projCreated, skipped: projSkipped }, knowledge: { created: knowCreated, skipped: knowSkipped } });
 });
 
+// POST /api/agent/migrate-memories — lee las memorias, extrae datos estructurados con LLM
+//   y pobla People, Projects y KnowledgeEntry sin tocar las memorias originales
+router.post('/migrate-memories', async (_req: Request, res: Response) => {
+  const { Memory }        = await import('../memory/Memory');
+  const { Person }        = await import('../memory/Person');
+  const { Project }       = await import('../memory/Project');
+  const { KnowledgeEntry }= await import('../memory/KnowledgeEntry');
+  const { askClaude }     = await import('../llm/claude');
+
+  // 1. Leer todas las memorias
+  const memories = await Memory.find({}).sort({ importance: -1, createdAt: -1 });
+  if (!memories.length) {
+    res.json({ ok: true, message: 'No hay memorias', people: 0, projects: 0, knowledge: 0 });
+    return;
+  }
+
+  // 2. Construir la lista para el prompt
+  const memList = memories
+    .map((m, i) => `[${i + 1}] [${m.tags?.join(',') || 'sin-tags'}] ${m.content}`)
+    .join('\n');
+
+  const extractPrompt = `Eres un extractor de datos estructurados para la base de datos de BAKO, el sistema personal de Borja.
+
+Analiza TODAS estas memorias y extrae TODA la información para poblar tres colecciones. Lee con atención — muchas memorias contienen datos parciales que juntos forman un perfil completo.
+
+REGLAS:
+- Extrae SOLO lo que está explícitamente en las memorias
+- PERSONAS: solo las que tengan nombre propio mencionado
+- PROYECTOS: solo proyectos de software, negocio o emprendimiento concretos
+- CONOCIMIENTO: hechos sobre salud, finanzas, valores, carácter, historia personal, rutina, objetivos vitales, asuntos legales, hobbies
+- Agrupa información dispersa sobre la misma entidad en un solo registro
+- Para cumpleaños usa formato DD-MM (ej: 15-08). Si solo hay mes, déjalo vacío
+- Para slug usa kebab-case corto (ej: "bako", "matrix-game")
+- Para clave usa snake_case descriptivo (ej: "digestivo_gluten", "ahorro_meta_2026")
+
+Responde ÚNICAMENTE con JSON válido sin texto extra:
+{
+  "people": [{
+    "nombre": "string",
+    "relacion": "pareja|familiar|amigo|compañero|conocido|otro",
+    "descripcion": "una frase que define quién es",
+    "cumpleaños": "DD-MM o vacío",
+    "ubicacion": "ciudad",
+    "trabajo": "profesión o empresa",
+    "notas": ["observaciones relevantes"],
+    "conexiones": ["nombres de otras personas relacionadas"]
+  }],
+  "projects": [{
+    "nombre": "string",
+    "slug": "slug-corto",
+    "tipo": "SaaS|portfolio|hobby|videojuego|negocio|etc",
+    "estado": "activo|diferido|completado|pausado|abandonado",
+    "prioridad": "alta|media|baja",
+    "descripcion": "string",
+    "siguiente_accion": "string",
+    "stack": ["tecnologías"],
+    "horizonte": "2026|post-Galicia|3-5 años|etc",
+    "notas": ["decisiones o contexto relevante"]
+  }],
+  "knowledge": [{
+    "categoria": "salud|valores|caracter|finanzas|historia|rutina|objetivos|legal|hobbies|otro",
+    "clave": "identificador_snake_case",
+    "valor": "descripción principal concisa",
+    "detalles": ["puntos adicionales"],
+    "importancia": "alta|media|baja"
+  }]
+}
+
+MEMORIAS DE BORJA (${memories.length} registros):
+${memList}`;
+
+  // 3. Llamar al LLM (siempre cloud para garantizar disponibilidad)
+  let raw: string;
+  try {
+    raw = await askClaude(extractPrompt, { useCloud: true, maxTokens: 4096, temperature: 0.1 });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al llamar al LLM', detail: (err as Error).message });
+    return;
+  }
+
+  // 4. Extraer JSON de la respuesta (el LLM puede añadir texto antes/después)
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    res.status(500).json({ error: 'El LLM no devolvió JSON válido', preview: raw.slice(0, 300) });
+    return;
+  }
+
+  let extracted: { people?: any[]; projects?: any[]; knowledge?: any[] };
+  try {
+    extracted = JSON.parse(jsonMatch[0]);
+  } catch {
+    res.status(500).json({ error: 'JSON inválido en la respuesta del LLM', preview: jsonMatch[0].slice(0, 300) });
+    return;
+  }
+
+  // 5. Insertar — idempotente (salta si ya existe)
+  let peopleCreated = 0, peopleSkipped = 0;
+  let projCreated   = 0, projSkipped   = 0;
+  let knowCreated   = 0, knowSkipped   = 0;
+
+  for (const p of (extracted.people || [])) {
+    if (!p.nombre?.trim()) continue;
+    const exists = await Person.findOne({ nombre: new RegExp(`^${p.nombre.trim()}$`, 'i') });
+    if (exists) { peopleSkipped++; }
+    else        { await Person.create(p); peopleCreated++; }
+  }
+
+  for (const p of (extracted.projects || [])) {
+    if (!p.nombre?.trim()) continue;
+    const key = p.slug?.trim() || p.nombre.trim().toLowerCase().replace(/\s+/g, '-');
+    const exists = await Project.findOne({ slug: key });
+    if (exists) { projSkipped++; }
+    else        { await Project.create({ ...p, slug: key }); projCreated++; }
+  }
+
+  for (const k of (extracted.knowledge || [])) {
+    if (!k.clave?.trim()) continue;
+    const exists = await KnowledgeEntry.findOne({ clave: k.clave.trim() });
+    if (exists) { knowSkipped++; }
+    else        { await KnowledgeEntry.create(k); knowCreated++; }
+  }
+
+  console.log(`🧠 migrate-memories: people +${peopleCreated} | projects +${projCreated} | knowledge +${knowCreated}`);
+  res.json({
+    ok: true,
+    memorias_leidas: memories.length,
+    people:    { created: peopleCreated,   skipped: peopleSkipped,   total: extracted.people?.length    ?? 0 },
+    projects:  { created: projCreated,     skipped: projSkipped,     total: extracted.projects?.length  ?? 0 },
+    knowledge: { created: knowCreated,     skipped: knowSkipped,     total: extracted.knowledge?.length ?? 0 },
+  });
+});
+
 // POST /api/agent/memories/import — importar memorias en batch
 router.post('/memories/import', async (req: Request, res: Response) => {
   const { memories } = req.body;

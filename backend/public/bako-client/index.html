@@ -643,7 +643,8 @@
     </div>
     <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
       <div class="admin-section-title">Datos estructurados</div>
-      <button class="btn-create-user" id="btnSeedBrain" style="width:100%;margin-bottom:6px">🧠 Poblar Proyectos + Conocimiento en Atlas</button>
+      <button class="btn-create-user" id="btnSeedBrain" style="width:100%;margin-bottom:6px">🌱 Poblar desde profile.ts (base)</button>
+      <button class="btn-create-user" id="btnMigrateMemories" style="width:100%;margin-bottom:6px;background:var(--green)">🧠 Extraer de memorias con IA (103 registros)</button>
       <div class="admin-feedback" id="seedFeedback"></div>
     </div>
     <button class="logout-btn" id="logoutBtn">Cerrar sesión</button>
@@ -1054,7 +1055,25 @@
         fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
       }
     } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
-    finally { btn.disabled = false; btn.textContent = '🧠 Poblar Proyectos + Conocimiento en Atlas'; }
+    finally { btn.disabled = false; btn.textContent = '🌱 Poblar desde profile.ts (base)'; }
+  });
+
+  document.getElementById('btnMigrateMemories').addEventListener('click', async () => {
+    const btn = document.getElementById('btnMigrateMemories');
+    const fb  = document.getElementById('seedFeedback');
+    btn.disabled = true; btn.textContent = '⏳ Analizando memorias con IA… (puede tardar ~30s)';
+    fb.textContent = ''; fb.className = 'admin-feedback';
+    try {
+      const res  = await fetch(`${BAKO_URL}/api/agent/migrate-memories`, { method:'POST', headers: authHeaders() });
+      const data = await res.json();
+      if (res.ok) {
+        fb.textContent = `✓ ${data.memorias_leidas} memorias leídas · Personas: +${data.people.created} (${data.people.skipped} ya existían) · Proyectos: +${data.projects.created} (${data.projects.skipped} ya existían) · Conocimiento: +${data.knowledge.created} (${data.knowledge.skipped} ya existían)`;
+        fb.className = 'admin-feedback ok';
+      } else {
+        fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
+      }
+    } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
+    finally { btn.disabled = false; btn.textContent = '🧠 Extraer de memorias con IA (103 registros)'; }
   });
 
   // ── Admin panel ───────────────────────────────────────────────────────────
