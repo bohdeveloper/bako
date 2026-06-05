@@ -92,20 +92,20 @@ async function getEmailContext(message: string): Promise<string> {
   }
 }
 
-async function getFullSystemPrompt(message = ''): Promise<string> {
+async function getFullSystemPrompt(message = '', compact = false): Promise<string> {
   const location = await getCurrentLocation();
   const [memories, dynProfile, ambientCtx, emailCtx, people, projects, knowledge] = await Promise.all([
-    getMemoriesSection(5, 44, 1800),
+    getMemoriesSection(compact ? 2 : 5, 44, compact ? 700 : 1800),
     getDynamicProfileSection(),
     getAmbientContext(location),
     getEmailContext(message),
     getPeopleSection(),
-    getProjectsSection(),
-    getKnowledgeSection(),
+    getProjectsSection(compact ? 600 : undefined),
+    compact ? Promise.resolve('') : getKnowledgeSection(),
   ]);
   const fullAmbient = ambientCtx + emailCtx;
   const prompt = buildSystemPrompt(fullAmbient, memories, dynProfile, people, projects, knowledge);
-  console.log(`📊 Desktop prompt: ${prompt.length} chars | people: ${people.length} chars | projects: ${projects.length} chars | knowledge: ${knowledge.length} chars | memories: ${memories.length} chars`);
+  console.log(`📊 Desktop prompt (${compact ? 'compact' : 'full'}): ${prompt.length} chars | people: ${people.length} | projects: ${projects.length} | knowledge: ${knowledge.length} | memories: ${memories.length}`);
   return prompt;
 }
 
@@ -140,7 +140,8 @@ router.post('/voice', upload.single('audio'), async (req: Request, res: Response
       return;
     }
 
-    const systemPrompt = await getFullSystemPrompt(transcription);
+    const ollamaOk     = await getCachedOllamaStatus();
+    const systemPrompt = await getFullSystemPrompt(transcription, ollamaOk);
     const response     = await askClaude(transcription, { systemPrompt, temperature: 0.4, maxTokens: 400 });
     const audioBuffer  = await generateVoiceBuffer(cleanForVoice(response));
     res.json({ transcription, response, audio: audioBuffer.toString('base64') });
@@ -167,7 +168,8 @@ router.post('/text', async (req: Request, res: Response) => {
       return;
     }
 
-    const systemPrompt = await getFullSystemPrompt(message);
+    const ollamaOk     = await getCachedOllamaStatus();
+    const systemPrompt = await getFullSystemPrompt(message, ollamaOk);
     const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400 });
     const audioBuffer  = await generateVoiceBuffer(cleanForVoice(response));
     res.json({ response, audio: audioBuffer.toString('base64') });

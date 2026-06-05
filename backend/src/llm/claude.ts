@@ -25,13 +25,13 @@ export class PrivacyError extends Error {
   }
 }
 
-async function askOllama(messages: Message[], maxTokens?: number, temperature?: number): Promise<string> {
+async function askOllama(messages: Message[], maxTokens?: number, temperature?: number, numCtx = 2048): Promise<string> {
   const { data } = await axios.post(`${OLLAMA_URL}/api/chat`, {
     model: OLLAMA_MODEL,
     messages,
     stream: false,
     options: {
-      num_ctx: 4096,
+      num_ctx: numCtx,
       ...(maxTokens   ? { num_predict: maxTokens }   : {}),
       ...(temperature !== undefined ? { temperature } : {}),
     },
