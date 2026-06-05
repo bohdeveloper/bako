@@ -38,14 +38,24 @@ const PersonSchema = new Schema<IPerson>(
 
 export const Person = mongoose.model<IPerson>('Person', PersonSchema);
 
-/** Convierte un registro Person en texto para el system prompt */
+/** Convierte un registro Person en prosa natural para el system prompt */
 export function formatPersonForContext(p: IPerson): string {
-  const parts: string[] = [`${p.nombre} (${p.relacion})`];
-  if (p.descripcion)            parts.push(p.descripcion);
-  if (p.cumpleaños)             parts.push(`cumple el ${p.cumpleaños}`);
-  if (p.ubicacion)              parts.push(`vive en ${p.ubicacion}`);
-  if (p.trabajo)                parts.push(p.trabajo);
-  if (p.conexiones?.length)     parts.push(`relacionado con: ${p.conexiones.join(', ')}`);
-  if (p.notas?.length)          parts.push(p.notas.join('. '));
-  return parts.join(' — ');
+  const rel: Record<string, string> = {
+    pareja: 'la pareja de Borja', familiar: 'familiar de Borja',
+    amigo: 'amigo de Borja', compañero: 'compañero de Borja',
+    conocido: 'conocido de Borja', otro: 'persona conocida por Borja',
+  };
+  const intro = p.descripcion
+    ? `${p.nombre} es ${p.descripcion}`
+    : `${p.nombre} es ${rel[p.relacion] || p.relacion}`;
+
+  const detalles: string[] = [];
+  if (p.ubicacion) detalles.push(`vive en ${p.ubicacion}`);
+  if (p.trabajo)   detalles.push(`trabaja como ${p.trabajo}`);
+  if (p.cumpleaños) detalles.push(`cumple el ${p.cumpleaños}`);
+  if (p.conexiones?.length) detalles.push(`está relacionado con ${p.conexiones.join(' y ')}`);
+
+  const frase = detalles.length ? `${intro}. ${detalles.join(', ')}.` : `${intro}.`;
+  const notas = p.notas?.length ? ' ' + p.notas.join('. ') + '.' : '';
+  return frase + notas;
 }

@@ -71,9 +71,9 @@ CONTEXTO ACTUAL:
 - Situación probable: ${situacion}
 ${extraContext}
 ${dynamicProfileSection ? `\n${dynamicProfileSection}\n` : ''}
-${peopleSection ? `PERSONAS EN LA VIDA DEL SEÑOR (datos estructurados — fuente de verdad para cumpleaños, relaciones, ubicaciones):\n${peopleSection}\n` : ''}
-${projectsSection ? `PROYECTOS DEL SEÑOR (datos estructurados — fuente de verdad para estado, siguiente acción y bloqueantes):\n${projectsSection}\n` : ''}
-${knowledgeSection ? `CONOCIMIENTO PERSONAL DEL SEÑOR (datos estructurados — salud, valores, finanzas, historia, rutina, objetivos):\n${knowledgeSection}\n` : ''}
+${peopleSection ? `PERSONAS QUE BAKO CONOCE (úsalas con naturalidad al hablar, no las enumeres a menos que se pidan explícitamente):\n${peopleSection}\n` : ''}
+${projectsSection ? `PROYECTOS DE BORJA (estado actual y siguiente acción — úsalos como contexto, no los listes a menos que se pidan):\n${projectsSection}\n` : ''}
+${knowledgeSection ? `CONOCIMIENTO PERSONAL DE BORJA (salud, valores, finanzas, historia, rutina — úsalo como contexto natural):\n${knowledgeSection}\n` : ''}
 ${memoriesSection ? `RECUERDOS DINÁMICOS (hechos, observaciones, estados — complementan el perfil estructurado):\n${memoriesSection}\n` : ''}
 PERFIL BASE:
 ${JSON.stringify({
