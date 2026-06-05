@@ -141,7 +141,7 @@ router.post('/voice', upload.single('audio'), async (req: Request, res: Response
     }
 
     const systemPrompt = await getFullSystemPrompt(transcription);
-    const response     = await askClaude(transcription, { systemPrompt, temperature: 0.4, maxTokens: 400 });
+    const response     = await askClaude(transcription, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud: true });
     const audioBuffer  = await generateVoiceBuffer(cleanForVoice(response));
     res.json({ transcription, response, audio: audioBuffer.toString('base64') });
 
@@ -168,7 +168,7 @@ router.post('/text', async (req: Request, res: Response) => {
     }
 
     const systemPrompt = await getFullSystemPrompt(message);
-    const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400 });
+    const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud: true });
     const audioBuffer  = await generateVoiceBuffer(cleanForVoice(response));
     res.json({ response, audio: audioBuffer.toString('base64') });
 
