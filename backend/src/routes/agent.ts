@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
 import { Task } from '../memory/Task';
 import { runMorningBriefing } from '../agents/MorningBriefingAgent';
+import { BAKO_PROFILE } from '../knowledge/profile';
 
 const router = Router();
 
@@ -202,6 +203,46 @@ ${memList}`;
     merge(col.projects,  ext.projects,  (x: any) => x.slug || String(x.nombre || '').toLowerCase().replace(/\s+/g, '-'));
     merge(col.knowledge, ext.knowledge, (x: any) => x.clave);
     batchesOk++;
+  }
+
+  // Complementar con personas conocidas de profile.ts — fuente autoritativa (sin LLM)
+  const MESES: Record<string, string> = {
+    enero:'01', febrero:'02', marzo:'03', abril:'04', mayo:'05', junio:'06',
+    julio:'07', agosto:'08', septiembre:'09', octubre:'10', noviembre:'11', diciembre:'12',
+  };
+  const parseCumple = (s: string) => {
+    const m = String(s || '').match(/(\d+)\s+de\s+(\w+)/i);
+    if (!m) return '';
+    const mes = MESES[m[2].toLowerCase()];
+    return mes ? `${m[1].padStart(2, '0')}-${mes}` : '';
+  };
+
+  const profilePeople: any[] = [
+    { nombre: 'Yaimy',       relacion: 'pareja',   cumpleaños: parseCumple(BAKO_PROFILE.pareja.cumpleanos), ubicacion: 'Errentería', trabajo: 'LAE (Galicia)' },
+    { nombre: 'Sofi',        relacion: 'familiar', descripcion: 'Madre de Yaimy (suegra), cubana',       cumpleaños: parseCumple('18 de septiembre'), ubicacion: 'Lezo' },
+    { nombre: 'Osvaldo',     relacion: 'familiar', descripcion: 'Padre de Yaimy (suegro), cubano',       cumpleaños: parseCumple('28 de febrero'),    ubicacion: 'Lezo' },
+    { nombre: 'Yosiel',      relacion: 'familiar', descripcion: 'Hermano de Yaimy (cuñado), colombiano', cumpleaños: parseCumple('24 de septiembre'), ubicacion: 'Lezo' },
+    { nombre: (BAKO_PROFILE.familia_directa as any).padre.nombre,  relacion: 'familiar', descripcion: 'Padre',   cumpleaños: parseCumple((BAKO_PROFILE.familia_directa as any).padre.cumpleanos),  ubicacion: 'Errentería' },
+    { nombre: (BAKO_PROFILE.familia_directa as any).madre.nombre,  relacion: 'familiar', descripcion: 'Madre',   cumpleaños: parseCumple((BAKO_PROFILE.familia_directa as any).madre.cumpleanos),  ubicacion: 'Errentería' },
+    { nombre: (BAKO_PROFILE.familia_directa as any).hermana.nombre, relacion: 'familiar', descripcion: 'Hermana', cumpleaños: parseCumple((BAKO_PROFILE.familia_directa as any).hermana.cumpleanos) },
+    { nombre: (BAKO_PROFILE.familia_directa as any).cunada.nombre,  relacion: 'familiar', descripcion: 'Cuñada (mujer de su hermana)', cumpleaños: parseCumple((BAKO_PROFILE.familia_directa as any).cunada.cumpleanos) },
+    ...(BAKO_PROFILE.amigos as any).lista.map((a: any) => ({
+      nombre:     a.nombre,
+      relacion:   'amigo',
+      descripcion: a.descripcion || (a.origen ? `De origen ${a.origen}` : ''),
+      cumpleaños:  parseCumple(a.cumpleanos || ''),
+      ubicacion:   a.vive || '',
+      notas:       a.pareja ? [`Pareja: ${a.pareja}`] : [],
+    })),
+  ];
+
+  // Fusionar profile > LLM: profile.ts es autoritativo para personas conocidas
+  for (const pp of profilePeople) {
+    const k = (pp.nombre || '').trim().toLowerCase();
+    if (!k) continue;
+    const idx = col.people.findIndex((x: any) => (x.nombre || '').trim().toLowerCase() === k);
+    if (idx === -1) col.people.push(pp);
+    else Object.assign(col.people[idx], pp); // profile sobrescribe al LLM
   }
 
   // Insertar en Atlas — idempotente + sanitización de enums + try/catch individual
