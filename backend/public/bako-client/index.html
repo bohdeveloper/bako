@@ -643,8 +643,9 @@
     </div>
     <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
       <div class="admin-section-title">Datos estructurados</div>
-      <button class="btn-create-user" id="btnSeedBrain" style="width:100%;margin-bottom:6px">🌱 Poblar desde profile.ts (base)</button>
-      <button class="btn-create-user" id="btnMigrateMemories" style="width:100%;margin-bottom:6px;background:var(--green)">🧠 Extraer de memorias con IA (103 registros)</button>
+      <button class="btn-create-user" id="btnMigrateMemories" style="width:100%;margin-bottom:6px;background:var(--green)">🧠 Migrar memoria</button>
+      <button class="btn-create-user" id="btnDedupePreview" style="width:100%;margin-bottom:6px;background:#6366f1">🔍 Previsualizar deduplicación</button>
+      <button class="btn-create-user" id="btnDedupe" style="width:100%;margin-bottom:6px;background:#ef4444">🧹 Deduplicar memoria</button>
       <div class="admin-feedback" id="seedFeedback"></div>
     </div>
     <button class="logout-btn" id="logoutBtn">Cerrar sesión</button>
@@ -1041,23 +1042,6 @@
   loginUserEl.addEventListener('keydown', e => { if (e.key === 'Enter') loginPassEl.focus(); });
   logoutBtn.addEventListener('click', doLogout);
 
-  document.getElementById('btnSeedBrain').addEventListener('click', async () => {
-    const btn = document.getElementById('btnSeedBrain');
-    const fb  = document.getElementById('seedFeedback');
-    btn.disabled = true; btn.textContent = '⏳ Poblando…';
-    try {
-      const res  = await fetch(`${BAKO_URL}/api/agent/seed-brain`, { method:'POST', headers: authHeaders() });
-      const data = await res.json();
-      if (res.ok) {
-        fb.textContent = `✓ Personas: +${data.people.created} · Proyectos: +${data.projects.created} · Conocimiento: +${data.knowledge.created}`;
-        fb.className = 'admin-feedback ok';
-      } else {
-        fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
-      }
-    } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
-    finally { btn.disabled = false; btn.textContent = '🌱 Poblar desde profile.ts (base)'; }
-  });
-
   document.getElementById('btnMigrateMemories').addEventListener('click', async () => {
     const btn = document.getElementById('btnMigrateMemories');
     const fb  = document.getElementById('seedFeedback');
@@ -1073,7 +1057,49 @@
         fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
       }
     } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
-    finally { btn.disabled = false; btn.textContent = '🧠 Extraer de memorias con IA (103 registros)'; }
+    finally { btn.disabled = false; btn.textContent = '🧠 Migrar memoria'; }
+  });
+
+  document.getElementById('btnDedupePreview').addEventListener('click', async () => {
+    const btn = document.getElementById('btnDedupePreview');
+    const fb  = document.getElementById('seedFeedback');
+    btn.disabled = true; btn.textContent = '⏳ Analizando duplicados… (~30s)';
+    fb.textContent = ''; fb.className = 'admin-feedback';
+    try {
+      const res  = await fetch(`${BAKO_URL}/api/agent/deduplicate-memories`, { method:'POST', headers: authHeaders(), body: JSON.stringify({ dry_run: true }) });
+      const data = await res.json();
+      if (res.ok) {
+        fb.innerHTML = `<b>Vista previa (sin cambios):</b><br>
+          📊 Total memorias: ${data.memorias_total}<br>
+          🔀 Grupos a fusionar: ${data.grupos_a_fusionar}<br>
+          🗑️ A eliminar: ${data.total_eliminaciones}<br>
+          ✅ Resultado: ${data.memorias_resultado} memorias<br>
+          <small style="color:var(--dim)">(Usa "Deduplicar memoria" para ejecutar)</small>`;
+        fb.className = 'admin-feedback ok';
+      } else {
+        fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
+      }
+    } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
+    finally { btn.disabled = false; btn.textContent = '🔍 Previsualizar deduplicación'; }
+  });
+
+  document.getElementById('btnDedupe').addEventListener('click', async () => {
+    const btn = document.getElementById('btnDedupe');
+    const fb  = document.getElementById('seedFeedback');
+    if (!confirm('¿Seguro? Este proceso eliminará memorias duplicadas permanentemente.')) return;
+    btn.disabled = true; btn.textContent = '⏳ Deduplicando… (puede tardar ~30s)';
+    fb.textContent = ''; fb.className = 'admin-feedback';
+    try {
+      const res  = await fetch(`${BAKO_URL}/api/agent/deduplicate-memories`, { method:'POST', headers: authHeaders(), body: JSON.stringify({ dry_run: false }) });
+      const data = await res.json();
+      if (res.ok) {
+        fb.textContent = `✓ ${data.memorias_antes} → ${data.memorias_despues} memorias · ${data.fusionadas} fusionadas · ${data.eliminadas} eliminadas`;
+        fb.className = 'admin-feedback ok';
+      } else {
+        fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
+      }
+    } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
+    finally { btn.disabled = false; btn.textContent = '🧹 Deduplicar memoria'; }
   });
 
   // ── Admin panel ───────────────────────────────────────────────────────────
