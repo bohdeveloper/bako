@@ -249,7 +249,7 @@ ${memList}`;
   });
 });
 
-// POST /api/agent/deduplicate-memories — analiza memorias con LLM, fusiona duplicados y elimina redundantes
+// POST /api/agent/deduplicate-memories — deduplicación algorítmica (sin LLM)
 // Body: { dry_run?: boolean }  — si dry_run=true devuelve el plan sin ejecutar
 router.post('/deduplicate-memories', async (req: Request, res: Response) => {
   const dryRun = req.body?.dry_run === true;
@@ -268,99 +268,116 @@ router.post('/deduplicate-memories', async (req: Request, res: Response) => {
     return;
   }
 
-  // Índice corto (#N) → MongoDB ID para reducir payload al mínimo
-  const idxToId: Record<number, string> = {};
-  const memList = memories
-    .map((m: any, i: number) => {
-      idxToId[i + 1] = String(m._id);
-      const tags = (m.tags || []).slice(0, 2).join(',');
-      const content = String(m.content || '').slice(0, 80);
-      return `#${i + 1}|${tags}|${content}`;
-    })
-    .join('\n');
+  // Normaliza texto para comparación: minúsculas, sin acentos, espacios simples
+  const norm = (s: string): string =>
+    String(s || '').toLowerCase().trim()
+      .replace(/[áàä]/g, 'a').replace(/[éèë]/g, 'e')
+      .replace(/[íìï]/g, 'i').replace(/[óòö]/g, 'o')
+      .replace(/[úùü]/g, 'u').replace(/ñ/g, 'n')
+      .replace(/\s+/g, ' ');
 
-  const prompt = `Analiza estas ${memories.length} memorias de Borja. Identifica duplicados y redundancias.
-Reglas: DUPLICADO (misma info) → fusionar; SUBCONJUNTO (una contiene toda la info de otra) → eliminar la menor; TEST/VACÍO → delete_standalone; DUDA → conservar.
-merged_content debe incluir TODA la info única del grupo. Usa índices #N exactos.
-JSON único sin texto extra: {"merge_groups":[{"keep_idx":1,"merged_content":"texto","merged_tags":["t1"],"delete_idxs":[2,3],"razon":""}],"delete_standalone":[4]}
-Sin duplicados: {"merge_groups":[],"delete_standalone":[]}
-MEMORIAS:\n${memList}`;
+  const toDelete = new Set<string>();
+  const plan: Array<{ keep_id: string; delete_ids: string[]; razon: string; keep_preview: string }> = [];
 
-  let raw: string;
-  try {
-    raw = await askClaude(prompt, { useCloud: true, maxTokens: 3000, temperature: 0 });
-  } catch (err) {
-    res.status(500).json({ error: 'Error llamando al LLM', detail: (err as Error).message });
-    return;
+  // Pase 1: agrupar por prefijo normalizado (primeros 100 chars) — duplicados obvios
+  const prefixGroups: Map<string, any[]> = new Map();
+  for (const m of memories) {
+    const key = norm(m.content || '').slice(0, 100);
+    if (!key) continue;
+    const g = prefixGroups.get(key) || [];
+    g.push(m);
+    prefixGroups.set(key, g);
+  }
+  for (const [, group] of prefixGroups) {
+    if (group.length < 2) continue;
+    // Conservar la que tenga más tags; en empate, la de contenido más largo
+    group.sort((a, b) => {
+      const tagDiff = (b.tags?.length || 0) - (a.tags?.length || 0);
+      if (tagDiff !== 0) return tagDiff;
+      return (b.content?.length || 0) - (a.content?.length || 0);
+    });
+    const keeper = group[0];
+    const dups = group.slice(1);
+    dups.forEach(d => toDelete.add(String(d._id)));
+    plan.push({
+      keep_id: String(keeper._id),
+      delete_ids: dups.map(d => String(d._id)),
+      razon: 'contenido idéntico (prefijo 100 chars)',
+      keep_preview: String(keeper.content || '').slice(0, 100),
+    });
   }
 
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    res.status(500).json({ error: 'LLM no devolvió JSON válido', preview: raw.slice(0, 400) });
-    return;
+  // Pase 2: eliminar memorias basura (test, vacías, "sin recuerdos", etc.)
+  const JUNK = [/^test$/i, /^$/, /^sin recuerdos/i, /^no hay registro/i, /^sin registro/i, /^n\/a$/i];
+  for (const m of memories) {
+    const c = String(m.content || '').trim();
+    if (JUNK.some(p => p.test(c))) toDelete.add(String(m._id));
   }
 
-  // El LLM devuelve índices cortos (#N) — traducir a MongoDB IDs
-  let plan: { merge_groups?: any[]; delete_standalone?: number[] };
-  try { plan = JSON.parse(jsonMatch[0]); }
-  catch { res.status(500).json({ error: 'JSON inválido en respuesta LLM', preview: jsonMatch[0].slice(0, 400) }); return; }
+  // Pase 3: detección de subconjuntos por solapamiento de palabras (>85%)
+  // Si las palabras clave de A están casi todas en B (y B es más largo), A es redundante
+  const wordSet = (s: string): Set<string> =>
+    new Set(norm(s).split(/\s+/).filter(w => w.length > 3));
 
-  const mergeGroups      = plan.merge_groups      || [];
-  const deleteStandalone = plan.delete_standalone || [];
-  const totalWillDelete  = mergeGroups.reduce((n: number, g: any) => n + (g.delete_idxs?.length || 0), 0) + deleteStandalone.length;
+  for (const ma of memories) {
+    const idA = String(ma._id);
+    if (toDelete.has(idA)) continue;
+    const wordsA = wordSet(ma.content || '');
+    if (wordsA.size < 8) continue; // saltar memorias muy cortas
+
+    for (const mb of memories) {
+      const idB = String(mb._id);
+      if (idA === idB || toDelete.has(idB)) continue;
+      const normB = norm(mb.content || '');
+      const normA = norm(ma.content || '');
+      if (normB.length <= normA.length * 1.1) continue; // B debe ser notablemente más largo
+
+      const wordsB = wordSet(mb.content || '');
+      const overlap = [...wordsA].filter(w => wordsB.has(w)).length;
+      if (overlap / wordsA.size > 0.88) {
+        toDelete.add(idA);
+        plan.push({
+          keep_id: idB,
+          delete_ids: [idA],
+          razon: `subconjunto (${Math.round(overlap / wordsA.size * 100)}% palabras contenidas en memoria más completa)`,
+          keep_preview: String(mb.content || '').slice(0, 100),
+        });
+        break;
+      }
+    }
+  }
+
+  const totalWillDelete = toDelete.size;
 
   if (dryRun) {
     res.json({
       ok: true, dry_run: true,
       memorias_total: memories.length,
-      grupos_a_fusionar: mergeGroups.length,
-      a_eliminar_standalone: deleteStandalone.length,
+      grupos_detectados: plan.length,
       total_eliminaciones: totalWillDelete,
       memorias_resultado: memories.length - totalWillDelete,
-      plan: mergeGroups.map((g: any) => ({
-        keep_idx: g.keep_idx,
-        merged_preview: (g.merged_content || '').slice(0, 120) + '…',
-        delete_count: g.delete_idxs?.length || 0,
+      plan: plan.slice(0, 30).map(g => ({
+        delete_count: g.delete_ids.length,
         razon: g.razon,
+        keep_preview: g.keep_preview + '…',
       })),
     });
     return;
   }
 
-  let merged = 0, deleted = 0;
-
-  for (const g of mergeGroups) {
-    if (!g.keep_idx) continue;
-    const keepId = idxToId[g.keep_idx];
-    if (!keepId) continue;
-    try {
-      await Memory.findByIdAndUpdate(keepId, {
-        content: g.merged_content || '',
-        tags: Array.isArray(g.merged_tags) ? g.merged_tags : [],
-      });
-      for (const delIdx of (g.delete_idxs || [])) {
-        const delId = idxToId[delIdx];
-        if (!delId) continue;
-        try { const d = await Memory.findByIdAndDelete(delId); if (d) deleted++; } catch { /* skip */ }
-      }
-      merged++;
-    } catch { /* skip */ }
-  }
-
-  for (const idx of deleteStandalone) {
-    const delId = idxToId[idx];
-    if (!delId) continue;
-    try { const d = await Memory.findByIdAndDelete(delId); if (d) deleted++; } catch { /* skip */ }
+  let deleted = 0;
+  for (const id of toDelete) {
+    try { const d = await Memory.findByIdAndDelete(id); if (d) deleted++; } catch { /* skip */ }
   }
 
   const memorias_despues = await Memory.countDocuments();
-  console.log(`🧹 deduplicate-memories: ${merged} fusionadas, ${deleted} eliminadas. ${memories.length} → ${memorias_despues}`);
+  console.log(`🧹 deduplicate-memories: ${deleted} eliminadas. ${memories.length} → ${memorias_despues}`);
 
   res.json({
     ok: true,
     memorias_antes: memories.length,
     memorias_despues,
-    fusionadas: merged,
+    grupos_fusionados: plan.length,
     eliminadas: deleted,
   });
 });

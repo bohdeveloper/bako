@@ -1063,7 +1063,7 @@
   document.getElementById('btnDedupePreview').addEventListener('click', async () => {
     const btn = document.getElementById('btnDedupePreview');
     const fb  = document.getElementById('seedFeedback');
-    btn.disabled = true; btn.textContent = '⏳ Analizando duplicados… (~30s)';
+    btn.disabled = true; btn.textContent = '⏳ Analizando duplicados…';
     fb.textContent = ''; fb.className = 'admin-feedback';
     try {
       const res  = await fetch(`${BAKO_URL}/api/agent/deduplicate-memories`, { method:'POST', headers: authHeaders(), body: JSON.stringify({ dry_run: true }) });
@@ -1071,13 +1071,13 @@
       if (res.ok) {
         fb.innerHTML = `<b>Vista previa (sin cambios):</b><br>
           📊 Total memorias: ${data.memorias_total}<br>
-          🔀 Grupos a fusionar: ${data.grupos_a_fusionar}<br>
+          🔀 Grupos detectados: ${data.grupos_detectados}<br>
           🗑️ A eliminar: ${data.total_eliminaciones}<br>
           ✅ Resultado: ${data.memorias_resultado} memorias<br>
           <small style="color:var(--dim)">(Usa "Deduplicar memoria" para ejecutar)</small>`;
         fb.className = 'admin-feedback ok';
       } else {
-        fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
+        fb.textContent = (data.error || 'Error') + (data.detail ? ': ' + data.detail : ''); fb.className = 'admin-feedback err';
       }
     } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
     finally { btn.disabled = false; btn.textContent = '🔍 Previsualizar deduplicación'; }
@@ -1087,16 +1087,16 @@
     const btn = document.getElementById('btnDedupe');
     const fb  = document.getElementById('seedFeedback');
     if (!confirm('¿Seguro? Este proceso eliminará memorias duplicadas permanentemente.')) return;
-    btn.disabled = true; btn.textContent = '⏳ Deduplicando… (puede tardar ~30s)';
+    btn.disabled = true; btn.textContent = '⏳ Deduplicando…';
     fb.textContent = ''; fb.className = 'admin-feedback';
     try {
       const res  = await fetch(`${BAKO_URL}/api/agent/deduplicate-memories`, { method:'POST', headers: authHeaders(), body: JSON.stringify({ dry_run: false }) });
       const data = await res.json();
       if (res.ok) {
-        fb.textContent = `✓ ${data.memorias_antes} → ${data.memorias_despues} memorias · ${data.fusionadas} fusionadas · ${data.eliminadas} eliminadas`;
+        fb.textContent = `✓ ${data.memorias_antes} → ${data.memorias_despues} memorias · ${data.grupos_fusionados} grupos · ${data.eliminadas} eliminadas`;
         fb.className = 'admin-feedback ok';
       } else {
-        fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
+        fb.textContent = (data.error || 'Error') + (data.detail ? ': ' + data.detail : ''); fb.className = 'admin-feedback err';
       }
     } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
     finally { btn.disabled = false; btn.textContent = '🧹 Deduplicar memoria'; }
