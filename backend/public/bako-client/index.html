@@ -2608,7 +2608,7 @@
     if (e.key === 'Enter') { e.preventDefault(); sendTextInput(); }
   });
 
-  // ── Envío a BAKO (streaming SSE) ──────────────────────────────────────────
+  // ── Envío a BAKO ─────────────────────────────────────────────────────────
   async function sendMessage(text) {
     if (isCoolingDown()) return;
     await waitGapIfNeeded();
@@ -2622,7 +2622,7 @@
     currentController = new AbortController();
 
     try {
-      const res = await fetch(`${BAKO_URL}/api/desktop/stream`, {
+      const res = await fetch(`${BAKO_URL}/api/desktop/text`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ message: text }),
@@ -2630,6 +2630,7 @@
       });
       lastRequestMs = Date.now();
       loadingEl.remove();
+      currentController = null;
 
       if (res.status === 401) { doLogout(); return; }
 
@@ -2654,54 +2655,16 @@
         return;
       }
 
-      // Crear burbuja vacía e ir llenándola con los chunks
-      const msgDiv = addMessage('bako', '');
-      const bubble  = msgDiv.querySelector('.msg-bubble');
+      const data = await res.json();
+      const msgDiv  = addMessage('bako', stripMd(data.response ?? ''));
       const reuseBtn = msgDiv.querySelector('.msg-reuse');
-      let fullText = '';
-      let sseBuf   = '';
-
-      setStatus('Respondiendo…', 'ok');
-
-      const reader  = res.body.getReader();
-      const decoder = new TextDecoder();
-
-      let pendingAudio = null;
-
-      outer: while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        sseBuf += decoder.decode(value, { stream: true });
-        const lines = sseBuf.split('\n');
-        sseBuf = lines.pop() ?? '';
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const payload = line.slice(6).trim();
-          if (payload === '[DONE]') break outer;
-          try {
-            const evt = JSON.parse(payload);
-            if (evt.error) { addStatusMsg(`⚠️ ${evt.error}`); break outer; }
-            if (evt.chunk) {
-              fullText += evt.chunk;
-              bubble.textContent = stripMd(fullText);
-              chatHistory.scrollTop = chatHistory.scrollHeight;
-            }
-            if (evt.audio) { pendingAudio = evt.audio; }
-          } catch { /* skip malformed */ }
-        }
-      }
-
-      // Actualizar botón ↩ con el texto completo
-      if (reuseBtn && fullText) {
-        const final = stripMd(fullText);
+      if (reuseBtn && data.response) {
+        const final = stripMd(data.response);
         reuseBtn.onclick = () => { textInput.value = final; textInput.focus(); };
       }
 
-      currentController = null;
-
-      // Reproducir audio si llegó junto al stream
-      if (pendingAudio) {
-        await playBase64Audio(pendingAudio);
+      if (data.audio) {
+        await playBase64Audio(data.audio);
       } else {
         setMicState('idle');
         setUiEnabled(true);
