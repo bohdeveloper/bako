@@ -9,7 +9,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import axios from 'axios';
 import FormData from 'form-data';
-import { askClaude } from '../llm/claude';
+import { askClaude, isOllamaAvailable } from '../llm/claude';
 import { generateVoiceBuffer, cleanForVoice } from '../tools/tts';
 import { getMemoriesSection, getDynamicProfileSection, getPeopleSection, getProjectsSection, getKnowledgeSection, buildSystemPrompt } from '../tools/telegram';
 import { getAmbientContext } from '../tools/context';
@@ -43,6 +43,26 @@ function isContextTooLarge(err: unknown): boolean {
     String(e?.message ?? '').includes('413')
   );
 }
+
+// Cache del estado de Ollama — se refresca cada 30s para no añadir latencia
+let ollamaCache: { available: boolean; ts: number } = { available: false, ts: 0 };
+async function getCachedOllamaStatus(): Promise<boolean> {
+  if (Date.now() - ollamaCache.ts < 30_000) return ollamaCache.available;
+  const available = await isOllamaAvailable();
+  ollamaCache = { available, ts: Date.now() };
+  return available;
+}
+
+// GET /api/desktop/llm-status — devuelve qué LLM está activo ahora mismo
+router.get('/llm-status', async (_req: Request, res: Response) => {
+  const ollama = await getCachedOllamaStatus();
+  res.json({
+    llm:   ollama ? 'ollama' : 'groq',
+    model: ollama
+      ? (process.env.OLLAMA_MODEL ?? 'qwen2.5-coder:7b')
+      : (process.env.GROQ_MODEL   ?? 'llama-3.1-8b-instant'),
+  });
+});
 
 async function transcribeAudio(buffer: Buffer): Promise<string> {
   const form = new FormData();
