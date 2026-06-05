@@ -75,20 +75,7 @@ ${peopleSection ? `PERSONAS QUE BAKO CONOCE (úsalas con naturalidad al hablar, 
 ${projectsSection ? `PROYECTOS DE BORJA (estado actual y siguiente acción — úsalos como contexto, no los listes a menos que se pidan):\n${projectsSection}\n` : ''}
 ${knowledgeSection ? `CONOCIMIENTO PERSONAL DE BORJA (salud, valores, finanzas, historia, rutina — úsalo como contexto natural):\n${knowledgeSection}\n` : ''}
 ${memoriesSection ? `RECUERDOS DINÁMICOS (hechos, observaciones, estados — complementan el perfil estructurado):\n${memoriesSection}\n` : ''}
-PERFIL BASE:
-${JSON.stringify({
-  identidad: BAKO_PROFILE.identidad,
-  pareja: BAKO_PROFILE.pareja,
-  proyectos: Object.fromEntries(
-    Object.entries(BAKO_PROFILE.proyectos).map(([k, v]: [string, any]) => [k, { nombre: v.nombre, estado: v.estado, tipo: v.tipo }])
-  ),
-  vida_personal: {
-    filosofia: BAKO_PROFILE.vida_personal.filosofia,
-    rutina_diaria: BAKO_PROFILE.vida_personal.rutina_diaria,
-    busqueda_vivienda: BAKO_PROFILE.vida_personal.busqueda_vivienda,
-  },
-  instrucciones_para_bako: BAKO_PROFILE.instrucciones_para_bako,
-})}`;
+IDENTIDAD: ${BAKO_PROFILE.identidad.nombre}, ${BAKO_PROFILE.identidad.edad} años (cumple el ${BAKO_PROFILE.identidad.cumpleanos}). Vive en ${BAKO_PROFILE.identidad.ubicacion}. ${BAKO_PROFILE.identidad.situacion_laboral}`;
 }
 
 export async function getPeopleSection(): Promise<string> {
@@ -101,11 +88,14 @@ export async function getPeopleSection(): Promise<string> {
   }
 }
 
-export async function getProjectsSection(): Promise<string> {
+export async function getProjectsSection(charBudget = 3000): Promise<string> {
   try {
     const projects = await Project.find({ activo: true }).sort({ prioridad: 1, nombre: 1 });
     if (!projects.length) return '';
-    return projects.map(formatProjectForContext).join('\n');
+    const full = projects.map(formatProjectForContext).join('\n');
+    if (full.length <= charBudget) return full;
+    const cut = full.lastIndexOf('\n', charBudget);
+    return cut > 0 ? full.slice(0, cut) : full.slice(0, charBudget);
   } catch {
     return '';
   }

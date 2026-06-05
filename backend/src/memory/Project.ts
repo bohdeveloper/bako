@@ -59,6 +59,6 @@ export function formatProjectForContext(p: IProject): string {
   if (p.stack?.length) detalles.push(`stack: ${p.stack.join(', ')}`);
   if (p.horizonte) detalles.push(`horizonte ${p.horizonte}`);
   if (detalles.length) frase += '. ' + detalles.join('; ') + '.';
-  if (p.notas?.length) frase += ' ' + p.notas.join('. ') + '.';
+  if (p.notas?.length) frase += ' ' + p.notas.slice(0, 4).join('. ') + '.';
   return frase;
 }
