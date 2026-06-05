@@ -18,7 +18,8 @@ import { tryExecuteAction } from '../tools/actions';
 import { requireAuth } from '../middleware/authMiddleware';
 import { getUnreadEmails, formatEmailsForText } from '../tools/gmail';
 
-const EMAIL_REGEX = /correos?\s+(sin\s+leer|nuevos?|pendientes?)|qu[eé]\s+(correos?|emails?|mails?)\s+tengo|(tengo|hay)\s+(correos?|emails?)|bandeja|revisa\s+el\s+(correo|email|gmail)|emails?\s+sin\s+leer/i;
+// Detecta cualquier mención a emails/correo — basta con que aparezca la palabra
+const EMAIL_REGEX = /\b(emails?|correos?(\s+electr[oó]nicos?)?|mails?|bandeja|gmail)\b/i;
 
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
