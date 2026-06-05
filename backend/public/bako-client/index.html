@@ -534,10 +534,12 @@
     .rel-otro      { background: rgba(107,114,128,0.1);  color: #9ca3af; }
     .rel-self      { background: rgba(20,184,166,0.12);  color: var(--teal); letter-spacing: 0.5px; }
     .prio-badge    { display: inline-block; font-size: 9px; padding: 1px 6px; border-radius: 6px; background: rgba(20,184,166,0.12); color: var(--teal); font-weight: 600; letter-spacing: 0.5px; margin-left: 5px; vertical-align: middle; }
-    .sort-handle   { display: flex; flex-direction: column; gap: 1px; flex-shrink: 0; margin-right: 4px; }
-    .btn-sort      { background: none; border: none; cursor: pointer; color: var(--dim); font-size: 12px; padding: 1px 4px; line-height: 1; transition: color 0.15s; }
-    .btn-sort:hover { color: var(--teal); }
-    .btn-sort:disabled { opacity: 0.25; cursor: default; }
+    .drag-handle   { display: flex; align-items: center; padding: 0 8px 0 2px; cursor: grab; color: var(--dim); opacity: 0.45; flex-shrink: 0; touch-action: none; }
+    .drag-handle:active { cursor: grabbing; opacity: 0.8; }
+    .drag-handle svg    { width: 14px; height: 14px; display: block; }
+    .person-card.dragging      { opacity: 0.35; }
+    .person-card.drag-over-top    { border-top: 2px solid var(--teal) !important; }
+    .person-card.drag-over-bottom { border-bottom: 2px solid var(--teal) !important; }
     .estado-activo    { background: rgba(20,184,166,0.12);  color: var(--teal); }
     .estado-diferido  { background: rgba(107,114,128,0.1);  color: #9ca3af; }
     .estado-pausado   { background: rgba(107,114,128,0.1);  color: #9ca3af; }
@@ -1268,7 +1270,7 @@
       return;
     }
     people.forEach(p => list.appendChild(buildPersonCard(p)));
-    refreshSortBtns(list);
+    initDragDrop('peopleList', reorderPeople);
   }
 
   const EDIT_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" width="12" height="12"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"/></svg>`;
@@ -1278,25 +1280,107 @@
     const ids = [...document.querySelectorAll('#peopleList .person-card')].map(c => c.dataset.pid);
     try { await fetch(`${BAKO_URL}/api/people/reorder`, { method:'PATCH', headers: authHeaders(), body: JSON.stringify({ ids }) }); } catch {}
   }
-  function moveCard(card, direction, listId, reorderFn) {
-    const list = document.getElementById(listId);
-    if (direction === 'up') {
-      const prev = card.previousElementSibling;
-      if (prev) list.insertBefore(card, prev);
-    } else {
-      const next = card.nextElementSibling;
-      if (next) list.insertBefore(next, card);
-    }
-    refreshSortBtns(list);
-    reorderFn();
+  async function reorderProjects() {
+    const ids = [...document.querySelectorAll('#projectsList .person-card')].map(c => c.dataset.pid);
+    try { await fetch(`${BAKO_URL}/api/projects/reorder`, { method:'PATCH', headers: authHeaders(), body: JSON.stringify({ ids }) }); } catch {}
   }
-  function refreshSortBtns(list) {
-    const cards = [...list.querySelectorAll('.person-card')];
-    cards.forEach((c, i) => {
-      const up   = c.querySelector('.sort-up');
-      const down = c.querySelector('.sort-down');
-      if (up)   up.disabled   = (i === 0);
-      if (down) down.disabled = (i === cards.length - 1);
+
+  const GRIP_ICON = `<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="5" cy="3.5" r="1.3"/><circle cx="11" cy="3.5" r="1.3"/><circle cx="5" cy="8" r="1.3"/><circle cx="11" cy="8" r="1.3"/><circle cx="5" cy="12.5" r="1.3"/><circle cx="11" cy="12.5" r="1.3"/></svg>`;
+
+  function clearDragOver(list) {
+    list.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(c => {
+      c.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+  }
+
+  function initDragDrop(listId, reorderFn) {
+    const list = document.getElementById(listId);
+    if (list.dataset.dndReady) return;
+    list.dataset.dndReady = '1';
+    let dragged = null, ghost = null, touchOffsetY = 0;
+
+    // ── HTML5 DnD (desktop) ─────────────────────────────────────────────────
+    list.addEventListener('dragstart', e => {
+      dragged = e.target.closest('.person-card');
+      if (!dragged) return;
+      dragged.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    list.addEventListener('dragover', e => {
+      e.preventDefault();
+      const target = e.target.closest('.person-card');
+      if (!target || target === dragged) return;
+      clearDragOver(list);
+      const r = target.getBoundingClientRect();
+      target.classList.add(e.clientY < r.top + r.height / 2 ? 'drag-over-top' : 'drag-over-bottom');
+    });
+    list.addEventListener('dragleave', e => {
+      if (!list.contains(e.relatedTarget)) clearDragOver(list);
+    });
+    list.addEventListener('drop', e => {
+      e.preventDefault();
+      const target = e.target.closest('.person-card');
+      if (!target || target === dragged) return;
+      const r = target.getBoundingClientRect();
+      list.insertBefore(dragged, e.clientY < r.top + r.height / 2 ? target : target.nextSibling);
+      clearDragOver(list);
+      reorderFn();
+    });
+    list.addEventListener('dragend', () => {
+      if (dragged) { dragged.classList.remove('dragging'); dragged = null; }
+      clearDragOver(list);
+    });
+
+    // ── Touch (móvil) — solo desde el handle ────────────────────────────────
+    list.addEventListener('touchstart', e => {
+      if (!e.target.closest('.drag-handle')) return;
+      dragged = e.target.closest('.person-card');
+      if (!dragged) return;
+      const rect = dragged.getBoundingClientRect();
+      touchOffsetY = e.touches[0].clientY - rect.top;
+      ghost = dragged.cloneNode(true);
+      Object.assign(ghost.style, {
+        position: 'fixed', left: rect.left + 'px', width: rect.width + 'px',
+        top: rect.top + 'px', opacity: '0.85', zIndex: '9999', pointerEvents: 'none',
+        borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+      });
+      document.body.appendChild(ghost);
+      dragged.classList.add('dragging');
+      e.preventDefault();
+    }, { passive: false });
+
+    list.addEventListener('touchmove', e => {
+      if (!dragged || !ghost) return;
+      e.preventDefault();
+      const y = e.touches[0].clientY;
+      ghost.style.top = (y - touchOffsetY) + 'px';
+      clearDragOver(list);
+      for (const card of list.querySelectorAll('.person-card')) {
+        if (card === dragged) continue;
+        const r = card.getBoundingClientRect();
+        if (y > r.top && y < r.bottom) {
+          card.classList.add(y < r.top + r.height / 2 ? 'drag-over-top' : 'drag-over-bottom');
+          break;
+        }
+      }
+    }, { passive: false });
+
+    list.addEventListener('touchend', e => {
+      if (!dragged) return;
+      const y = e.changedTouches[0].clientY;
+      if (ghost) { ghost.remove(); ghost = null; }
+      dragged.classList.remove('dragging');
+      clearDragOver(list);
+      for (const card of list.querySelectorAll('.person-card')) {
+        if (card === dragged) continue;
+        const r = card.getBoundingClientRect();
+        if (y > r.top && y < r.bottom) {
+          list.insertBefore(dragged, y < r.top + r.height / 2 ? card : card.nextSibling);
+          break;
+        }
+      }
+      dragged = null;
+      reorderFn();
     });
   }
 
@@ -1305,6 +1389,7 @@
     card.className = 'person-card';
     card.id = 'person-' + p._id;
     card.dataset.pid = p._id;
+    card.draggable = true;
 
     const isSelf    = /^borja\b/i.test(p.nombre || '');
     const relLabel  = isSelf ? 'Propietario' : (REL_LABELS[p.relacion] || p.relacion);
@@ -1320,10 +1405,7 @@
 
     card.innerHTML = `
       <div class="person-card-top">
-        <div class="sort-handle">
-          <button class="btn-sort sort-up" title="Subir">↑</button>
-          <button class="btn-sort sort-down" title="Bajar">↓</button>
-        </div>
+        <div class="drag-handle" title="Arrastrar para reordenar">${GRIP_ICON}</div>
         <div class="person-avatar">${personAvatar(p.nombre)}</div>
         <div class="person-info">
           <div class="person-name">${escHtml(p.nombre)}<span class="rel-badge ${relClass}">${relLabel}</span></div>
@@ -1338,8 +1420,6 @@
       ${(notesHtml || connHtml) ? `<div class="person-notes">${notesHtml}${connHtml}</div>` : ''}
     `;
 
-    card.querySelector('.sort-up').addEventListener('click',   () => moveCard(card, 'up',   'peopleList',   reorderPeople));
-    card.querySelector('.sort-down').addEventListener('click', () => moveCard(card, 'down', 'peopleList',   reorderPeople));
     card.querySelector('.edit').addEventListener('click', () => togglePersonEdit(p, card));
     card.querySelector('.del').addEventListener('click',  () => deletePerson(p._id, card));
     return card;
@@ -1467,11 +1547,6 @@
     }
   }
 
-  async function reorderProjects() {
-    const ids = [...document.querySelectorAll('#projectsList .person-card')].map(c => c.dataset.pid);
-    try { await fetch(`${BAKO_URL}/api/projects/reorder`, { method:'PATCH', headers: authHeaders(), body: JSON.stringify({ ids }) }); } catch {}
-  }
-
   function renderProjects(projects) {
     const list = document.getElementById('projectsList');
     list.innerHTML = '';
@@ -1480,7 +1555,7 @@
       return;
     }
     projects.forEach(p => list.appendChild(buildProjectCard(p)));
-    refreshSortBtns(list);
+    initDragDrop('projectsList', reorderProjects);
   }
 
   function buildProjectCard(p) {
@@ -1488,6 +1563,7 @@
     card.className = 'person-card';
     card.id = 'project-' + p._id;
     card.dataset.pid = p._id;
+    card.draggable = true;
 
     const estadoBadge    = ESTADO_LABELS[p.estado]   || p.estado;
     const prioridadBadge = PRIORIDAD_BADGE[p.prioridad] || '';
@@ -1499,10 +1575,7 @@
 
     card.innerHTML = `
       <div class="person-card-top">
-        <div class="sort-handle">
-          <button class="btn-sort sort-up" title="Subir">↑</button>
-          <button class="btn-sort sort-down" title="Bajar">↓</button>
-        </div>
+        <div class="drag-handle" title="Arrastrar para reordenar">${GRIP_ICON}</div>
         <div class="person-avatar">${escHtml((p.nombre||'?')[0].toUpperCase())}</div>
         <div class="person-info">
           <div class="person-name">${escHtml(p.nombre)}${prioridadBadge}<span class="rel-badge estado-${p.estado}">${estadoBadge}</span></div>
@@ -1519,8 +1592,6 @@
       ${(stackHtml || notasHtml || bloqHtml) ? `<div class="person-notes">${bloqHtml}${stackHtml}${notasHtml}</div>` : ''}
     `;
 
-    card.querySelector('.sort-up').addEventListener('click',   () => moveCard(card, 'up',   'projectsList', reorderProjects));
-    card.querySelector('.sort-down').addEventListener('click', () => moveCard(card, 'down', 'projectsList', reorderProjects));
     card.querySelector('.edit').addEventListener('click', () => toggleProjectEdit(p, card));
     card.querySelector('.del').addEventListener('click',  () => deleteProject(p._id, card));
     return card;
