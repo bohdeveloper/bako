@@ -1,5 +1,6 @@
 import { Memory, IMemory } from '../memory/Memory';
 import { askClaude } from '../llm/claude';
+import { generateEmbedding, cosineSimilarity } from './embeddings';
 
 export async function saveMemory(
   content: string,
@@ -10,13 +11,20 @@ export async function saveMemory(
     tags?:       string[];
   } = {}
 ): Promise<IMemory> {
-  return Memory.create({
+  const saved = await Memory.create({
     content,
     type:       options.type       ?? 'fact',
     importance: options.importance ?? 'medium',
     source:     options.source     ?? 'extracted',
     tags:       options.tags       ?? [],
   });
+
+  // Generar embedding en background — no bloquea la respuesta al usuario
+  generateEmbedding(content).then(({ vector, dim, model }) =>
+    Memory.findByIdAndUpdate(saved._id, { embedding: vector, embeddingDim: dim, embeddingModel: model })
+  ).catch(() => {}); // Silent fail — sin embedding BAKO sigue funcionando
+
+  return saved;
 }
 
 // ── Tier 1: relaciones sociales — SIEMPRE completas (familia, amigos, pareja)
@@ -76,6 +84,23 @@ export async function getMemories(
 }
 
 export async function searchMemories(query: string): Promise<IMemory[]> {
+  // Búsqueda semántica — si hay embeddings disponibles, usarlos
+  try {
+    const { vector, dim } = await generateEmbedding(query);
+    const candidates = await Memory.find({ embeddingDim: dim }).lean() as any[];
+    if (candidates.length >= 3) {
+      const scored = candidates
+        .map((m: any) => ({ m, score: cosineSimilarity(vector, m.embedding ?? []) }))
+        .filter(s => s.score > 0.3)
+        .sort((a, b) => b.score - a.score);
+      if (scored.length >= 3) {
+        console.log(`🔍 Búsqueda semántica: ${scored.length} candidatas (dim=${dim})`);
+        return scored.slice(0, 20).map(s => s.m);
+      }
+    }
+  } catch { /* fallback a keywords */ }
+
+  // Fallback keyword
   const words = query.trim().split(/\s+/).filter(w => w.length > 2);
   if (!words.length) return Memory.find().sort({ createdAt: -1 }).limit(20);
   const regex = new RegExp(words.join('|'), 'i');

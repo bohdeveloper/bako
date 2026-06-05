@@ -754,6 +754,7 @@
       <button class="btn-create-user secondary" id="btnMigrateMemories" style="width:100%;margin-bottom:6px">Migrar memoria</button>
       <button class="btn-create-user secondary" id="btnDedupePreview" style="width:100%;margin-bottom:6px">Previsualizar deduplicación</button>
       <button class="btn-create-user secondary" id="btnDedupe" style="width:100%;margin-bottom:6px">Deduplicar memoria</button>
+      <button class="btn-create-user secondary" id="btnEmbedMemories" style="width:100%;margin-bottom:6px">Generar embeddings</button>
       <button class="btn-create-user secondary" id="btnCleanManual" style="width:100%;margin-bottom:6px;border-color:#ef4444;color:#ef4444">Limpiar memorias importadas</button>
       <div class="admin-feedback" id="seedFeedback"></div>
     </div>
@@ -1210,6 +1211,26 @@
       }
     } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
     finally { btn.disabled = false; btn.textContent = '🧹 Deduplicar memoria'; }
+  });
+
+  document.getElementById('btnEmbedMemories').addEventListener('click', async () => {
+    const btn = document.getElementById('btnEmbedMemories');
+    const fb  = document.getElementById('seedFeedback');
+    btn.disabled = true; btn.textContent = '⏳ Generando embeddings… (puede tardar)';
+    fb.textContent = ''; fb.className = 'admin-feedback';
+    try {
+      const res  = await fetch(`${BAKO_URL}/api/agent/embed-memories`, { method:'POST', headers: authHeaders() });
+      const data = await res.json();
+      if (res.ok) {
+        fb.textContent = data.embedded === 0
+          ? `✓ ${data.message}`
+          : `✓ ${data.embedded} embeddings generados · ${data.errors} errores · ${data.total} memorias procesadas`;
+        fb.className = 'admin-feedback ok';
+      } else {
+        fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
+      }
+    } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
+    finally { btn.disabled = false; btn.textContent = '🔢 Generar embeddings'; }
   });
 
   document.getElementById('btnCleanManual').addEventListener('click', async () => {
