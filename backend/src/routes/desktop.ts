@@ -60,7 +60,7 @@ router.get('/llm-status', async (_req: Request, res: Response) => {
   res.json({
     llm:   ollama ? 'ollama' : 'groq',
     model: ollama
-      ? (process.env.OLLAMA_MODEL ?? 'qwen2.5-coder:7b')
+      ? (process.env.OLLAMA_MODEL ?? 'llama3.2:3b')
       : (process.env.GROQ_MODEL   ?? 'llama-3.1-8b-instant'),
   });
 });
@@ -141,7 +141,7 @@ router.post('/voice', upload.single('audio'), async (req: Request, res: Response
     }
 
     const systemPrompt = await getFullSystemPrompt(transcription);
-    const response     = await askClaude(transcription, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud: true });
+    const response     = await askClaude(transcription, { systemPrompt, temperature: 0.4, maxTokens: 400 });
     const audioBuffer  = await generateVoiceBuffer(cleanForVoice(response));
     res.json({ transcription, response, audio: audioBuffer.toString('base64') });
 
@@ -168,7 +168,7 @@ router.post('/text', async (req: Request, res: Response) => {
     }
 
     const systemPrompt = await getFullSystemPrompt(message);
-    const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud: true });
+    const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400 });
     const audioBuffer  = await generateVoiceBuffer(cleanForVoice(response));
     res.json({ response, audio: audioBuffer.toString('base64') });
 
