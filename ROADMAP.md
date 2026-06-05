@@ -46,8 +46,8 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | Selector de privacidad — `/privado` + detección automática | ✅ |
 | Cloudflare D1 — Tracker diario + Blog comments | ✅ |
 | Memoria dinámica — MongoDB Memory collection | ✅ |
-| Memoria Atlas — 101 registros verificados (10 XMLs + conocimiento personal, nunca borrar) | ✅ |
-| Carga adaptativa — todas las personales siempre + técnicas por LLM (Ollama=5, Groq=20) | ✅ |
+| Memoria Atlas — sustituida por colecciones estructuradas People/Projects/Knowledge (junio 2026) | ✅ |
+| Carga adaptativa por tiers — social(20)→proyectos(5)→personal(3)→técnico garantizados | ✅ |
 | Ejecución — crear tareas Notion + eventos Calendar | ✅ |
 | Proactividad — cron briefing 05:45, alertas 08:30, resumen semanal viernes | ✅ |
 | Tracker Personal — siempre en contexto ambiental (sin keywords) | ✅ |
@@ -83,6 +83,15 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | Icono stop SVG rojo en mic — feedback visual claro al interrumpir BAKO | ✅ |
 | Fase 7 — panel admin Memorias: listar, buscar, filtrar, editar, crear, eliminar (Atlas directo) | ✅ |
 | "No le entiendo, señor" — respuesta cuando el mensaje es ininteligible o sin sentido | ✅ |
+| **Fase 7b-A completa** — People + Projects + KnowledgeEntry en MongoDB, API REST, panel admin | ✅ |
+| Respuestas naturales — formatPersonForContext/Project/Knowledge en prosa, no listas estructuradas | ✅ |
+| Migración People desde profile.ts — Yaimy y familia sin LLM (profile.ts es autoritativo) | ✅ |
+| Migración Projects desde profile.ts — 9 proyectos incl. Operación Galego con detalle completo | ✅ |
+| Migración Knowledge desde profile.ts — 19 entradas (salud, valores, finanzas, rutina, historia…) | ✅ |
+| Limpieza memorias manuales — endpoint + botón admin, elimina source=manual de Memory collection | ✅ |
+| System prompt optimizado — eliminado BAKO_PROFILE JSON redundante, budget proyectos 3000 chars | ✅ |
+| PWA — limpiar chat clicando en BAKO (con confirmación), sin subtítulo "MAYORDOMO PERSONAL" | ✅ |
+| Panel admin v2 — 5 columnas desktop, navbar z-index, mobile wrap, textareas, texto seleccionable | ✅ |
 
 ---
 
@@ -158,14 +167,14 @@ BAKO debe conocer a su señor como lo haría un mayordomo de toda la vida — no
 | Situación laboral actual | ✅ En profile.ts (LAE corregido 03/06/2026) |
 | Proyectos personales vs profesional | ✅ En profile.ts |
 | Rutina diaria y entrenamiento | ✅ En profile.ts |
-| Familia y relaciones personales | ✅ En Atlas (19 memorias: pareja, padres, hermana, cuñada, abuelos, amigos, suegros) |
-| Gustos y preferencias (comida, música, ocio) | ✅ En Atlas (comida, música, ocio) |
-| Historia personal y momentos clave | ✅ En Atlas (origen, hábitos, psicólogo, proceso judicial) |
-| Miedos, motivaciones y valores | ✅ En Atlas (orgullo carrera, transformación personal, miedo a perder libertad, estoicismo+shaolin) |
-| Salud y bienestar | ✅ En Atlas (digestión, sueño, suplementos, dieta) |
-| Objetivos vitales más allá de BAKO | ✅ En Atlas (casa Galicia, hobbies, proyecto repostería Yaimy, hijos, libertad) |
-| Finanzas y situación económica | ✅ En Atlas (2k ahorrados, meta 5-10k, sin deudas, coste vida Errentería) |
-| Carácter: cómo se describe Borja a sí mismo | ✅ En Atlas (energico, valiente, empático, leal / autocontrol, foco, constancia) |
+| Familia y relaciones personales | ✅ Colección `People` (pareja, padres, hermana, cuñada, abuelos, amigos, suegros) |
+| Gustos y preferencias (comida, música, ocio) | ✅ Colección `KnowledgeEntry` (categoría hobbies/otro) |
+| Historia personal y momentos clave | ✅ Colección `KnowledgeEntry` (categoría historia) |
+| Miedos, motivaciones y valores | ✅ Colección `KnowledgeEntry` (categorías valores, carácter) |
+| Salud y bienestar | ✅ Colección `KnowledgeEntry` (categoría salud — digestión, sueño, suplementos, dieta) |
+| Objetivos vitales más allá de BAKO | ✅ Colección `KnowledgeEntry` (categoría objetivos) + `Projects` (Operación Galego) |
+| Finanzas y situación económica | ✅ Colección `KnowledgeEntry` (categoría finanzas) |
+| Carácter: cómo se describe Borja a sí mismo | ✅ Colección `KnowledgeEntry` (categoría carácter) |
 
 **Cómo continuar:** Abrir Claude Code y decir "quiero que BAKO me conozca mejor — hazme preguntas personales". Claude hace las preguntas, Borja responde, se importan como memorias.
 
@@ -188,13 +197,13 @@ MEMORIA ──► EJECUCIÓN ──► PROACTIVIDAD
 
 - ✅ Colección `Memory` en MongoDB (schema: tipo, importancia, fuente, tags)
 - ✅ Extracción automática de hechos tras cada conversación (async, no bloquea)
-- ✅ **Carga adaptativa por tipo y LLM** — todas las personales siempre (~44, limit 60) + técnicas según LLM: Ollama=5, Groq=20 (fix 03/06/2026)
-  - Antes: ratio 70/30 del total (Ollama=25 → 18 personal + 7 técnico) — datos personales podían quedar fuera
-  - Ahora: padre, familia, salud, historia… siempre en contexto independientemente del modo LLM
+- ✅ **Carga por tiers** — social(20)→proyectos(5)→personal(3)→técnico(2) garantizados, charBudget 1800 chars
 - ✅ Endpoint `DELETE /api/agent/memories/:id` para gestión desde Claude Code
 - ✅ Comandos naturales: "Bako, recuerda que..." / "Bako, olvida..." / `/memorias [tema]`
 - ✅ Privacidad respetada: sin extracción en mensajes sensibles o `/privado`
-- ✅ 101 memorias en Atlas (10/10 XMLs + conocimiento personal) — solo evolucionar, nunca borrar
+- ✅ **Memory collection saneada** — eliminadas memorias `source: 'manual'` (junio 2026)
+  - People/Projects/KnowledgeEntry cubren todo el conocimiento estructurado
+  - Memory solo contiene hechos dinámicos extraídos de conversaciones (`source: 'extracted'`)
 
 ### Gap 2 — Ejecución de acciones ⚡ ✅ Verificado
 BAKO lee pero no actúa. Necesita poder ejecutar órdenes.
@@ -496,22 +505,24 @@ El sistema de tiers desaparece o se simplifica enormemente: en lugar de cargar l
 
 - ✅ Colección `People` (MongoDB) — nombre, relación, cumpleaños, ubicación, trabajo, notas, conexiones, orden
 - ✅ Colección `Projects` (MongoDB) — nombre, slug, tipo, estado, prioridad, descripcion, siguiente_acción, stack, urls, horizonte, notas, orden
-- ✅ API REST completa — CRUD personas (`/api/people`) y proyectos (`/api/projects`)
-- ✅ Panel admin PWA + Desktop — pestaña Personas y pestaña Proyectos
+- ✅ Colección `KnowledgeEntry` (MongoDB) — categoría, clave, valor, detalles, importancia (nueva, junio 2026)
+- ✅ API REST completa — CRUD personas (`/api/people`), proyectos (`/api/projects`), conocimiento (`/api/knowledge`)
+- ✅ Panel admin PWA + Desktop — pestañas Personas, Proyectos y Conocimiento (5 columnas en desktop)
   - Panel a pantalla completa, monocromático con acentos teal (`#14b8a6`)
-  - Borja aparece como "Propietario" (no "Conocido")
-  - Badge "Alta" en texto (sin emojis ni dots) para prioridad alta
-- ✅ **Drag & drop reordering** — HTML5 DnD en desktop + touch events desde grip handle en móvil
-  - Campo `orden: Number` en ambos schemas
-  - `PATCH /api/people/reorder` y `PATCH /api/projects/reorder`
-  - Icono grip (6 puntos), línea teal indica posición de drop
-- ✅ **Deduplicación algorítmica** — `POST /api/agent/deduplicate-memories` sin LLM (fix Groq 413)
+  - Drag & drop reordering — grip handle, `PATCH /api/people/reorder` y `/projects/reorder`
+- ✅ **Formato natural en system prompt** — `formatPersonForContext`, `formatProjectForContext`, `formatKnowledgeForContext` generan prosa legible, no listas `key: valor`
+- ✅ **Deduplicación algorítmica** — `POST /api/agent/deduplicate-memories` sin LLM
   - Pass 1: prefijos comunes (100 chars), Pass 2: patrones junk, Pass 3: word overlap >88%
-- ✅ **Migración desde profile.ts** — `POST /api/agent/migrate-memories` seed desde `BAKO_PROFILE`
+- ✅ **Migración completa desde profile.ts** — `POST /api/agent/migrate-memories`
   - Personas: Yaimy, familia directa, familia política, amigos — datos autoritativos sin LLM
-  - profile.ts siempre sobrescribe al LLM para contactos conocidos
-- ❌ Migración proyectos desde profile.ts — pendiente (8 proyectos de `BAKO_PROFILE.proyectos`)
-- ❌ Migración conocimiento desde profile.ts — pendiente (filosofia, rutina, salud, finanzas, gustos, sueño_vida, infraestructura)
+  - Proyectos: 9 proyectos incl. Operación Galego (fases, zonas candidatas, agencias, siguiente acción)
+  - Conocimiento: 19 entradas — salud, valores, carácter, finanzas, historia, rutina, objetivos, legal, hobbies
+- ✅ **Limpieza memorias manuales** — `POST /api/agent/clean-manual-memories` + botón admin (rojo, con confirm)
+  - Elimina todos los docs `Memory` con `source: 'manual'` (datos ya cubiertos por colecciones estructuradas)
+  - Conserva intactas las memorias `source: 'extracted'` (hechos extraídos de conversaciones)
+- ✅ **System prompt optimizado** — eliminado bloque `BAKO_PROFILE JSON` (~3000 chars redundantes)
+  - Solo queda 1 línea de identidad; People/Projects/Knowledge cubren todo lo demás
+  - `getProjectsSection()` con charBudget=3000 chars; notas limitadas a 4 por proyecto
 
 **Fase 7b-B — Embeddings semánticos ❌ Pendiente**
 - Ollama `nomic-embed-text` al guardar cada memoria
