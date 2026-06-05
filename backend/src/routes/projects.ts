@@ -13,8 +13,21 @@ const PROJECT_FIELDS = [
 
 // GET /api/projects
 router.get('/', async (_req: Request, res: Response) => {
-  const projects = await Project.find().sort({ prioridad: 1, nombre: 1 });
+  const projects = await Project.find().sort({ orden: 1, nombre: 1 });
   res.json({ ok: true, total: projects.length, projects });
+});
+
+// PATCH /api/projects/reorder — { ids: string[] } — reordena por posición en el array
+router.patch('/reorder', async (req: Request, res: Response) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: 'ids debe ser un array' });
+    return;
+  }
+  await Promise.all(ids.map((id: string, i: number) =>
+    Project.findByIdAndUpdate(id, { orden: i })
+  ));
+  res.json({ ok: true, reordered: ids.length });
 });
 
 // GET /api/projects/:id

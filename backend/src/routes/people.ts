@@ -7,8 +7,21 @@ router.use(requireAuth);
 
 // GET /api/people — listar todas las personas
 router.get('/', async (_req: Request, res: Response) => {
-  const people = await Person.find().sort({ relacion: 1, nombre: 1 });
+  const people = await Person.find().sort({ orden: 1, nombre: 1 });
   res.json({ ok: true, total: people.length, people });
+});
+
+// PATCH /api/people/reorder — { ids: string[] } — reordena por posición en el array
+router.patch('/reorder', async (req: Request, res: Response) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ error: 'ids debe ser un array' });
+    return;
+  }
+  await Promise.all(ids.map((id: string, i: number) =>
+    Person.findByIdAndUpdate(id, { orden: i })
+  ));
+  res.json({ ok: true, reordered: ids.length });
 });
 
 // GET /api/people/:id

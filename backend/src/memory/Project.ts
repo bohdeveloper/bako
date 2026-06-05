@@ -18,6 +18,7 @@ export interface IProject extends Document {
   horizonte:        string;       // "2026", "3-5 años", "post-Galicia"
   notas:            string[];
   activo:           boolean;
+  orden:            number;      // posición manual en el panel de admin
   createdAt:        Date;
   updatedAt:        Date;
 }
@@ -38,6 +39,7 @@ const ProjectSchema = new Schema<IProject>(
     horizonte:        { type: String, default: '' },
     notas:            [String],
     activo:           { type: Boolean, default: true },
+    orden:            { type: Number, default: 0 },
   },
   { timestamps: true }
 );

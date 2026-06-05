@@ -14,6 +14,7 @@ export interface IPerson extends Document {
   notas:       string[];          // observaciones libres
   conexiones:  string[];          // nombres de otras personas relacionadas
   activo:      boolean;           // sigue siendo parte de la vida actual
+  orden:       number;            // posición manual en el panel de admin
   createdAt:   Date;
   updatedAt:   Date;
 }
@@ -30,6 +31,7 @@ const PersonSchema = new Schema<IPerson>(
     notas:       [String],
     conexiones:  [String],
     activo:      { type: Boolean, default: true },
+    orden:       { type: Number, default: 0 },
   },
   { timestamps: true }
 );
