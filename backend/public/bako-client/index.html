@@ -13,6 +13,10 @@
   <title>BAKO</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    .msg-bubble, .admin-body, .mem-item-content, .person-info, .person-desc,
+    .person-meta, .person-note-tag, .user-info, .user-name, .user-meta {
+      user-select: text; -webkit-user-select: text;
+    }
 
     /* ── Modo oscuro (por defecto) ──────────────────────────────────────────── */
     :root,
@@ -380,6 +384,7 @@
       padding: 9px 12px; color: var(--text); font-size: 14px; font-family: inherit; outline: none;
     }
     .admin-input:focus { border-color: var(--teal); }
+    textarea.admin-input { resize: vertical; min-height: 60px; line-height: 1.45; }
     .admin-select {
       background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
       padding: 9px 12px; color: var(--text); font-size: 14px; font-family: inherit; outline: none; cursor: pointer;
@@ -771,7 +776,7 @@
           <option value="otro">Otro</option>
         </select>
       </div>
-      <input class="admin-input" id="pDescripcion" type="text" placeholder="Descripción breve (ej: amiga de infancia de Bilbao)">
+      <textarea class="admin-input" id="pDescripcion" placeholder="Descripción breve (ej: amiga de infancia de Bilbao)"></textarea>
       <div class="person-form-row">
         <input class="admin-input" id="pCumple"    type="text" placeholder="Cumpleaños DD-MM (ej: 15-08)">
         <input class="admin-input" id="pUbicacion" type="text" placeholder="Dónde vive">
@@ -819,7 +824,7 @@
         </select>
       </div>
       <input class="admin-input" id="prjTipo"        type="text" placeholder="Tipo (SaaS, portfolio, hobby…)">
-      <input class="admin-input" id="prjDescripcion" type="text" placeholder="Descripción">
+      <textarea class="admin-input" id="prjDescripcion" placeholder="Descripción"></textarea>
       <input class="admin-input" id="prjSiguiente"   type="text" placeholder="Siguiente acción">
       <input class="admin-input" id="prjStack"       type="text" placeholder="Stack (React, Node… separados por coma)">
       <input class="admin-input" id="prjUrls"        type="text" placeholder="URLs (separadas por coma)">
@@ -1511,7 +1516,7 @@
             `<option value="${r}" ${p.relacion===r?'selected':''}>${REL_LABELS[r]}</option>`).join('')}
         </select>
       </div>
-      <input class="admin-input ep-desc"       type="text" value="${escHtml(p.descripcion||'')}" placeholder="Descripción breve">
+      <textarea class="admin-input ep-desc" placeholder="Descripción breve">${escHtml(p.descripcion||'')}</textarea>
       <div class="person-form-row">
         <input class="admin-input ep-cumple"    type="text" value="${escHtml(p.cumpleaños||'')}" placeholder="Cumpleaños DD-MM">
         <input class="admin-input ep-ubicacion" type="text" value="${escHtml(p.ubicacion||'')}"  placeholder="Dónde vive">
@@ -1690,7 +1695,7 @@
         </select>
       </div>
       <input class="admin-input ep-tipo"        type="text" value="${escHtml(p.tipo||'')}" placeholder="Tipo">
-      <input class="admin-input ep-descripcion" type="text" value="${escHtml(p.descripcion||'')}" placeholder="Descripción">
+      <textarea class="admin-input ep-descripcion" placeholder="Descripción">${escHtml(p.descripcion||'')}</textarea>
       <input class="admin-input ep-siguiente"   type="text" value="${escHtml(p.siguiente_accion||'')}" placeholder="Siguiente acción">
       <input class="admin-input ep-stack"       type="text" value="${escHtml((p.stack||[]).join(', '))}" placeholder="Stack (coma)">
       <input class="admin-input ep-urls"        type="text" value="${escHtml((p.urls||[]).join(', '))}" placeholder="URLs (coma)">
