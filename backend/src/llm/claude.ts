@@ -63,7 +63,7 @@ async function askGroq(messages: Message[], maxTokens?: number, temperature?: nu
 
 export async function isOllamaAvailable(): Promise<boolean> {
   try {
-    await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 3000 });
+    await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 6000 });
     return true;
   } catch {
     return false;

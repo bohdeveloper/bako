@@ -56,6 +56,7 @@ async function getCachedOllamaStatus(): Promise<boolean> {
 // GET /api/desktop/llm-status — devuelve qué LLM está activo ahora mismo
 router.get('/llm-status', async (_req: Request, res: Response) => {
   const ollama = await getCachedOllamaStatus();
+  console.log(`🔍 llm-status: Ollama=${ollama} (URL=${process.env.OLLAMA_URL ?? 'localhost:11434'})`);
   res.json({
     llm:   ollama ? 'ollama' : 'groq',
     model: ollama
