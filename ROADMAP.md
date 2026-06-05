@@ -359,7 +359,7 @@ Panel integrado en la PWA (no en bohdeveloper.com).
 - ❌ Edición de perfil ampliada — más campos que ProfileOverride (pendiente Fase 7b)
 - ❌ Widget de chat público en bohdeveloper.com (diferido)
 
-### Fase 7b — Memoria Cognitiva ❌ Pendiente
+### Fase 7b — Memoria Cognitiva ⚠️ En progreso
 > Convertir la memoria plana de 103 registros en un sistema cognitivo real: estructurado, semántico y auto-actualizable. **Coste objetivo: $0.**
 
 #### El problema actual
@@ -490,11 +490,41 @@ El sistema de tiers desaparece o se simplifica enormemente: en lugar de cargar l
 | Almacenamiento vectores | Campo Float[] en MongoDB | $0 |
 | Panel de gestión | PWA + Desktop admin (ya existe) | $0 |
 
-#### Orden de implementación recomendado
-1. **People + Projects collections** — impacto inmediato, sin complejidad técnica nueva
-2. **Embeddings con Ollama** — requiere modelo descargado en PC (80MB)
-3. **Búsqueda semántica** — función coseno en memory.ts
-4. **Modificación activa** — el paso más delicado, implementar con validación primero
+#### Estado de implementación
+
+**Fase 7b-A — Colecciones estructuradas ✅ Completado (junio 2026)**
+
+- ✅ Colección `People` (MongoDB) — nombre, relación, cumpleaños, ubicación, trabajo, notas, conexiones, orden
+- ✅ Colección `Projects` (MongoDB) — nombre, slug, tipo, estado, prioridad, descripcion, siguiente_acción, stack, urls, horizonte, notas, orden
+- ✅ API REST completa — CRUD personas (`/api/people`) y proyectos (`/api/projects`)
+- ✅ Panel admin PWA + Desktop — pestaña Personas y pestaña Proyectos
+  - Panel a pantalla completa, monocromático con acentos teal (`#14b8a6`)
+  - Borja aparece como "Propietario" (no "Conocido")
+  - Badge "Alta" en texto (sin emojis ni dots) para prioridad alta
+- ✅ **Drag & drop reordering** — HTML5 DnD en desktop + touch events desde grip handle en móvil
+  - Campo `orden: Number` en ambos schemas
+  - `PATCH /api/people/reorder` y `PATCH /api/projects/reorder`
+  - Icono grip (6 puntos), línea teal indica posición de drop
+- ✅ **Deduplicación algorítmica** — `POST /api/agent/deduplicate-memories` sin LLM (fix Groq 413)
+  - Pass 1: prefijos comunes (100 chars), Pass 2: patrones junk, Pass 3: word overlap >88%
+- ✅ **Migración desde profile.ts** — `POST /api/agent/migrate-memories` seed desde `BAKO_PROFILE`
+  - Personas: Yaimy, familia directa, familia política, amigos — datos autoritativos sin LLM
+  - profile.ts siempre sobrescribe al LLM para contactos conocidos
+- ❌ Migración proyectos desde profile.ts — pendiente (8 proyectos de `BAKO_PROFILE.proyectos`)
+- ❌ Migración conocimiento desde profile.ts — pendiente (filosofia, rutina, salud, finanzas, gustos, sueño_vida, infraestructura)
+
+**Fase 7b-B — Embeddings semánticos ❌ Pendiente**
+- Ollama `nomic-embed-text` al guardar cada memoria
+- Fallback: Cloudflare Workers AI (100k inferencias/día)
+- Campo `embedding: Float[]` en MongoDB
+
+**Fase 7b-C — Búsqueda semántica ❌ Pendiente**
+- Similitud coseno en Node.js (sin Qdrant)
+- Reemplaza el sistema de tiers heurístico
+
+**Fase 7b-D — Modificación activa ❌ Pendiente**
+- "Ya no voy a BIZIKI" → detecta memoria existente (similitud ≥0.85) → LLM decide actualizar/crear
+- Memorias `source: 'manual'` son intocables (solo lectura)
 
 ### Fase 8 — Automatización (sin n8n) ✅ Completado (junio 2026)
 Implementado directamente en ProactivityService sin infraestructura adicional:
