@@ -606,47 +606,72 @@ class BakoDesktopApp:
 
     def _show_admin_panel(self):
         dlg = tk.Toplevel(self.root)
-        dlg.title('⚙ Gestión de usuarios')
+        dlg.title('⚙ Administración BAKO')
         dlg.transient(self.root)
         dlg.resizable(True, True)
-        w, h = 360, 500
+        w, h = 420, 560
         x = self.root.winfo_x() + (self.root.winfo_width()  - w) // 2
         y = self.root.winfo_y() + (self.root.winfo_height() - h) // 2
         dlg.geometry(f'{w}x{h}+{x}+{y}')
         dlg.configure(bg=self.t['bg2'])
 
-        tk.Label(dlg, text='⚙ Gestión de usuarios', font=self.f_bold,
-                 bg=self.t['bg2'], fg=self.t['text']).pack(padx=14, pady=(14, 4))
+        tk.Label(dlg, text='⚙ Administración', font=self.f_bold,
+                 bg=self.t['bg2'], fg=self.t['text']).pack(padx=14, pady=(12, 6))
 
-        canvas = tk.Canvas(dlg, bg=self.t['bg2'], highlightthickness=0)
-        sb     = tk.Scrollbar(dlg, orient='vertical', command=canvas.yview)
-        canvas.configure(yscrollcommand=sb.set)
-        sb.pack(side='right', fill='y')
-        canvas.pack(fill='both', expand=True, padx=4)
+        # ── Tabs ────────────────────────────────────────────────────────────
+        tab_bar  = tk.Frame(dlg, bg=self.t['bg2'])
+        tab_bar.pack(fill='x', padx=10)
+        tab_frames = {}
+        active_tab = tk.StringVar(value='users')
 
-        content = tk.Frame(canvas, bg=self.t['bg2'])
-        canvas.create_window((0, 0), window=content, anchor='nw')
-        content.bind('<Configure>', lambda e: canvas.configure(
-            scrollregion=canvas.bbox('all')))
+        def switch_tab(name):
+            active_tab.set(name)
+            for n, (btn, frm) in tab_frames.items():
+                if n == name:
+                    btn.config(fg=self.t['accent'], relief='flat')
+                    frm.pack(fill='both', expand=True)
+                    if name == 'memories':
+                        load_memories()
+                else:
+                    btn.config(fg=self.t['dim'], relief='flat')
+                    frm.pack_forget()
 
-        # Lista de usuarios
-        user_section = tk.Frame(content, bg=self.t['bg2'])
-        user_section.pack(fill='x', padx=10, pady=(4, 0))
-        tk.Label(user_section, text='Usuarios', font=self.f_small,
-                 bg=self.t['bg2'], fg=self.t['dim']).pack(anchor='w', pady=(0, 4))
+        content_area = tk.Frame(dlg, bg=self.t['bg2'])
+        content_area.pack(fill='both', expand=True, padx=4, pady=4)
 
-        users_frame = tk.Frame(user_section, bg=self.t['bg2'])
-        users_frame.pack(fill='x')
-        status_lbl = tk.Label(user_section, text='', fg=self.t['dim'],
-                              bg=self.t['bg2'], font=self.f_small)
-        status_lbl.pack(anchor='w')
+        def make_tab(name, label):
+            btn = tk.Button(tab_bar, text=label, bg=self.t['bg2'], fg=self.t['dim'],
+                            relief='flat', font=self.f_small, cursor='hand2',
+                            command=lambda n=name: switch_tab(n))
+            btn.pack(side='left', padx=4, pady=(0, 4))
+            frm = tk.Frame(content_area, bg=self.t['bg2'])
+            tab_frames[name] = (btn, frm)
+            return frm
+
+        # ── Tab Usuarios ─────────────────────────────────────────────────────
+        users_tab = make_tab('users', '👥 Usuarios')
+
+        def _scrollable(parent):
+            c  = tk.Canvas(parent, bg=self.t['bg2'], highlightthickness=0)
+            sb = tk.Scrollbar(parent, orient='vertical', command=c.yview)
+            c.configure(yscrollcommand=sb.set)
+            sb.pack(side='right', fill='y')
+            c.pack(fill='both', expand=True)
+            inner = tk.Frame(c, bg=self.t['bg2'])
+            c.create_window((0, 0), window=inner, anchor='nw')
+            inner.bind('<Configure>', lambda e: c.configure(scrollregion=c.bbox('all')))
+            c.bind_all('<MouseWheel>', lambda e: c.yview_scroll(int(-1*(e.delta/120)), 'units'))
+            return inner
+
+        u_inner = _scrollable(users_tab)
+
+        users_frame = tk.Frame(u_inner, bg=self.t['bg2'])
+        users_frame.pack(fill='x', padx=10, pady=4)
 
         def load_users():
-            for w in users_frame.winfo_children():
-                w.destroy()
+            for w in users_frame.winfo_children(): w.destroy()
             tk.Label(users_frame, text='Cargando…', fg=self.t['dim'],
                      bg=self.t['bg2'], font=self.f_small).pack()
-
             def _req():
                 try:
                     r = requests.get(f'{BAKO_URL}/api/auth/users',
@@ -654,111 +679,370 @@ class BakoDesktopApp:
                     users = r.json().get('users', []) if r.ok else []
                     self.root.after(0, lambda: render_users(users))
                 except Exception:
-                    self.root.after(0, lambda: [
-                        users_frame.winfo_children()[0].config(text='Error al cargar')
-                        if users_frame.winfo_children() else None])
+                    pass
             threading.Thread(target=_req, daemon=True).start()
 
         def render_users(users):
-            for w in users_frame.winfo_children():
-                w.destroy()
+            for w in users_frame.winfo_children(): w.destroy()
             if not users:
                 tk.Label(users_frame, text='Sin usuarios', fg=self.t['dim'],
-                         bg=self.t['bg2'], font=self.f_small).pack()
-                return
+                         bg=self.t['bg2'], font=self.f_small).pack(); return
             for u in users:
-                row = tk.Frame(users_frame, bg=self.t['bg3'])
+                row  = tk.Frame(users_frame, bg=self.t['bg3'])
                 row.pack(fill='x', pady=2)
                 info = tk.Frame(row, bg=self.t['bg3'])
                 info.pack(side='left', fill='x', expand=True, padx=8, pady=6)
-                name_color = self.t['dim'] if not u.get('active') else self.t['text']
-                tk.Label(info, text=u['username'], fg=name_color,
+                tk.Label(info, text=u['username'],
+                         fg=self.t['text'] if u.get('active') else self.t['dim'],
                          bg=self.t['bg3'], font=self.f_bold).pack(anchor='w')
                 tk.Label(info, text=f"{u['role']} · {'activo' if u.get('active') else 'inactivo'}",
                          fg=self.t['dim'], bg=self.t['bg3'], font=self.f_small).pack(anchor='w')
-
                 if u['role'] != 'superadmin':
-                    btn_frame = tk.Frame(row, bg=self.t['bg3'])
-                    btn_frame.pack(side='right', padx=6)
-
+                    bf = tk.Frame(row, bg=self.t['bg3'])
+                    bf.pack(side='right', padx=6)
                     def toggle_user(uid=u['_id']):
-                        def _req():
+                        threading.Thread(target=lambda: [
                             requests.patch(f'{BAKO_URL}/api/auth/users/{uid}/toggle',
-                                           headers=self._get_headers(), timeout=10)
-                            self.root.after(0, load_users)
-                        threading.Thread(target=_req, daemon=True).start()
-
+                                           headers=self._get_headers(), timeout=10),
+                            self.root.after(0, load_users)], daemon=True).start()
                     def delete_user(uid=u['_id'], uname=u['username']):
-                        if messagebox.askyesno('Confirmar', f'¿Eliminar usuario "{uname}"?'):
-                            def _req():
+                        if messagebox.askyesno('Confirmar', f'¿Eliminar "{uname}"?'):
+                            threading.Thread(target=lambda: [
                                 requests.delete(f'{BAKO_URL}/api/auth/users/{uid}',
-                                                headers=self._get_headers(), timeout=10)
-                                self.root.after(0, load_users)
-                            threading.Thread(target=_req, daemon=True).start()
-
-                    tk.Button(btn_frame, text='🔒' if u.get('active') else '🔓',
+                                                headers=self._get_headers(), timeout=10),
+                                self.root.after(0, load_users)], daemon=True).start()
+                    tk.Button(bf, text='🔒' if u.get('active') else '🔓',
                               bg=self.t['bg3'], fg=self.t['dim'], relief='flat',
                               cursor='hand2', command=toggle_user).pack(side='left')
-                    tk.Button(btn_frame, text='🗑', bg=self.t['bg3'], fg=self.t['dim'],
+                    tk.Button(bf, text='🗑', bg=self.t['bg3'], fg=self.t['dim'],
                               relief='flat', cursor='hand2', command=delete_user).pack(side='left')
 
         # Crear usuario
-        tk.Frame(content, bg=self.t['border'], height=1).pack(fill='x', padx=10, pady=10)
-        create_frm = tk.Frame(content, bg=self.t['bg3'])
-        create_frm.pack(fill='x', padx=10, pady=(0, 6))
-        tk.Label(create_frm, text='Crear usuario', font=self.f_small,
+        tk.Frame(u_inner, bg=self.t['border'], height=1).pack(fill='x', padx=10, pady=8)
+        cf = tk.Frame(u_inner, bg=self.t['bg3'])
+        cf.pack(fill='x', padx=10, pady=(0, 6))
+        tk.Label(cf, text='Crear usuario', font=self.f_small,
                  bg=self.t['bg3'], fg=self.t['dim']).pack(anchor='w', padx=8, pady=(6, 4))
 
         nu_var, np_var, nr_var = tk.StringVar(), tk.StringVar(), tk.StringVar(value='user')
-        for placeholder, var, show in [('Nombre de usuario', nu_var, ''), ('Contraseña', np_var, '●')]:
-            e = tk.Entry(create_frm, textvariable=var, bg=self.t['bg2'], fg=self.t['text'],
-                         relief='flat', font=self.f_normal, insertbackground=self.t['text'],
-                         show=show if show else '')
-            e.pack(fill='x', padx=8, ipady=5, pady=2)
-
-        role_frame = tk.Frame(create_frm, bg=self.t['bg3'])
-        role_frame.pack(fill='x', padx=8, pady=2)
-        for label, val in [('Usuario', 'user'), ('Superadmin', 'superadmin')]:
-            tk.Radiobutton(role_frame, text=label, variable=nr_var, value=val,
+        for ph, var, show in [('Nombre de usuario', nu_var, ''), ('Contraseña', np_var, '●')]:
+            tk.Entry(cf, textvariable=var, bg=self.t['bg2'], fg=self.t['text'],
+                     relief='flat', font=self.f_normal, insertbackground=self.t['text'],
+                     show=show).pack(fill='x', padx=8, ipady=5, pady=2)
+        rf = tk.Frame(cf, bg=self.t['bg3'])
+        rf.pack(fill='x', padx=8, pady=2)
+        for lbl, val in [('Usuario', 'user'), ('Superadmin', 'superadmin')]:
+            tk.Radiobutton(rf, text=lbl, variable=nr_var, value=val,
                            bg=self.t['bg3'], fg=self.t['text'], selectcolor=self.t['bg2'],
                            activebackground=self.t['bg3']).pack(side='left', padx=4)
-
-        fb_lbl = tk.Label(create_frm, text='', fg=self.t['green'],
-                          bg=self.t['bg3'], font=self.f_small)
-        fb_lbl.pack(padx=8)
+        ufb = tk.Label(cf, text='', bg=self.t['bg3'], font=self.f_small)
+        ufb.pack(padx=8)
 
         def create_user():
             u, p, r = nu_var.get().strip(), np_var.get(), nr_var.get()
-            if not u or not p:
-                fb_lbl.config(text='Rellena usuario y contraseña', fg=self.t['red']); return
+            if not u or not p: ufb.config(text='Rellena usuario y contraseña', fg=self.t['red']); return
             def _req():
                 try:
                     res = requests.post(f'{BAKO_URL}/api/auth/users',
                                         json={'username': u, 'password': p, 'role': r},
                                         headers=self._get_headers(), timeout=10)
                     if res.ok:
-                        self.root.after(0, lambda: [
-                            fb_lbl.config(text=f'✓ {u} creado', fg=self.t['green']),
-                            nu_var.set(''), np_var.set(''),
-                            load_users(),
-                        ])
+                        self.root.after(0, lambda: [ufb.config(text=f'✓ {u} creado', fg=self.t['green']),
+                                                    nu_var.set(''), np_var.set(''), load_users()])
                     else:
                         msg = res.json().get('error', 'Error')
-                        self.root.after(0, lambda: fb_lbl.config(text=msg, fg=self.t['red']))
+                        self.root.after(0, lambda: ufb.config(text=msg, fg=self.t['red']))
                 except Exception:
-                    self.root.after(0, lambda: fb_lbl.config(text='Error de conexión', fg=self.t['red']))
+                    self.root.after(0, lambda: ufb.config(text='Error de conexión', fg=self.t['red']))
             threading.Thread(target=_req, daemon=True).start()
 
-        tk.Button(create_frm, text='Crear usuario', command=create_user,
+        tk.Button(cf, text='Crear usuario', command=create_user,
                   bg=self.t['accent'], fg=self.t['bg'], relief='flat',
                   font=self.f_bold, pady=6, cursor='hand2').pack(fill='x', padx=8, pady=(4, 8))
 
-        # Logout
-        tk.Frame(content, bg=self.t['border'], height=1).pack(fill='x', padx=10, pady=6)
-        tk.Button(content, text='Cerrar sesión', command=lambda: [dlg.destroy(), self._logout()],
+        tk.Frame(u_inner, bg=self.t['border'], height=1).pack(fill='x', padx=10, pady=4)
+        tk.Button(u_inner, text='Cerrar sesión', command=lambda: [dlg.destroy(), self._logout()],
                   bg=self.t['bg2'], fg=self.t['red'], relief='flat',
-                  font=self.f_normal, pady=8, cursor='hand2').pack(fill='x', padx=10, pady=(0, 12))
+                  font=self.f_normal, pady=8, cursor='hand2').pack(fill='x', padx=10, pady=(0, 10))
 
+        # ── Tab Memorias ─────────────────────────────────────────────────────
+        mem_tab = make_tab('memories', '🧠 Memorias')
+
+        SOCIAL_T  = {'familia','amigos','familia-politica','pareja','suegros','cuniada','cuniado','hermana','padre','madre','padres','yaimy','paula','julen','ibon','sofi','nati','elena','oscar','osvaldo'}
+        PROJECT_T = {'bako','diamadmin','unyona','kefir','ai-personal-os','matrix-game','bohdeveloper','ingresos-pasivos','robotica','busqueda-empleo','proyectos'}
+        PERSONAL_T= {'salud','gustos','historia','motivacion','valores','objetivos','finanzas','caracter','rutina','entrenamiento','lae','correccion','judicial','psicologo','hobbies','suenos','miedos','transformacion'}
+        TIER_COLOR= {'social': '#4a9eff', 'project': '#f59e0b', 'personal': '#10b981', 'tech': '#a78bfa'}
+        TIER_LBL  = {'social': '🔵 Social', 'project': '🟠 Proyecto', 'personal': '🟢 Personal', 'tech': '🟣 Técnico'}
+        IMP_COLOR = {'high': '#f87171', 'medium': '#fbbf24', 'low': '#9ca3af'}
+
+        def mem_tier(m):
+            tags = set(m.get('tags', []))
+            if tags & SOCIAL_T:   return 'social'
+            if tags & PROJECT_T:  return 'project'
+            if tags & PERSONAL_T: return 'personal'
+            return 'tech'
+
+        _all_mems   = []
+        _mem_page   = [20]
+        _search_var = tk.StringVar()
+        _tier_var   = tk.StringVar(value='')
+        _imp_var    = tk.StringVar(value='')
+
+        # Toolbar
+        toolbar = tk.Frame(mem_tab, bg=self.t['bg2'])
+        toolbar.pack(fill='x', padx=8, pady=(6, 4))
+
+        tk.Entry(toolbar, textvariable=_search_var, bg=self.t['bg3'], fg=self.t['text'],
+                 relief='flat', font=self.f_small, insertbackground=self.t['text'],
+                 width=18).pack(side='left', ipady=5, padx=(0, 4))
+        tk.Label(toolbar, text='🔍', bg=self.t['bg2'], fg=self.t['dim'],
+                 font=self.f_small).place_forget()  # placeholder
+
+        for var, opts in [(_tier_var, ['', 'social', 'project', 'personal', 'tech']),
+                          (_imp_var,  ['', 'high', 'medium', 'low'])]:
+            om = tk.OptionMenu(toolbar, var, *opts)
+            om.config(bg=self.t['bg3'], fg=self.t['text'], relief='flat',
+                      font=self.f_small, highlightthickness=0, width=7)
+            om.pack(side='left', padx=(0, 4))
+
+        stats_lbl = tk.Label(mem_tab, text='', fg=self.t['dim'],
+                             bg=self.t['bg2'], font=self.f_small, anchor='w')
+        stats_lbl.pack(fill='x', padx=10, pady=(0, 4))
+
+        # Lista scrollable
+        m_canvas = tk.Canvas(mem_tab, bg=self.t['bg2'], highlightthickness=0)
+        m_sb     = tk.Scrollbar(mem_tab, orient='vertical', command=m_canvas.yview)
+        m_canvas.configure(yscrollcommand=m_sb.set)
+        m_sb.pack(side='right', fill='y')
+        m_canvas.pack(fill='both', expand=True, padx=4)
+        m_inner = tk.Frame(m_canvas, bg=self.t['bg2'])
+        m_canvas.create_window((0, 0), window=m_inner, anchor='nw')
+        m_inner.bind('<Configure>', lambda e: m_canvas.configure(scrollregion=m_canvas.bbox('all')))
+
+        btn_new_mem = tk.Button(toolbar, text='+ Nueva', bg=self.t['accent'], fg=self.t['bg'],
+                                relief='flat', font=self.f_small, cursor='hand2',
+                                command=lambda: toggle_create_form())
+        btn_new_mem.pack(side='right')
+
+        # Formulario crear memoria (oculto por defecto)
+        create_mem_frame = tk.Frame(mem_tab, bg=self.t['bg3'])
+        nm_content = tk.Text(create_mem_frame, bg=self.t['bg2'], fg=self.t['text'],
+                             relief='flat', font=self.f_normal, height=3,
+                             insertbackground=self.t['text'], wrap='word')
+        nm_content.pack(fill='x', padx=8, pady=(8, 4))
+        nm_row = tk.Frame(create_mem_frame, bg=self.t['bg3'])
+        nm_row.pack(fill='x', padx=8, pady=2)
+        nm_imp = tk.StringVar(value='medium')
+        nm_type = tk.StringVar(value='fact')
+        for var, opts in [(nm_imp, ['high','medium','low']), (nm_type, ['fact','preference','project_update','decision','feeling'])]:
+            om = tk.OptionMenu(nm_row, var, *opts)
+            om.config(bg=self.t['bg3'], fg=self.t['text'], relief='flat', font=self.f_small, highlightthickness=0)
+            om.pack(side='left', padx=(0, 4))
+        nm_tags = tk.Entry(nm_row, bg=self.t['bg2'], fg=self.t['text'], relief='flat',
+                           font=self.f_small, insertbackground=self.t['text'])
+        nm_tags.insert(0, 'Tags: familia, yaimy…')
+        nm_tags.pack(side='left', fill='x', expand=True)
+        nm_fb = tk.Label(create_mem_frame, text='', bg=self.t['bg3'], font=self.f_small)
+        nm_fb.pack(padx=8)
+        nm_btns = tk.Frame(create_mem_frame, bg=self.t['bg3'])
+        nm_btns.pack(fill='x', padx=8, pady=(2, 8))
+        _create_visible = [False]
+
+        def toggle_create_form():
+            _create_visible[0] = not _create_visible[0]
+            if _create_visible[0]:
+                create_mem_frame.pack(fill='x', padx=8, pady=4, before=stats_lbl)
+                nm_content.focus()
+            else:
+                create_mem_frame.pack_forget()
+
+        def save_new_mem():
+            content = nm_content.get('1.0', 'end').strip()
+            tags    = [t.strip() for t in nm_tags.get().replace('Tags: familia, yaimy…','').split(',') if t.strip()]
+            if not content: nm_fb.config(text='El contenido es obligatorio', fg=self.t['red']); return
+            def _req():
+                try:
+                    r = requests.post(f'{BAKO_URL}/api/agent/memories/import',
+                                      json={'memories': [{'content': content, 'type': nm_type.get(),
+                                                          'importance': nm_imp.get(), 'tags': tags}]},
+                                      headers=self._get_headers(), timeout=10)
+                    if r.ok:
+                        self.root.after(0, lambda: [nm_fb.config(text='✓ Guardada', fg=self.t['green']),
+                                                    nm_content.delete('1.0','end'), load_memories()])
+                    else:
+                        self.root.after(0, lambda: nm_fb.config(text='Error', fg=self.t['red']))
+                except Exception:
+                    self.root.after(0, lambda: nm_fb.config(text='Error de conexión', fg=self.t['red']))
+            threading.Thread(target=_req, daemon=True).start()
+
+        tk.Button(nm_btns, text='Guardar', command=save_new_mem,
+                  bg=self.t['accent'], fg=self.t['bg'], relief='flat',
+                  font=self.f_small, pady=4, cursor='hand2').pack(side='left', padx=(0,6))
+        tk.Button(nm_btns, text='Cancelar', command=toggle_create_form,
+                  bg=self.t['bg3'], fg=self.t['dim'], relief='flat',
+                  font=self.f_small, pady=4, cursor='hand2').pack(side='left')
+
+        def filtered_mems():
+            q    = _search_var.get().lower()
+            tier = _tier_var.get()
+            imp  = _imp_var.get()
+            return [m for m in _all_mems
+                    if (not q    or q in m['content'].lower() or any(q in t for t in m.get('tags',[])))
+                    and (not tier or mem_tier(m) == tier)
+                    and (not imp  or m.get('importance') == imp)]
+
+        def render_memories():
+            for w in m_inner.winfo_children(): w.destroy()
+            mems    = filtered_mems()
+            visible = mems[:_mem_page[0]]
+
+            # Stats
+            counts  = {'social':0,'project':0,'personal':0,'tech':0}
+            for m in _all_mems: counts[mem_tier(m)] += 1
+            stats_lbl.config(text=f"{len(_all_mems)} memorias  🔵{counts['social']}  🟠{counts['project']}  🟢{counts['personal']}  🟣{counts['tech']}")
+
+            if not mems:
+                tk.Label(m_inner, text='Sin resultados', fg=self.t['dim'],
+                         bg=self.t['bg2'], font=self.f_small).pack(pady=16)
+                return
+
+            for m in visible:
+                build_mem_item(m)
+
+            if len(mems) > _mem_page[0]:
+                rem = len(mems) - _mem_page[0]
+                tk.Button(m_inner, text=f'Cargar más ({rem} restantes)',
+                          bg=self.t['bg3'], fg=self.t['dim'], relief='flat',
+                          font=self.f_small, pady=6, cursor='hand2',
+                          command=lambda: [_mem_page.__setitem__(0, _mem_page[0]+20), render_memories()]
+                          ).pack(fill='x', padx=8, pady=4)
+
+        def build_mem_item(m):
+            tier  = mem_tier(m)
+            frame = tk.Frame(m_inner, bg=self.t['bg3'])
+            frame.pack(fill='x', padx=6, pady=3)
+
+            top = tk.Frame(frame, bg=self.t['bg3'])
+            top.pack(fill='x', padx=8, pady=(6, 2))
+
+            # Contenido (wraplength dinámico)
+            lbl = tk.Label(top, text=m['content'][:120] + ('…' if len(m['content'])>120 else ''),
+                           bg=self.t['bg3'], fg=self.t['text'], font=self.f_small,
+                           wraplength=260, justify='left', anchor='w')
+            lbl.pack(side='left', fill='x', expand=True)
+
+            btn_row = tk.Frame(top, bg=self.t['bg3'])
+            btn_row.pack(side='right')
+            tk.Button(btn_row, text='✏️', bg=self.t['bg3'], fg=self.t['dim'],
+                      relief='flat', cursor='hand2', font=self.f_small,
+                      command=lambda: toggle_edit(m, frame)).pack(side='left')
+            tk.Button(btn_row, text='🗑', bg=self.t['bg3'], fg=self.t['dim'],
+                      relief='flat', cursor='hand2', font=self.f_small,
+                      command=lambda mid=m['_id'], f=frame: delete_mem(mid, f)).pack(side='left')
+
+            meta = tk.Frame(frame, bg=self.t['bg3'])
+            meta.pack(fill='x', padx=8, pady=(0, 6))
+            for badge_text, color in [
+                (TIER_LBL[tier], TIER_COLOR[tier]),
+                (m.get('importance',''), IMP_COLOR.get(m.get('importance',''), self.t['dim'])),
+            ]:
+                tk.Label(meta, text=badge_text, bg=self.t['bg3'], fg=color,
+                         font=self.f_small).pack(side='left', padx=(0, 6))
+            for tag in (m.get('tags') or [])[:4]:
+                tk.Label(meta, text=tag, bg=self.t['bg2'], fg=self.t['dim'],
+                         font=self.f_small).pack(side='left', padx=(0, 4))
+
+        def toggle_edit(m, frame):
+            existing = getattr(frame, '_edit_form', None)
+            if existing and existing.winfo_exists():
+                existing.destroy()
+                frame._edit_form = None
+                return
+
+            ef = tk.Frame(frame, bg=self.t['bg2'])
+            ef.pack(fill='x', padx=8, pady=(0, 6))
+            frame._edit_form = ef
+
+            txt = tk.Text(ef, bg=self.t['bg2'], fg=self.t['text'], relief='flat',
+                          font=self.f_small, height=4, insertbackground=self.t['text'], wrap='word')
+            txt.insert('1.0', m['content'])
+            txt.pack(fill='x', pady=(4, 4))
+
+            row = tk.Frame(ef, bg=self.t['bg2'])
+            row.pack(fill='x', pady=2)
+            e_imp  = tk.StringVar(value=m.get('importance','medium'))
+            e_type = tk.StringVar(value=m.get('type','fact'))
+            for var, opts in [(e_imp, ['high','medium','low']), (e_type, ['fact','preference','project_update','decision','feeling'])]:
+                om = tk.OptionMenu(row, var, *opts)
+                om.config(bg=self.t['bg2'], fg=self.t['text'], relief='flat', font=self.f_small, highlightthickness=0)
+                om.pack(side='left', padx=(0,4))
+            e_tags = tk.Entry(row, bg=self.t['bg2'], fg=self.t['text'], relief='flat',
+                              font=self.f_small, insertbackground=self.t['text'])
+            e_tags.insert(0, ', '.join(m.get('tags',[])))
+            e_tags.pack(side='left', fill='x', expand=True)
+
+            e_fb = tk.Label(ef, text='', bg=self.t['bg2'], font=self.f_small)
+            e_fb.pack()
+
+            def save_edit():
+                body = {'content': txt.get('1.0','end').strip(),
+                        'importance': e_imp.get(), 'type': e_type.get(),
+                        'tags': e_tags.get()}
+                if not body['content']: return
+                def _req():
+                    try:
+                        r = requests.put(f'{BAKO_URL}/api/agent/memories/{m["_id"]}',
+                                         json=body, headers=self._get_headers(), timeout=10)
+                        if r.ok:
+                            updated = r.json().get('memory', {})
+                            m.update(updated)
+                            self.root.after(0, lambda: [ef.destroy(), render_memories()])
+                        else:
+                            msg = r.json().get('error','Error')
+                            self.root.after(0, lambda: e_fb.config(text=msg, fg=self.t['red']))
+                    except Exception:
+                        self.root.after(0, lambda: e_fb.config(text='Error de conexión', fg=self.t['red']))
+                threading.Thread(target=_req, daemon=True).start()
+
+            act = tk.Frame(ef, bg=self.t['bg2'])
+            act.pack(fill='x', pady=(2,0))
+            tk.Button(act, text='Guardar', command=save_edit,
+                      bg=self.t['accent'], fg=self.t['bg'], relief='flat',
+                      font=self.f_small, pady=4, cursor='hand2').pack(side='left', padx=(0,6))
+            tk.Button(act, text='Cancelar', command=ef.destroy,
+                      bg=self.t['bg2'], fg=self.t['dim'], relief='flat',
+                      font=self.f_small, pady=4, cursor='hand2').pack(side='left')
+
+        def delete_mem(mid, frame):
+            if not messagebox.askyesno('Confirmar', '¿Eliminar esta memoria?'): return
+            def _req():
+                requests.delete(f'{BAKO_URL}/api/agent/memories/{mid}',
+                                headers=self._get_headers(), timeout=10)
+                _all_mems[:] = [m for m in _all_mems if m['_id'] != mid]
+                self.root.after(0, render_memories)
+            threading.Thread(target=_req, daemon=True).start()
+
+        def load_memories():
+            stats_lbl.config(text='Cargando…')
+            def _req():
+                try:
+                    r = requests.get(f'{BAKO_URL}/api/agent/memories',
+                                     headers=self._get_headers(), timeout=15)
+                    mems = r.json().get('memories', []) if r.ok else []
+                    _all_mems.clear()
+                    _all_mems.extend(mems)
+                    _mem_page[0] = 20
+                    self.root.after(0, render_memories)
+                except Exception:
+                    self.root.after(0, lambda: stats_lbl.config(text='Error al cargar memorias'))
+            threading.Thread(target=_req, daemon=True).start()
+
+        _search_var.trace_add('write', lambda *_: render_memories())
+        _tier_var.trace_add('write',   lambda *_: render_memories())
+        _imp_var.trace_add('write',    lambda *_: render_memories())
+
+        # ── Arrancar ────────────────────────────────────────────────────────
+        switch_tab('users')
         load_users()
 
     # ─────────────────────────────────────────────────────────────────────────
