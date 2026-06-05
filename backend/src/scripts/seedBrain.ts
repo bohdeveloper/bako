@@ -10,18 +10,21 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { Project } from '../memory/Project';
-import { KnowledgeEntry } from '../memory/KnowledgeEntry';
+import { Project, IProject } from '../memory/Project';
+import { KnowledgeEntry, IKnowledgeEntry } from '../memory/KnowledgeEntry';
+
+type ProjectSeed  = Pick<IProject, 'nombre'> & Partial<Pick<IProject, 'slug'|'tipo'|'estado'|'prioridad'|'descripcion'|'siguiente_accion'|'stack'|'urls'|'horizonte'|'notas'|'bloqueantes'|'decisiones'>>;
+type KnowledgeSeed = Pick<IKnowledgeEntry, 'categoria'|'clave'|'valor'|'importancia'> & { detalles?: string[] };
 
 // ─── Proyectos ────────────────────────────────────────────────────────────────
 
-const PROJECTS = [
+const PROJECTS: ProjectSeed[] = [
   {
     nombre: 'BAKO',
     slug: 'bako',
     tipo: 'Sistema operativo personal con IA',
-    estado: 'activo' as const,
-    prioridad: 'alta' as const,
+    estado: 'activo',
+    prioridad: 'alta',
     descripcion: 'Mayordomo digital omnisciente. Evoluciona hacia JARVIS: cuerpo robótico, presencia física, voz, Telegram, GitHub.',
     siguiente_accion: 'Fase 7b-B desplegada — continuar con embeddings Ollama',
     stack: ['Node.js', 'TypeScript', 'Express', 'MongoDB Atlas', 'Groq', 'Ollama', 'Render', 'Telegram Bot'],
@@ -33,8 +36,8 @@ const PROJECTS = [
     nombre: 'bohdeveloper.com',
     slug: 'bohdeveloper',
     tipo: 'Portfolio personal',
-    estado: 'activo' as const,
-    prioridad: 'media' as const,
+    estado: 'activo',
+    prioridad: 'media',
     descripcion: 'Portfolio personal con Tracker diario y gestor de blog. Panel admin en /admin.',
     siguiente_accion: 'Continuar desarrollo — integración BAKO para marcar actividades',
     stack: ['Next.js', 'TypeScript', 'Cloudflare Pages', 'Cloudflare D1'],
@@ -46,8 +49,8 @@ const PROJECTS = [
     nombre: 'Diamadmin',
     slug: 'diamadmin',
     tipo: 'SaaS propio',
-    estado: 'activo' as const,
-    prioridad: 'alta' as const,
+    estado: 'activo',
+    prioridad: 'alta',
     descripcion: 'SaaS de gestión con roadmap definido.',
     stack: ['Angular', 'Spring Boot', 'PostgreSQL'],
     urls: ['https://app.diamadmin.com', 'https://diamadmin.com'],
@@ -58,8 +61,8 @@ const PROJECTS = [
     nombre: 'Unyona',
     slug: 'unyona',
     tipo: 'SaaS en validación',
-    estado: 'activo' as const,
-    prioridad: 'media' as const,
+    estado: 'activo',
+    prioridad: 'media',
     descripcion: 'Landing para capturar leads antes de construir el producto.',
     urls: ['https://unyona.com'],
     horizonte: '2026',
@@ -69,8 +72,8 @@ const PROJECTS = [
     nombre: 'Nitflex',
     slug: 'nitflex',
     tipo: 'App streaming — proyecto portfolio',
-    estado: 'pausado' as const,
-    prioridad: 'baja' as const,
+    estado: 'pausado',
+    prioridad: 'baja',
     descripcion: 'Clon de Netflix con TMDB API. Home screen funcionando.',
     stack: ['React', 'TypeScript', 'Express', 'MongoDB', 'TMDB API'],
     horizonte: 'indefinido',
@@ -80,8 +83,8 @@ const PROJECTS = [
     nombre: 'Drones FPV',
     slug: 'drones-fpv',
     tipo: 'Hobby — cinematografía aérea',
-    estado: 'diferido' as const,
-    prioridad: 'baja' as const,
+    estado: 'diferido',
+    prioridad: 'baja',
     descripcion: 'Aprender a pilotar drones FPV y hacer cinematografía aérea 4K en Galicia.',
     siguiente_accion: 'Arrancar tras mudanza a Galicia: simulador Liftoff → licencia A2 AESA',
     horizonte: 'post-Galicia (finales 2026+)',
@@ -91,8 +94,8 @@ const PROJECTS = [
     nombre: 'Matrix Game',
     slug: 'matrix-game',
     tipo: 'Videojuego open-world',
-    estado: 'diferido' as const,
-    prioridad: 'baja' as const,
+    estado: 'diferido',
+    prioridad: 'baja',
     descripcion: 'GTA V + Cyberpunk + Matrix lore. Mundo 5km², 200+ NPCs, economía funcional, hacking, combate parkour/gun-fu.',
     stack: ['Unreal Engine 5', 'C++', 'Blueprints', 'Blender', 'FMOD', 'Megascans'],
     horizonte: '4-6 años post-Galicia, 10-15h/semana',
@@ -102,8 +105,8 @@ const PROJECTS = [
     nombre: 'Proyecto Kefir Artesanal',
     slug: 'kefir',
     tipo: 'Negocio artesanal + e-commerce',
-    estado: 'diferido' as const,
-    prioridad: 'baja' as const,
+    estado: 'diferido',
+    prioridad: 'baja',
     descripcion: 'Productor y vendedor de kefir artesanal en Galicia. Venta directa con suscripción recurrente.',
     stack: ['Next.js', 'PostgreSQL', 'Stripe'],
     horizonte: 'post-Galicia (finales 2026+)',
@@ -113,7 +116,7 @@ const PROJECTS = [
 
 // ─── Conocimiento personal ────────────────────────────────────────────────────
 
-const KNOWLEDGE = [
+const KNOWLEDGE: KnowledgeSeed[] = [
   // ── IDENTIDAD / HISTORIA
   { categoria: 'historia', clave: 'origen', valor: 'Borja, 34 años, Errentería, Gipuzkoa, País Vasco, España. Cumple 35 el 12 de julio de 2026.', importancia: 'alta' as const },
   { categoria: 'historia', clave: 'situacion_laboral', valor: 'Centro de empleabilidad Inetum (Donostia) — sin proyecto asignado. En búsqueda activa de empleo.', detalles: ['Oficina en Donostia-San Sebastián', 'Todos sus proyectos son personales — ninguno pertenece a Inetum'], importancia: 'alta' as const },
