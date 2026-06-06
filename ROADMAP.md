@@ -106,92 +106,20 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | **Web Push móvil** — `sw.js` + PushSubscription MongoDB + `/api/push` · notificaciones nativas aunque la WPA esté cerrada | ✅ |
 | **Issue sync Notion+GitHub** — "crea issue X en Y" / "cierra issue X" sincroniza automáticamente en ambos | ✅ |
 | Briefing: fuente de verdad Notion — issues GitHub eliminados del briefing (Notion es canonical) | ✅ |
+| "Siguiente acción" actualizable por voz — "Bako, actualiza siguiente paso de X a Y" · `updateNotionProjectSiguienteAccion` | ✅ |
+| Briefing: issues agrupados por proyecto — `BAKO (3): Slash commands [Alta] · Unyona (2): Chat WebSocket` | ✅ |
+| Pull-to-refresh WPA — swipe down (60px) refresca notificaciones · botón ✕ por burbuja borra mensajes | ✅ |
+| Voz en notificación móvil — SW `notificationclick` → `postMessage({type:'PLAY_VOICE'})` → TTS (bypass autoplay restriction) | ✅ |
+| Fix proyectos en contexto — `activo: { $ne: false }` incluye proyectos sin campo explícito (Unyona resuelto) | ✅ |
+| **Weather semántica temporal** — 5 ramas: pasado (sin datos históricos) / ahora mismo / mañana / esta semana / default (presente + hoy + mañana) | ✅ |
+| Weather regex ampliada — `lloverá`, `nevará`, `está lloviendo`, `llueve`, `lluvia esta tarde`, `pronóstico del tiempo`, `tiempo mañana` | ✅ |
 
 ---
 
-## Configuración PC de casa
-
-| Tarea | Estado |
-|---|---|
-| Ollama autostart en inicio de sesión | ✅ Vía Ollama.lnk en carpeta Startup |
-| Cloudflare Tunnel bako-ollama | ✅ Task Scheduler "BAKO-Ollama-Tunnel" — `Start-ScheduledTask -TaskName "BAKO-Ollama-Tunnel"` |
-| Render usa Ollama local vía túnel | ✅ OLLAMA_URL=https://ollama.bohdeveloper.com |
-| Fallback automático a Groq si PC apagado | ✅ isOllamaAvailable() timeout 6s + askOllama timeout 45s |
-| Selector manual de LLM | ✅ /llm ollama\|groq\|auto + lenguaje natural |
-| Modelo Ollama chat | ✅ llama3.2:3b (2GB, ~5-6s respuesta) — antes qwen2.5-coder:7b (4.7GB, ~50s) |
-
----
-
-## Límites de uso de servicios
-
-| Servicio | Plan | Límite | Cuándo aplica |
-|---|---|---|---|
-| **Ollama** (llama3.2:3b) | Local | Sin límites | PC encendido |
-| **Groq Chat** (llama-3.1-8b-instant) | Free | 20.000 tokens/min · 14.400 req/día · reset 01:00h España | PC apagado |
-| **Groq Whisper** (voz→texto) | Free | 20 req/min · ~33 min audio/día · reset 01:00h España | PC apagado |
-| **Cloudflare D1** | Free | 5M lecturas/día · 100K escrituras/día | Siempre |
-| **Notion API** | Free | 3 req/seg | Siempre |
-| **GitHub API** | Free | 5.000 req/hora | Siempre |
-| **Google Calendar** | Free | 1M req/día | Siempre |
-| **Open-Meteo** | Free | 10.000 req/día (cacheado 10 min) | Siempre |
-| **MongoDB Atlas** | M0 Free | 512MB almacenamiento | Siempre |
-| **Render** | Free | 750h/mes (no duerme con ping activo) | Siempre |
-
-**Regla práctica:** Con PC encendido, BAKO no consume ninguna cuota. Con PC apagado, espaciar mensajes de voz y preferir texto para consultas rápidas.
-
----
-
-## Asimilación de XMLs de contexto
-
-Proceso para importar XMLs de roles, proyectos e información personal a la memoria de BAKO.
-**Flujo:** Claude parsea el XML → propone memorias → usuario aprueba → se guardan en MongoDB Atlas vía `POST /api/agent/memories/import`.
-
-| XML | Contenido | Estado |
-|---|---|---|
-| `prompt_MASTER` | Contexto universal: identidad, stack completo, proyectos, reglas de desarrollo, filosofía | ✅ Asimilado (15 memorias) |
-| `prompt_app_kefir` | Proyecto kefir artesanal en Galicia (largo plazo), modelo negocio, legal, stack | ✅ Asimilado (12 memorias) |
-| `prompt_automatizar_IA` | Arquitectura BAKO completa: 7 agentes, n8n, RAG, 4 fases 18 meses | ✅ Asimilado (7 memorias) |
-| `prompt_busqueda_empleo` | Perfil mercado laboral, preferencias, criterios evaluación ofertas | ✅ Asimilado (3 memorias) |
-| `prompt_desarrollar_ia` | Ruta ML/DL completa, stack, recursos, hardware robótica | ✅ Asimilado (6 memorias) |
-| `prompt_desarrollar_ju...` | Matrix Game open-world UE5: visión, stack, timeline, skills necesarias | ✅ Asimilado (6 memorias) |
-| `prompt_estilo_vida` | Rutina semanal completa, estoicismo-shaolin, horario desde tracker | ✅ Asimilado (4 memorias) |
-| `prompt_ingresos_pasivos` | Estrategia ingresos pasivos, criterios, validación, plataformas | ✅ Asimilado (2 memorias) |
-| `prompt_operacion_galicia` | Mudanza Galicia, vivienda, Yaimy, laboral, proceso judicial | ✅ Asimilado (3 memorias) |
-| `prompt_piloto_drones` | Hobby FPV post-Galicia, locaciones, ruta AESA A2, presupuesto | ✅ Asimilado (5 memorias) |
-
-**Cómo continuar:** Abrir Claude Code, decir "vamos a continuar con los XMLs" y pegar el siguiente. Claude tiene el contexto completo del proceso.
-
-> Progreso: 10/10 completados ✅ (reimportados el 03/06/2026)
-
----
-
-## Conocimiento Personal Profundo de Borja
-
-BAKO debe conocer a su señor como lo haría un mayordomo de toda la vida — no solo su stack técnico, sino quién es como persona.
-
-**Fuentes de conocimiento:**
-- Sesiones de preguntas con Claude Code → memorias importadas en MongoDB
-- XMLs de contexto personal asimilados
-- Conversaciones diarias que BAKO extrae y recuerda automáticamente
-
-**Categorías a cubrir:**
-
-| Categoría | Estado |
-|---|---|
-| Datos básicos (edad, cumpleaños, ubicación) | ✅ En profile.ts |
-| Situación laboral actual | ✅ En profile.ts (LAE corregido 03/06/2026) |
-| Proyectos personales vs profesional | ✅ En profile.ts |
-| Rutina diaria y entrenamiento | ✅ En profile.ts |
-| Familia y relaciones personales | ✅ Colección `People` (pareja, padres, hermana, cuñada, abuelos, amigos, suegros) |
-| Gustos y preferencias (comida, música, ocio) | ✅ Colección `KnowledgeEntry` (categoría hobbies/otro) |
-| Historia personal y momentos clave | ✅ Colección `KnowledgeEntry` (categoría historia) |
-| Miedos, motivaciones y valores | ✅ Colección `KnowledgeEntry` (categorías valores, carácter) |
-| Salud y bienestar | ✅ Colección `KnowledgeEntry` (categoría salud — digestión, sueño, suplementos, dieta) |
-| Objetivos vitales más allá de BAKO | ✅ Colección `KnowledgeEntry` (categoría objetivos) + `Projects` (Operación Galego) |
-| Finanzas y situación económica | ✅ Colección `KnowledgeEntry` (categoría finanzas) |
-| Carácter: cómo se describe Borja a sí mismo | ✅ Colección `KnowledgeEntry` (categoría carácter) |
-
-**Cómo continuar:** Abrir Claude Code y decir "quiero que BAKO me conozca mejor — hazme preguntas personales". Claude hace las preguntas, Borja responde, se importan como memorias.
+> **Documentación técnica:**
+> - Instalación y configuración: [SETUP.md](SETUP.md)
+> - Clientes (Telegram, PWA, Desktop): [CLIENTS.md](CLIENTS.md)
+> - Base de conocimiento y XMLs: [KNOWLEDGE.md](KNOWLEDGE.md)
 
 ---
 
@@ -282,75 +210,6 @@ El perfil deja de ser un archivo que editas a mano.
 - ⚠️ Campos actualizables en v1: edad, ubicación, empleador, situación laboral, oficina. Proyectos y rutina siguen en `profile.ts` (v2 con panel admin)
 
 ---
-
-## Clientes de acceso a BAKO
-
-### Telegram (principal)
-- Bot activo 24/7 en Render
-- Voz + texto + comandos naturales
-- No requiere instalación
-
-### PWA — Cliente web v3 (móvil y PC)
-URL: `https://ai-personal-os.onrender.com/bako-client/`
-
-**Características v3:**
-- Chat history con burbujas (usuario derecha verde · BAKO izquierda azul)
-- Botón ↩ por mensaje → copia al input para editar y reenviar
-- Input de texto + botón Enviar (además de voz)
-- Revisión de transcripción: 5s countdown + barra de progreso, editable
-- Modo claro/oscuro con toggle luna/sol (patrón bohdeveloper.com)
-- Rate limit: bloquea UI automáticamente con countdown visible
-
-**Instalación en Android (Chrome):**
-1. Abre Chrome → navega a la URL
-2. Menú (⋮) → "Añadir a pantalla de inicio"
-3. Se instala como app con icono propio
-
-**Instalación en iOS (Safari):**
-1. Safari → icono compartir (⬆) → "Añadir a pantalla de inicio"
-
----
-
-### Script Python — Cliente de escritorio v3 (PC)
-Archivo: `bako-desktop/bako_desktop.py`
-
-**Características v3:**
-- GUI tkinter con chat history y burbujas (mismo estilo que la PWA)
-- Botón ↩ por mensaje → pega texto en el input para reenviar
-- Input de texto + botón Enviar
-- Modo claro/oscuro con toggle luna/sol
-- Revisión de transcripción: 5s countdown, editable
-- Rate limit: bloquea botones automáticamente con countdown
-- Hotkey global Ctrl+Alt+B
-
-**Instalación (una sola vez):**
-```bash
-cd bako-desktop
-pip install -r requirements.txt
-```
-
-**Uso diario:**
-```bash
-python bako_desktop.py
-```
-
-**Configuración opcional** (variables de entorno):
-```
-BAKO_URL=https://ai-personal-os.onrender.com
-DESKTOP_TOKEN=<token>
-BAKO_HOTKEY=ctrl+alt+b
-```
-
-**Arranque automático con Windows:**
-1. `Win+R` → `shell:startup` → acceso directo a `python bako_desktop.py`
-
----
-
-### App React Native (Horizonte 1) ❌ Pendiente
-- App nativa Android + iOS
-- Wake word "Bako" con pantalla bloqueada
-- Acceso completo sin abrir ninguna app
-- Web Push ya funciona en la PWA — notificaciones nativas en móvil con app cerrada ✅
 
 ---
 

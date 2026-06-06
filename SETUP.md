@@ -149,3 +149,36 @@ Las demás ya deben estar configuradas desde el setup inicial.
 - **Cloudflare bako-token**: si no puedes ver el valor, haz Roll desde dash.cloudflare.com/profile/api-tokens.
 - **Dos instancias del bot Telegram**: NUNCA correr el backend local en paralelo con Render. Causa mensajes duplicados y errores. El backend local es solo para desarrollo con `npm run dev`, no con PM2.
 - **token.json**: contiene un `refresh_token` que no caduca. Si lo pierdes, corre `auth-google.ts` de nuevo.
+- **VAPID keys (Web Push)**: generadas una vez y almacenadas en `.env`. Deben añadirse manualmente en el dashboard de Render. Si se pierden, regenerar con `npx web-push generate-vapid-keys` y actualizar también el frontend (la clave pública está hardcodeada en `bako-client/index.html`).
+
+---
+
+## Estado configuración PC de casa
+
+| Tarea | Estado |
+|---|---|
+| Ollama autostart en inicio de sesión | ✅ Vía Ollama.lnk en carpeta Startup |
+| Cloudflare Tunnel bako-ollama | ✅ Task Scheduler "BAKO-Ollama-Tunnel" — `Start-ScheduledTask -TaskName "BAKO-Ollama-Tunnel"` |
+| Render usa Ollama local vía túnel | ✅ OLLAMA_URL=https://ollama.bohdeveloper.com |
+| Fallback automático a Groq si PC apagado | ✅ isOllamaAvailable() timeout 6s + askOllama timeout 45s |
+| Selector manual de LLM | ✅ /llm ollama\|groq\|auto + lenguaje natural |
+| Modelo Ollama chat | ✅ llama3.2:3b (2GB, ~5-6s respuesta) — antes qwen2.5-coder:7b (4.7GB, ~50s) |
+
+---
+
+## Límites de uso de servicios
+
+| Servicio | Plan | Límite | Cuándo aplica |
+|---|---|---|---|
+| **Ollama** (llama3.2:3b) | Local | Sin límites | PC encendido |
+| **Groq Chat** (llama-3.1-8b-instant) | Free | 20.000 tokens/min · 14.400 req/día · reset 01:00h España | PC apagado |
+| **Groq Whisper** (voz→texto) | Free | 20 req/min · ~33 min audio/día · reset 01:00h España | PC apagado |
+| **Cloudflare D1** | Free | 5M lecturas/día · 100K escrituras/día | Siempre |
+| **Notion API** | Free | 3 req/seg | Siempre |
+| **GitHub API** | Free | 5.000 req/hora | Siempre |
+| **Google Calendar** | Free | 1M req/día | Siempre |
+| **Open-Meteo** | Free | 10.000 req/día (cacheado 10 min) | Siempre |
+| **MongoDB Atlas** | M0 Free | 512MB almacenamiento | Siempre |
+| **Render** | Free | 750h/mes (no duerme con ping activo) | Siempre |
+
+**Regla práctica:** Con PC encendido, BAKO no consume ninguna cuota. Con PC apagado, espaciar mensajes de voz y preferir texto para consultas rápidas.
