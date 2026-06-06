@@ -56,6 +56,7 @@ async function askGroq(messages: Message[], maxTokens?: number, temperature?: nu
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
+      timeout: 30_000,
     }
   );
   return data.choices[0]?.message?.content ?? 'Sin respuesta';

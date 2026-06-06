@@ -49,7 +49,11 @@ app.use('/api/tts',           ttsRoutes);
 app.use('/api/push',          pushRoutes);
 app.use('/bako-client', bakoClientRoutes);
 
-mongoose.connect(process.env.MONGODB_URI!)
+mongoose.connect(process.env.MONGODB_URI!, {
+  serverSelectionTimeoutMS: 8000,  // tiempo máximo para seleccionar servidor
+  socketTimeoutMS:          10000, // tiempo máximo por operación (0=infinito por defecto!)
+  connectTimeoutMS:         10000,
+})
   .then(async () => {
     console.log('✅ MongoDB conectado');
     await seedSuperAdmin();
