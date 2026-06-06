@@ -24,13 +24,18 @@ self.addEventListener('push', event => {
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// Click en notificación: abrir/enfocar la app
+// Click en notificación: abrir/enfocar la app y reproducir voz (gesto del usuario = autoplay OK)
 self.addEventListener('notificationclick', event => {
   event.notification.close();
+  const voiceText = event.notification.data?.voiceText;
+
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
       const existing = clients.find(c => c.url.includes('/bako-client'));
-      if (existing) return existing.focus();
+      if (existing) {
+        if (voiceText) existing.postMessage({ type: 'PLAY_VOICE', voiceText });
+        return existing.focus();
+      }
       return self.clients.openWindow(event.notification.data?.url ?? '/bako-client/');
     })
   );

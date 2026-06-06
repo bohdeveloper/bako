@@ -188,6 +188,46 @@
     .msg:focus-within .msg-tts { opacity: 1; }
     .msg-tts.playing { opacity: 1; color: var(--teal); }
 
+    .msg-del {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      border-radius: 6px;
+      color: var(--dim);
+      font-size: 14px;
+      padding: 3px 5px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s;
+      margin-bottom: 2px;
+      line-height: 1;
+    }
+    .msg:hover .msg-del,
+    .msg:focus-within .msg-del { opacity: 1; }
+    .msg-del:hover { color: var(--red); }
+
+    /* Pull-to-refresh */
+    .pull-indicator {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 0;
+      overflow: hidden;
+      transition: height 0.2s;
+      color: var(--dim);
+      font-size: 12px;
+      gap: 6px;
+    }
+    .pull-indicator.visible { height: 36px; }
+    .pull-spinner {
+      width: 14px; height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--teal);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     /* Burbuja de estado (grabando, procesando...) */
     .msg-status {
       align-self: center;
@@ -1179,6 +1219,7 @@
 </div>
 
 <!-- Chat history -->
+<div class="pull-indicator" id="pullIndicator"><div class="pull-spinner"></div><span>Actualizando...</span></div>
 <div class="chat-history" id="chatHistory"></div>
 
 <!-- Wave (estado de grabación — compacto sobre el input) -->
@@ -2549,6 +2590,13 @@
       div.appendChild(ttsBtn);
     }
 
+    const delBtn = document.createElement('button');
+    delBtn.className = 'msg-del';
+    delBtn.title = 'Eliminar mensaje';
+    delBtn.textContent = '✕';
+    delBtn.addEventListener('click', () => div.remove());
+    div.appendChild(delBtn);
+
     chatHistory.appendChild(div);
     chatHistory.scrollTop = chatHistory.scrollHeight;
     return div;
@@ -3214,6 +3262,15 @@
   // Registrar push al cargar si ya hay sesión activa
   if (getToken()) registerPush();
 
+  // Voz desde notificación nativa (SW postMessage al abrir desde notif — gesto del usuario)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.addEventListener('message', event => {
+      if (event.data?.type === 'PLAY_VOICE' && event.data.voiceText) {
+        playTTS(event.data.voiceText).catch(() => {});
+      }
+    });
+  }
+
   // ── Notificaciones del sistema (polling) ──────────────────────────────────
   // Cada cliente guarda su propio ?since= — sin carreras con Desktop ni otros clientes
   let notifPollTimer = null;
@@ -3254,10 +3311,14 @@
         showBrowserNotif(n.text);
         const ts = new Date(n.createdAt);
         if (ts > newest) newest = ts;
-        if (n.voiceText) playTTS(n.voiceText).catch(() => {});
+        // Sólo reproducir si la página está visible (mobile bloquea autoplay en background)
+        if (n.voiceText && document.visibilityState === 'visible') {
+          playTTS(n.voiceText).catch(() => {});
+        }
       }
 
-      lastNotifAt = newest.toISOString();
+      // +1ms para evitar que la misma notificación reaparezca en el siguiente poll
+      lastNotifAt = new Date(newest.getTime() + 1).toISOString();
       localStorage.setItem('bako-last-notif-at', lastNotifAt);
     } catch { /* silencioso */ }
   }
@@ -3621,6 +3682,34 @@
     autoconfFb.className   = 'admin-feedback ' + (ok ? 'ok' : 'err');
     setTimeout(() => { autoconfFb.textContent = ''; autoconfFb.className = 'admin-feedback'; }, 3000);
   }
+
+  // ── Pull-to-refresh (deslizar hacia abajo para actualizar notificaciones) ───
+  (function() {
+    const chatEl     = document.getElementById('chatHistory');
+    const indicator  = document.getElementById('pullIndicator');
+    const THRESHOLD  = 60;
+    let startY = 0, pulling = false, triggered = false;
+
+    chatEl.addEventListener('touchstart', e => {
+      if (chatEl.scrollTop === 0) { startY = e.touches[0].clientY; pulling = true; triggered = false; }
+    }, { passive: true });
+
+    chatEl.addEventListener('touchmove', e => {
+      if (!pulling) return;
+      const dy = e.touches[0].clientY - startY;
+      if (dy > 10 && chatEl.scrollTop === 0) {
+        indicator.classList.add('visible');
+        if (dy > THRESHOLD && !triggered) triggered = true;
+      }
+    }, { passive: true });
+
+    chatEl.addEventListener('touchend', () => {
+      if (!pulling) return;
+      pulling = false;
+      indicator.classList.remove('visible');
+      if (triggered) { triggered = false; if (typeof pollNotifications === 'function') pollNotifications(); }
+    });
+  })();
 </script>
 </body>
 </html>

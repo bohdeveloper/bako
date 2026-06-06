@@ -85,15 +85,24 @@ function buildTasksText(notionTasks: NotionTask[], notionProjects: NotionProject
     parts.push(`Proyectos pausados: ${diferidos.map(p => p.nombre).join(', ')}.`);
   }
 
-  // Issues pendientes en Notion
+  // Issues pendientes en Notion — agrupados por proyecto
   if (notionTasks.length > 0) {
-    const altas = notionTasks.filter(t => t.prioridad === 'Alta');
-    const total = notionTasks.length;
-    if (altas.length > 0) {
-      parts.push(`Tiene ${total} issue${total > 1 ? 's' : ''} pendiente${total > 1 ? 's' : ''}, ${altas.length} de alta prioridad: ${altas.slice(0, 2).map(t => t.nombre).join(' y ')}.`);
-    } else {
-      parts.push(`Tiene ${total} issue${total > 1 ? 's' : ''} pendiente${total > 1 ? 's' : ''} en Notion.`);
+    const byProject: Record<string, NotionTask[]> = {};
+    for (const t of notionTasks) {
+      const proj = t.proyecto || 'General';
+      if (!byProject[proj]) byProject[proj] = [];
+      byProject[proj].push(t);
     }
+    const resumen = Object.entries(byProject)
+      .slice(0, 4)
+      .map(([proj, tasks]) => {
+        const alta = tasks.filter(t => t.prioridad === 'Alta');
+        const primero = alta[0] ?? tasks[0];
+        const tag = alta.length > 0 ? ' [Alta]' : '';
+        return `${proj} (${tasks.length}): ${primero.nombre}${tag}`;
+      })
+      .join(' · ');
+    parts.push(`Issues: ${resumen}.`);
   }
 
   if (parts.length === 0) return 'No tiene issues pendientes.';

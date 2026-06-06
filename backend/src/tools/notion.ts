@@ -90,6 +90,34 @@ export async function getNotionProjects(): Promise<NotionProject[]> {
   }));
 }
 
+export async function updateNotionProjectSiguienteAccion(
+  nombreProyecto: string,
+  siguienteAccion: string
+): Promise<boolean> {
+  const dbId = process.env.NOTION_PROJECTS_DB_ID;
+  if (!dbId) throw new Error('NOTION_PROJECTS_DB_ID no definido en .env');
+
+  const { data } = await api.post(`/databases/${dbId}/query`, {
+    filter: { property: 'Estado', select: { does_not_equal: 'Completado' } },
+  });
+
+  const lower = nombreProyecto.toLowerCase();
+  const page = data.results.find((p: any) => {
+    const n = extractTitle(p.properties.Nombre).toLowerCase();
+    return n === lower || n.includes(lower) || lower.includes(n);
+  });
+
+  if (!page) return false;
+
+  await api.patch(`/pages/${page.id}`, {
+    properties: {
+      'Siguiente acción': { rich_text: [{ text: { content: siguienteAccion } }] },
+    },
+  });
+
+  return true;
+}
+
 export async function createNotionProject(
   nombre: string,
   opciones: { descripcion?: string; estado?: string } = {}

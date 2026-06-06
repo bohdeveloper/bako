@@ -8,7 +8,7 @@
  *  - Crear evento en Google Calendar
  */
 
-import { createNotionTask, updateNotionTaskStatus, findNotionTaskByName } from './notion';
+import { createNotionTask, updateNotionTaskStatus, findNotionTaskByName, updateNotionProjectSiguienteAccion } from './notion';
 import { createCalendarEvent } from './calendar';
 import { createIssueSync, closeIssueSync } from './issueSync';
 import { markTrackerRecord } from './cloudflare';
@@ -220,14 +220,38 @@ Ejemplos de interpretación:
   return `${icon} *${result.taskName}* registrada en el Tracker.${p.motivo ? `\n📝 Motivo: ${p.motivo}` : ''}`;
 }
 
+// ─── SIGUIENTE ACCIÓN DE PROYECTO ────────────────────────────────────────────
+
+async function executeUpdateSiguienteAccion(text: string): Promise<string> {
+  const raw = await askClaude(text, {
+    systemPrompt: `Extrae los datos de esta petición de actualizar el siguiente paso de un proyecto.
+Proyectos disponibles: BAKO, Unyona, Diamadmin
+
+Responde SOLO con JSON válido:
+{"proyecto":"nombre del proyecto","siguienteAccion":"descripción del siguiente paso"}`,
+    maxTokens: 150,
+    useCloud: true,
+  });
+
+  const match = raw.match(/\{[\s\S]*?\}/);
+  if (!match) throw new Error('No pude interpretar los datos.');
+  const p = JSON.parse(match[0]);
+  if (!p.proyecto || !p.siguienteAccion) throw new Error('Faltan proyecto o siguiente acción.');
+
+  const ok = await updateNotionProjectSiguienteAccion(p.proyecto, p.siguienteAccion);
+  if (!ok) return `⚠️ No encontré el proyecto *${p.proyecto}* en Notion.`;
+  return `✅ Siguiente acción de *${p.proyecto}* actualizada:\n_"${p.siguienteAccion}"_`;
+}
+
 // ─── DETECTOR PRINCIPAL ──────────────────────────────────────────────────────
 
 const NOTION_TASK_CREATE = /crea[r]?\s+(una?\s+)?tarea|añade?\s+(una?\s+)?tarea|nueva\s+tarea|agrega[r]?\s+(una?\s+)?tarea/i;
 
 const CALENDAR_CREATE = /crea[r]?\s+(un[ao]?\s+)?evento|añade?\s+(un[ao]?\s+)?evento|nuevo\s+evento|agenda[r]?\s+(una?\s+)?(reuni[oó]n|cita|evento)|programa[r]?\s+(una?\s+)?(reuni[oó]n|cita)|bloquea[r]?\s+(tiempo|horas?)\s+en|pon\s+(en\s+)?(mi\s+)?(agenda|calendario)|a[pñ]unt[ao][r]?\s+(en\s+)?(el\s+)?(calendario|agenda)|añade?\s+(a\s+)?(mi\s+)?(calendario|agenda)|met[e]?\s+(en\s+)?(mi\s+)?(calendario|agenda)|quiero\s+agendar|apunta\s+que\s+tengo|guarda[r]?\s+(en\s+)?(mi\s+)?(calendario|agenda)|recuerda[r]?\s+que\s+tengo\s+.+\s+(a\s+las?|mañana|el\s+\w+)/i;
 
-const GITHUB_ISSUE_CREATE = /crea[r]?\s+(un[ao]?\s+)?issue|abre?\s+(un[ao]?\s+)?issue|nuevo\s+issue|reporta[r]?\s+(un[ao]?\s+)?(bug|error|problema|issue)|a[nñ]ade?\s+(un[ao]?\s+)?issue/i;
-const ISSUE_CLOSE         = /cierra?\s+(el\s+)?issue|completa?\s+(el\s+)?issue|marca[r]?\s+(el\s+)?issue\s+como\s+(completad[ao]|cerrad[ao])|cerrar\s+issue|issue\s+completad[ao]/i;
+const GITHUB_ISSUE_CREATE   = /crea[r]?\s+(un[ao]?\s+)?issue|abre?\s+(un[ao]?\s+)?issue|nuevo\s+issue|reporta[r]?\s+(un[ao]?\s+)?(bug|error|problema|issue)|a[nñ]ade?\s+(un[ao]?\s+)?issue/i;
+const ISSUE_CLOSE           = /cierra?\s+(el\s+)?issue|completa?\s+(el\s+)?issue|marca[r]?\s+(el\s+)?issue\s+como\s+(completad[ao]|cerrad[ao])|cerrar\s+issue|issue\s+completad[ao]/i;
+const SIGUIENTE_ACCION_UPD  = /actualiza\s+(el\s+)?siguiente\s+(paso|acci[oó]n)|siguiente\s+(paso|acci[oó]n)\s+(de|en|para)\s+\w+\s+(es|ser[aá]|va\s+a\s+ser)/i;
 
 // Marcar actividad del Tracker: "completé X", "hice X", "no pude hacer X", "X no completada"
 const TRACKER_MARK = /(?:complet[eé]|hice|he?\s+hecho|hiciste?\s+el|ya\s+hice?|ya\s+complet[eé]|registra[r]?\s+que|marca[r]?\s+como|no\s+(?:pude?|hice?|fui?)\s+(?:a\s+)?|no\s+(?:he?\s+)?(?:hecho|completado))\s+.+/i;
@@ -259,6 +283,11 @@ export async function tryExecuteAction(userText: string): Promise<ExecutionResul
 
     if (ISSUE_CLOSE.test(userText)) {
       const text = await executeCloseIssueSynced(userText);
+      return { text, voice: stripMarkdown(text) };
+    }
+
+    if (SIGUIENTE_ACCION_UPD.test(userText)) {
+      const text = await executeUpdateSiguienteAccion(userText);
       return { text, voice: stripMarkdown(text) };
     }
 
