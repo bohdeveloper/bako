@@ -35,7 +35,7 @@ async function askOllama(messages: Message[], maxTokens?: number, temperature?: 
       ...(maxTokens   ? { num_predict: maxTokens }   : {}),
       ...(temperature !== undefined ? { temperature } : {}),
     },
-  }, { timeout: 45_000 });
+  }, { timeout: 20_000 });
   return data.message?.content ?? 'Sin respuesta';
 }
 
