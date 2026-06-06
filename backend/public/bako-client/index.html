@@ -936,7 +936,6 @@
     <button class="admin-tab-btn"        id="tabBtnProjects" data-tab="tabProjects">Proyectos</button>
     <button class="admin-tab-btn"        id="tabBtnKnow"     data-tab="tabKnow">Conocimiento</button>
     <button class="admin-tab-btn"        id="tabBtnMemories" data-tab="tabMemories">Memorias</button>
-    <button class="admin-tab-btn"        id="tabBtnPush"     data-tab="tabPush">Push</button>
   </div>
   <div class="admin-body">
 
@@ -970,6 +969,7 @@
     <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
       <div class="admin-section-title">Mensajes automáticos</div>
       <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnOpenAutoconf" data-tooltip="Gestiona horarios y fuentes de noticias de los avisos automáticos" style="width:100%">⚙️ Configurar avisos automáticos</button><button class="mobile-info" data-target="btnOpenAutoconf" type="button">ℹ</button></div>
+      <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnOpenPush" data-tooltip="Estado VAPID, dispositivos suscritos y herramientas de diagnóstico push" style="width:100%">🔔 Estado Web Push</button><button class="mobile-info" data-target="btnOpenPush" type="button">ℹ</button></div>
     </div>
     <button class="logout-btn" id="logoutBtn">Cerrar sesión</button>
   </div>
@@ -1162,20 +1162,6 @@
     <button class="mem-load-more" id="memLoadMore" style="display:none">Cargar más</button>
   </div>
 
-  <!-- Tab: Push -->
-  <div class="admin-tab-content" id="tabPush" data-section="Push">
-    <div class="admin-section-title">Estado Web Push</div>
-    <div id="pushTabStatus" style="line-height:1.9;margin-bottom:14px;color:var(--text)"><span style="color:var(--dim)">Cargando…</span></div>
-    <div style="font-size:12px;color:var(--dim);margin-bottom:16px;line-height:1.6">
-      Para activar: añade VAPID keys en Render → abre la PWA en Chrome móvil → acepta permisos de notificación.
-    </div>
-    <div style="display:flex;flex-direction:column;gap:8px">
-      <button class="admin-btn" id="pushTabTestBtn">📤 Enviar push de prueba</button>
-      <button class="admin-btn" id="pushTabResubBtn">🔄 Volver a suscribir este dispositivo</button>
-    </div>
-    <div id="pushTabResult" style="margin-top:10px;font-size:12px;color:var(--teal);min-height:16px"></div>
-  </div>
-
   </div><!-- /admin-body -->
 </div>
 
@@ -1207,6 +1193,27 @@
     </div>
 
     <div class="admin-feedback" id="autoconfFeedback" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<!-- ── Modal: Web Push ───────────────────────────────────────────────────── -->
+<div class="autoconf-overlay" id="pushOverlay"></div>
+<div class="autoconf-modal" id="pushModal">
+  <div class="autoconf-header">
+    <button class="admin-close" id="pushModalClose">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
+    </button>
+    <span class="autoconf-title">Estado Web Push</span>
+    <div style="width:28px"></div>
+  </div>
+  <div class="autoconf-body">
+    <div id="pushModalStatus" style="line-height:1.9;margin-bottom:14px;color:var(--text)"><span style="color:var(--dim)">Cargando…</span></div>
+    <p style="font-size:12px;color:var(--dim);margin-bottom:16px;line-height:1.6">Para activar: añade VAPID keys en Render → abre la PWA en Chrome móvil → acepta permisos de notificación.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn-create-user secondary" id="pushModalTestBtn" style="width:100%">📤 Enviar push de prueba</button>
+      <button class="btn-create-user secondary" id="pushModalResubBtn" style="width:100%">🔄 Volver a suscribir este dispositivo</button>
+    </div>
+    <div id="pushModalResult" style="margin-top:10px;font-size:12px;color:var(--teal);min-height:16px"></div>
   </div>
 </div>
 
@@ -1623,7 +1630,6 @@
       if (btn.dataset.tab === 'tabPeople')    loadPeople();
       if (btn.dataset.tab === 'tabProjects')  loadProjects();
       if (btn.dataset.tab === 'tabKnow')      loadKnowledge();
-      if (btn.dataset.tab === 'tabPush')      loadPushStatus();
     });
   });
 
@@ -2466,9 +2472,19 @@
     finally { document.getElementById('btnSaveNewMem').disabled = false; }
   });
 
-  // ── Push tab ─────────────────────────────────────────────────────────────
-  async function loadPushStatus() {
-    const box = document.getElementById('pushTabStatus');
+  // ── Push modal ───────────────────────────────────────────────────────────
+  function openPushModal() {
+    document.getElementById('pushOverlay').classList.add('visible');
+    document.getElementById('pushModal').classList.add('visible');
+    loadPushModalStatus();
+  }
+  function closePushModal() {
+    document.getElementById('pushOverlay').classList.remove('visible');
+    document.getElementById('pushModal').classList.remove('visible');
+  }
+
+  async function loadPushModalStatus() {
+    const box = document.getElementById('pushModalStatus');
     if (!box) return;
     box.innerHTML = '<span style="color:var(--dim)">Cargando…</span>';
     try {
@@ -2484,8 +2500,12 @@
     } catch { box.innerHTML = '<span style="color:#ef4444">Sin conexión</span>'; }
   }
 
-  document.getElementById('pushTabTestBtn')?.addEventListener('click', async () => {
-    const res = document.getElementById('pushTabResult');
+  document.getElementById('btnOpenPush')?.addEventListener('click', openPushModal);
+  document.getElementById('pushModalClose')?.addEventListener('click', closePushModal);
+  document.getElementById('pushOverlay')?.addEventListener('click', closePushModal);
+
+  document.getElementById('pushModalTestBtn')?.addEventListener('click', async () => {
+    const res = document.getElementById('pushModalResult');
     res.textContent = 'Enviando…';
     try {
       const r = await fetch(`${BAKO_URL}/api/push/test`, { method: 'POST', headers: authHeaders() });
@@ -2494,13 +2514,13 @@
     } catch { res.textContent = 'Error de conexión'; }
   });
 
-  document.getElementById('pushTabResubBtn')?.addEventListener('click', async () => {
-    const res = document.getElementById('pushTabResult');
+  document.getElementById('pushModalResubBtn')?.addEventListener('click', async () => {
+    const res = document.getElementById('pushModalResult');
     res.textContent = 'Suscribiendo…';
     try {
       await registerPush();
       res.textContent = '✓ Suscripción creada/actualizada';
-      loadPushStatus();
+      loadPushModalStatus();
     } catch (e) { res.textContent = 'Error: ' + e.message; }
   });
 

@@ -3,6 +3,11 @@ import { PushSubscription } from '../memory/PushSubscription';
 
 let vapidConfigured = false;
 
+// Convierte a base64url sin padding (requerido por web-push)
+function toBase64url(key: string): string {
+  return key.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
 function ensureVapid() {
   if (vapidConfigured) return;
   const pub  = process.env.VAPID_PUBLIC_KEY;
@@ -10,8 +15,8 @@ function ensureVapid() {
   if (!pub || !priv) return;
   webpush.setVapidDetails(
     `mailto:${process.env.ADMIN_EMAIL || 'bako@local.dev'}`,
-    pub,
-    priv
+    toBase64url(pub),
+    toBase64url(priv)
   );
   vapidConfigured = true;
 }

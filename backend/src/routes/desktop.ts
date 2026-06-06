@@ -80,6 +80,15 @@ async function transcribeAudio(buffer: Buffer): Promise<string> {
   return data.text as string;
 }
 
+// Wrapper con timeout para msedge-tts — sin timeout puede colgar indefinidamente
+// si los servidores de Microsoft no responden desde la IP de Render
+async function safeVoiceBuffer(text: string, timeoutMs = 8000): Promise<Buffer | null> {
+  return Promise.race<Buffer | null>([
+    generateVoiceBuffer(cleanForVoice(text)).catch(() => null),
+    new Promise<null>(resolve => setTimeout(() => resolve(null), timeoutMs)),
+  ]);
+}
+
 async function getEmailContext(message: string): Promise<string> {
   if (!EMAIL_REGEX.test(message)) return '';
   try {
@@ -135,8 +144,8 @@ router.post('/voice', upload.single('audio'), async (req: Request, res: Response
 
     const action = await tryExecuteAction(transcription);
     if (action) {
-      const audioBuffer = await generateVoiceBuffer(cleanForVoice(action.voice));
-      res.json({ transcription, response: action.text, audio: audioBuffer.toString('base64') });
+      const audioBuffer = await safeVoiceBuffer(action.voice);
+      res.json({ transcription, response: action.text, audio: audioBuffer?.toString('base64') });
       return;
     }
 
@@ -144,8 +153,8 @@ router.post('/voice', upload.single('audio'), async (req: Request, res: Response
     const systemPrompt = await getFullSystemPrompt(transcription, ollamaOk);
     const useCloud     = !ollamaOk;
     const response     = await askClaude(transcription, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
-    const audioBuffer  = await generateVoiceBuffer(cleanForVoice(response));
-    res.json({ transcription, response, audio: audioBuffer.toString('base64') });
+    const audioBuffer  = await safeVoiceBuffer(response);
+    res.json({ transcription, response, audio: audioBuffer?.toString('base64') });
 
   } catch (err) {
     console.error('❌ Desktop /voice:', (err as Error).message);
@@ -164,8 +173,8 @@ router.post('/text', async (req: Request, res: Response) => {
   try {
     const action = await tryExecuteAction(message);
     if (action) {
-      const audioBuffer = await generateVoiceBuffer(cleanForVoice(action.voice));
-      res.json({ response: action.text, audio: audioBuffer.toString('base64') });
+      const audioBuffer = await safeVoiceBuffer(action.voice);
+      res.json({ response: action.text, audio: audioBuffer?.toString('base64') });
       return;
     }
 
@@ -175,8 +184,8 @@ router.post('/text', async (req: Request, res: Response) => {
     // useCloud: el cliente puede forzar (true=Groq, false=Ollama), o auto según disponibilidad
     const useCloud     = clientUseCloud !== undefined ? Boolean(clientUseCloud) : !ollamaOk;
     const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
-    const audioBuffer  = await generateVoiceBuffer(cleanForVoice(response));
-    res.json({ response, audio: audioBuffer.toString('base64') });
+    const audioBuffer  = await safeVoiceBuffer(response);
+    res.json({ response, audio: audioBuffer?.toString('base64') });
 
   } catch (err) {
     const e = err as any;
