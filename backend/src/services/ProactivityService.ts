@@ -88,9 +88,9 @@ async function buildWeeklySummary(): Promise<string> {
     if (pending.length > 0) {
       const altas = pending.filter(t => t.prioridad === 'Alta');
       const extra = altas.length > 0 ? `, ${altas.length} de alta prioridad` : '';
-      parts.push(`Tiene ${pending.length} tarea${pending.length > 1 ? 's' : ''} pendiente${pending.length > 1 ? 's' : ''} en Notion${extra}.`);
+      parts.push(`Tiene ${pending.length} issue${pending.length > 1 ? 's' : ''} pendiente${pending.length > 1 ? 's' : ''} en Notion${extra}.`);
     } else {
-      parts.push('No tiene tareas pendientes en Notion. Excelente semana, señor.');
+      parts.push('No tiene issues pendientes en Notion. Excelente semana, señor.');
     }
   }
 

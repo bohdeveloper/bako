@@ -67,7 +67,7 @@ function buildTasksText(notionTasks: NotionTask[], notionProjects: NotionProject
 
   // Proyectos con siguiente acción (activos primero)
   const activos   = notionProjects.filter(p => p.estado === 'Activo');
-  const diferidos = notionProjects.filter(p => p.estado === 'Diferido');
+  const diferidos = notionProjects.filter(p => p.estado === 'Pausado');
 
   if (activos.length > 0) {
     const conAccion = activos.filter(p => p.siguiente_accion);
@@ -82,17 +82,17 @@ function buildTasksText(notionTasks: NotionTask[], notionProjects: NotionProject
   }
 
   if (diferidos.length > 0) {
-    parts.push(`Proyectos diferidos: ${diferidos.map(p => p.nombre).join(', ')}.`);
+    parts.push(`Proyectos pausados: ${diferidos.map(p => p.nombre).join(', ')}.`);
   }
 
-  // Tareas pendientes en Notion
+  // Issues pendientes en Notion
   if (notionTasks.length > 0) {
     const altas = notionTasks.filter(t => t.prioridad === 'Alta');
     const total = notionTasks.length;
     if (altas.length > 0) {
-      parts.push(`Tiene ${total} tarea${total > 1 ? 's' : ''} pendiente${total > 1 ? 's' : ''}, ${altas.length} de alta prioridad: ${altas.slice(0, 2).map(t => t.nombre).join(' y ')}.`);
+      parts.push(`Tiene ${total} issue${total > 1 ? 's' : ''} pendiente${total > 1 ? 's' : ''}, ${altas.length} de alta prioridad: ${altas.slice(0, 2).map(t => t.nombre).join(' y ')}.`);
     } else {
-      parts.push(`Tiene ${total} tarea${total > 1 ? 's' : ''} pendiente${total > 1 ? 's' : ''} en Notion.`);
+      parts.push(`Tiene ${total} issue${total > 1 ? 's' : ''} pendiente${total > 1 ? 's' : ''} en Notion.`);
     }
   }
 

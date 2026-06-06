@@ -572,7 +572,7 @@ async function handleCommand(chatId: number, command: string): Promise<void> {
     const [notionTasks, gh] = await Promise.all([getNotionTasks(), fetchGitHubData()]);
     let text = '';
     if (notionTasks.length > 0) {
-      text += '📋 *Tareas Notion:*\n';
+      text += '📋 *Issues Notion:*\n';
       notionTasks.forEach(t => {
         const prio = t.prioridad === 'Alta' ? '🔴' : t.prioridad === 'Media' ? '🟡' : '⚪';
         text += `${prio} ${t.nombre}${t.proyecto ? ` _[${t.proyecto}]_` : ''}\n`;
@@ -582,7 +582,7 @@ async function handleCommand(chatId: number, command: string): Promise<void> {
       text += '\n🐙 *Issues GitHub:*\n';
       gh.issues.forEach(i => { text += `• [${i.repo}] ${i.title}\n`; });
     }
-    if (!text) text = '✅ No tiene tareas pendientes.';
+    if (!text) text = '✅ No tiene issues pendientes.';
     await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
     return;
   }

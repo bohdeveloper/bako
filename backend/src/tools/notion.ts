@@ -75,7 +75,7 @@ export async function getNotionProjects(): Promise<NotionProject[]> {
     filter: {
       or: [
         { property: 'Estado', select: { equals: 'Activo' } },
-        { property: 'Estado', select: { equals: 'Diferido' } },
+        { property: 'Estado', select: { equals: 'Pausado' } },
       ],
     },
     sorts: [{ property: 'Estado', direction: 'ascending' }],
