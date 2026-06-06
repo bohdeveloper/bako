@@ -90,7 +90,7 @@ export async function getPeopleSection(): Promise<string> {
 
 export async function getProjectsSection(charBudget = 3000): Promise<string> {
   try {
-    const projects = await Project.find({ activo: true }).sort({ prioridad: 1, nombre: 1 });
+    const projects = await Project.find({ activo: { $ne: false } }).sort({ prioridad: 1, nombre: 1 });
     if (!projects.length) return '';
     const full = projects.map(formatProjectForContext).join('\n');
     if (full.length <= charBudget) return full;
@@ -523,7 +523,7 @@ function detectDataIntent(text: string): string | null {
   if (/\b(cierra?\s+(el\s+)?issue|completa?\s+(el\s+)?issue|marca\s+(el\s+)?issue\s+como\s+completad[ao]|cerrar\s+issue)\b/.test(t)) return '/cerrar-issue';
 
   // Tiempo / Clima
-  if (/\b(qu[eé]\s+tiempo\s+(hace|tenemos?)|c[oó]mo\s+est[aá]\s+el\s+(tiempo|clima)|va\s+a\s+(llover|nevar)|temperatura\s+(de\s+)?(hoy|ahora)|hace\s+(fr[ií]o|calor|sol|viento))\b/.test(t)) return '/tiempo';
+  if (/\b(qu[eé]\s+tiempo\s+(hace|tenemos?|har[aá]|hay)|c[oó]mo\s+est[aá]\s+el\s+(tiempo|clima)|va\s+a\s+(llover|nevar)|temperatura\s+(de\s+)?(hoy|ahora|ma[nñ]ana)|hace\s+(fr[ií]o|calor|sol|viento)|llover[aá]|nevar[aá]|est[áa]\s+(lloviendo|nevando)|llueve\b|lluvia\s+(hoy|ma[nñ]ana|esta\s+(tarde|noche|semana))|pron[oó]stico\s+(del?\s+)?tiempo|tiempo\s+(ma[nñ]ana|hoy|esta\s+(tarde|semana))|qu[eé]\s+temperatura)\b/.test(t)) return '/tiempo';
 
   // GitHub — proyectos activos, commits, PRs
   if (/\b(mis?\s+proyectos?\s+activos?|commits?\s+(de\s+)?(hoy|[uú]ltimos?)|pull\s+requests?\s+(abiertos?|pendientes?)|issues?\s+(abiertos?|pendientes?)|actividad\s+en\s+github)\b/.test(t)) return '/proyectos';
@@ -540,7 +540,7 @@ function detectDataIntent(text: string): string | null {
   return null;
 }
 
-async function handleCommand(chatId: number, command: string): Promise<void> {
+async function handleCommand(chatId: number, command: string, originalText = ''): Promise<void> {
   if (command === '/briefing') {
     await bot.sendMessage(chatId, '⏳ Un momento, señor...');
     const briefing = await runMorningBriefing();
@@ -550,8 +550,39 @@ async function handleCommand(chatId: number, command: string): Promise<void> {
 
   if (command === '/tiempo') {
     const w = await getWeather();
-    const text = `En ${w.city} ahora hay ${w.current.temp} grados y está ${w.current.description}. Viento de ${w.current.windSpeed} kilómetros por hora. Mañana entre ${w.forecast[1]?.minTemp} y ${w.forecast[1]?.maxTemp} grados, ${w.forecast[1]?.description}.`;
-    await sendVoiceReply(chatId, text);
+    const t = originalText.toLowerCase();
+
+    // Detectar contexto temporal en el mensaje original
+    const isPast     = /\b(ayer|anteayer|la\s+semana\s+pasada|el\s+(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\s+pasado|llov[ií][oó]|nev[oó])\b/.test(t);
+    const isNow      = /\b(ahora\s+mismo|en\s+este\s+momento|est[áa]\s+(lloviendo|nevando)|llueve\s+(ahora|ya)?|llovia\s+ahora|llueve\b)\b/.test(t);
+    const isTomorrow = /\bma[nñ]ana\b/.test(t) && !/\bhoy\b/.test(t);
+    const isWeek     = /\b(esta\s+semana|los\s+pr[oó]ximos\s+d[ií]as|toda\s+la\s+semana|la\s+semana|para\s+esta\s+semana)\b/.test(t);
+
+    let weatherText: string;
+    if (isPast) {
+      weatherText = `No tengo acceso a datos históricos, señor. Le puedo decir que ahora mismo en ${w.city} hay ${w.current.temp} grados y está ${w.current.description}.`;
+    } else if (isNow) {
+      const viento = w.current.windSpeed > 20 ? `. Viento de ${w.current.windSpeed} kilómetros por hora` : '';
+      weatherText = `Ahora mismo en ${w.city}: ${w.current.temp} grados, ${w.current.description}${viento}.`;
+    } else if (isTomorrow && w.forecast[1]) {
+      const f = w.forecast[1];
+      const lluvia = f.rainProbability > 30 ? `, ${f.rainProbability}% de probabilidad de lluvia` : '';
+      weatherText = `Mañana en ${w.city}: entre ${f.minTemp} y ${f.maxTemp} grados, ${f.description}${lluvia}.`;
+    } else if (isWeek) {
+      const dias = ['Hoy', 'Mañana', 'Pasado'];
+      const partes = w.forecast.slice(0, 3).map((f, i) => {
+        const lluvia = f.rainProbability > 30 ? `, ${f.rainProbability}% lluvia` : '';
+        return `${dias[i]}: ${f.minTemp}–${f.maxTemp}°, ${f.description}${lluvia}`;
+      });
+      weatherText = `Previsión en ${w.city}: ${partes.join('. ')}.`;
+    } else {
+      // Default: presente + hoy + mañana
+      const f0 = w.forecast[0];
+      const lluvia = f0 && f0.rainProbability > 30 ? `, con ${f0.rainProbability}% de probabilidad de lluvia hoy` : '';
+      weatherText = `En ${w.city} ahora hay ${w.current.temp} grados y está ${w.current.description}${lluvia}. Mañana entre ${w.forecast[1]?.minTemp} y ${w.forecast[1]?.maxTemp} grados, ${w.forecast[1]?.description}.`;
+    }
+
+    await sendVoiceReply(chatId, weatherText);
     return;
   }
 
@@ -1258,7 +1289,7 @@ export function startTelegramBot(): void {
       // Intención de datos en tiempo real por voz
       const voiceIntent = detectDataIntent(transcription);
       if (voiceIntent) {
-        await handleCommand(chatId, voiceIntent);
+        await handleCommand(chatId, voiceIntent, transcription);
         appendToSession(chatId, transcription, '[datos en tiempo real obtenidos]');
         return;
       }
@@ -1337,7 +1368,7 @@ export function startTelegramBot(): void {
       // Detección de intención → comandos de datos en tiempo real
       const intentCommand = detectDataIntent(text);
       if (intentCommand) {
-        await handleCommand(chatId, intentCommand);
+        await handleCommand(chatId, intentCommand, text);
         return;
       }
 
