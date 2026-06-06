@@ -104,11 +104,14 @@ export async function getProjectsSection(charBudget = 3000): Promise<string> {
   }
 }
 
-export async function getKnowledgeSection(): Promise<string> {
+export async function getKnowledgeSection(charBudget = Infinity): Promise<string> {
   try {
     const entries = await KnowledgeEntry.find({ activo: true }).sort({ categoria: 1, importancia: 1 });
     if (!entries.length) return '';
-    return formatKnowledgeForContext(entries);
+    const full = formatKnowledgeForContext(entries);
+    if (full.length <= charBudget) return full;
+    const cut = full.lastIndexOf('\n', charBudget);
+    return cut > 0 ? full.slice(0, cut) : full.slice(0, charBudget);
   } catch {
     return '';
   }

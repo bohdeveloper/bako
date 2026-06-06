@@ -99,9 +99,9 @@ async function getFullSystemPrompt(message = '', compact = false): Promise<strin
     getDynamicProfileSection(),
     getAmbientContext(location),
     getEmailContext(message),
-    getPeopleSection(compact ? 800 : undefined),
-    getProjectsSection(compact ? 600 : undefined),
-    compact ? Promise.resolve('') : getKnowledgeSection(),
+    getPeopleSection(compact ? 2000 : 5000),
+    getProjectsSection(compact ? 1500 : 3000),
+    getKnowledgeSection(compact ? 2000 : 5000),
   ]);
   const fullAmbient = ambientCtx + emailCtx;
   const prompt = buildSystemPrompt(fullAmbient, memories, dynProfile, people, projects, knowledge);
@@ -140,8 +140,8 @@ router.post('/voice', upload.single('audio'), async (req: Request, res: Response
       return;
     }
 
-    const systemPrompt = await getFullSystemPrompt(transcription, false);
     const ollamaOk     = await getCachedOllamaStatus();
+    const systemPrompt = await getFullSystemPrompt(transcription, ollamaOk);
     const useCloud     = !ollamaOk;
     const response     = await askClaude(transcription, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
     const audioBuffer  = await generateVoiceBuffer(cleanForVoice(response));
@@ -169,9 +169,9 @@ router.post('/text', async (req: Request, res: Response) => {
       return;
     }
 
-    // Siempre contexto completo — Ollama con num_ctx 8192 lo puede manejar
-    const systemPrompt = await getFullSystemPrompt(message, false);
     const ollamaOk     = await getCachedOllamaStatus();
+    // compact=Ollama (presupuesto amplio), full=Groq (presupuesto generoso)
+    const systemPrompt = await getFullSystemPrompt(message, ollamaOk);
     // useCloud: el cliente puede forzar (true=Groq, false=Ollama), o auto según disponibilidad
     const useCloud     = clientUseCloud !== undefined ? Boolean(clientUseCloud) : !ollamaOk;
     const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
