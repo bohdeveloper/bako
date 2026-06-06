@@ -34,7 +34,17 @@ async function query<T = Record<string, unknown>>(sql: string, params: unknown[]
 // ─── Timezone ─────────────────────────────────────────────────────────────────
 
 export function nowInSpain(): Date {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
+  // Use formatToParts to avoid toLocaleString parsing ambiguity on UTC servers
+  const f = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Madrid',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  });
+  const p = Object.fromEntries(f.formatToParts(new Date()).map(x => [x.type, x.value]));
+  const h = parseInt(p.hour);
+  return new Date(parseInt(p.year), parseInt(p.month) - 1, parseInt(p.day),
+    h === 24 ? 0 : h, parseInt(p.minute), parseInt(p.second));
 }
 
 export function todayStringSpain(): string {
