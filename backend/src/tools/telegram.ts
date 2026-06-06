@@ -513,8 +513,14 @@ function detectDataIntent(text: string): string | null {
   // Tracker diario — tareas del día, horario, actividades, rutina
   if (/\b(mis?\s+tareas?\s+(de\s+)?hoy|c[oó]mo\s+va\s+mi\s+(d[ií]a|rutina)|mi\s+horario\s+(de\s+)?hoy|qu[eé]\s+(tareas?|actividades?|cosas?)\s+tengo\s+(para\s+)?hoy|actividades?\s+(de\s+)?hoy|qu[eé]\s+he?\s+(hecho|completado)\s+hoy|mi\s+tracker|kronoshin|c[oó]mo\s+(va|est[aá])\s+(el\s+)?tracker|rutina\s+(de\s+)?hoy)\b/.test(t)) return '/tracker';
 
-  // Notion — proyectos, tareas de proyecto, pendientes de trabajo
-  if (/\b(mis?\s+proyectos?\s+pendientes?|tareas?\s+(en|de)\s+notion|tareas?\s+de\s+(diamadmin|unyona|bohdeveloper)|pendientes?\s+(en\s+)?notion|qu[eé]\s+proyecto[s]?\s+tengo\s+pendientes?)\b/.test(t)) return '/tareas';
+  // Notion — proyectos, issues pendientes de trabajo
+  if (/\b(mis?\s+proyectos?\s+pendientes?|issues?\s+(en|de)\s+notion|tareas?\s+de\s+(diamadmin|unyona|bohdeveloper)|pendientes?\s+(en\s+)?notion|qu[eé]\s+proyecto[s]?\s+tengo\s+pendientes?)\b/.test(t)) return '/tareas';
+
+  // Crear issue (Notion + GitHub)
+  if (/\b(crea\s+(un\s+)?issue|a[nñ]ade\s+(un\s+)?issue|nuevo\s+issue|crear\s+issue)\b/.test(t)) return '/crear-issue';
+
+  // Cerrar/completar issue
+  if (/\b(cierra?\s+(el\s+)?issue|completa?\s+(el\s+)?issue|marca\s+(el\s+)?issue\s+como\s+completad[ao]|cerrar\s+issue)\b/.test(t)) return '/cerrar-issue';
 
   // Tiempo / Clima
   if (/\b(qu[eé]\s+tiempo\s+(hace|tenemos?)|c[oó]mo\s+est[aá]\s+el\s+(tiempo|clima)|va\s+a\s+(llover|nevar)|temperatura\s+(de\s+)?(hoy|ahora)|hace\s+(fr[ií]o|calor|sol|viento))\b/.test(t)) return '/tiempo';
@@ -1594,13 +1600,18 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
 }
 
 export async function sendSystemMessage(text: string, voiceText?: string): Promise<void> {
-  // Guardar en Notification para que WPA/desktop puedan recibirlos
+  // Guardar en Notification para polling WPA/desktop
   try {
     const { Notification } = await import('../memory/Notification');
     await Notification.create({ text, voiceText: voiceText ?? text });
   } catch (err) {
     console.warn('⚠️  No se pudo guardar notificación en BD:', (err as Error).message);
   }
+  // Web Push para dispositivos suscritos (móvil con app cerrada, etc.)
+  try {
+    const { sendPushToAll } = await import('../services/pushService');
+    sendPushToAll(text, voiceText).catch(() => {});
+  } catch { /* sin push configurado */ }
 
   const chatId = Number(process.env.TELEGRAM_CHAT_ID);
   if (!chatId) {

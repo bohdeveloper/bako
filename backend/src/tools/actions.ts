@@ -10,7 +10,7 @@
 
 import { createNotionTask, updateNotionTaskStatus, findNotionTaskByName } from './notion';
 import { createCalendarEvent } from './calendar';
-import { createGitHubIssue } from './github';
+import { createIssueSync, closeIssueSync } from './issueSync';
 import { markTrackerRecord } from './cloudflare';
 import { askClaude } from '../llm/claude';
 import { invalidateCalendarCache } from './context';
@@ -125,22 +125,17 @@ Si no se especifica duración, el evento dura 1 hora. Usa horario de España (Eu
   return lines.join('\n');
 }
 
-// ─── GITHUB: Crear issue ─────────────────────────────────────────────────────
+// ─── ISSUE: Crear sincronizado (Notion + GitHub) ─────────────────────────────
 
-async function executeCreateGitHubIssue(text: string): Promise<string> {
-  const repos = (process.env.GITHUB_USERNAME
-    ? (process.env.PROACTIVITY_REPOS ?? 'diamadmin,unyona,ai-personal-os')
-    : 'diamadmin,unyona,ai-personal-os'
-  ).split(',').map(r => r.trim());
-
+async function executeCreateIssueSynced(text: string): Promise<string> {
   const raw = await askClaude(text, {
-    systemPrompt: `Extrae los datos de esta petición de creación de issue en GitHub.
-Repositorios disponibles: ${repos.join(', ')}
+    systemPrompt: `Extrae los datos de esta petición de creación de issue.
+Proyectos disponibles: BAKO (repo: ai-personal-os), Unyona (repo: unyona), Diamadmin (repo: diamadmin)
 
 Responde SOLO con JSON válido:
-{"repo":"nombre exacto del repo","titulo":"...","descripcion":"... o null"}
+{"titulo":"...","proyecto":"BAKO|Unyona|Diamadmin","prioridad":"Alta|Media|Baja","descripcion":"... o null"}
 
-Si el repo no se menciona explícitamente, elige el más probable según el contexto.`,
+Si el proyecto no se menciona, inferirlo del contexto. Si no es inferible, usa "BAKO".`,
     maxTokens: 200,
     useCloud: true,
   });
@@ -149,11 +144,48 @@ Si el repo no se menciona explícitamente, elige el más probable según el cont
   if (!match) throw new Error('No pude interpretar los datos del issue.');
 
   const p = JSON.parse(match[0]);
-  if (!p.repo || !p.titulo) throw new Error('Faltan datos del issue (repo o título).');
+  if (!p.titulo) throw new Error('Falta el título del issue.');
 
-  const issue = await createGitHubIssue(p.repo, p.titulo, p.descripcion !== 'null' ? p.descripcion : undefined);
+  const result = await createIssueSync(p.titulo, p.proyecto ?? 'BAKO', {
+    priority: p.prioridad ?? 'Media',
+    notes:    p.descripcion !== 'null' ? p.descripcion ?? undefined : undefined,
+  });
 
-  return `🐛 Issue #${issue.number} creado en *${p.repo}*: "${issue.title}"\n🔗 ${issue.url}`;
+  const lines = [`✅ Issue creado en *${p.proyecto ?? 'BAKO'}*: *${p.titulo}*`];
+  if (result.ghNumber) lines.push(`🐙 GitHub #${result.ghNumber}: ${result.ghUrl}`);
+  else lines.push('⚠️ GitHub: no se pudo crear (token sin permisos o repo no encontrado)');
+  lines.push(`📋 Notion: ${result.notionId ? 'creado' : 'error al crear'}`);
+  return lines.join('\n');
+}
+
+// ─── ISSUE: Cerrar sincronizado (Notion + GitHub) ────────────────────────────
+
+async function executeCloseIssueSynced(text: string): Promise<string> {
+  const raw = await askClaude(text, {
+    systemPrompt: `Extrae los datos de esta petición de cierre de issue.
+Proyectos disponibles: BAKO, Unyona, Diamadmin
+
+Responde SOLO con JSON válido:
+{"titulo":"título o nombre del issue","proyecto":"BAKO|Unyona|Diamadmin|null"}`,
+    maxTokens: 150,
+    useCloud: true,
+  });
+
+  const match = raw.match(/\{[\s\S]*?\}/);
+  if (!match) throw new Error('No pude interpretar qué issue cerrar.');
+
+  const p = JSON.parse(match[0]);
+  if (!p.titulo) throw new Error('Falta el nombre del issue a cerrar.');
+
+  const result = await closeIssueSync(p.titulo, p.proyecto !== 'null' ? p.proyecto : undefined);
+
+  const parts: string[] = [];
+  if (result.notionClosed) parts.push('📋 Notion: marcado como Completada');
+  else parts.push('⚠️ Notion: issue no encontrado');
+  if (result.ghClosed) parts.push(`🐙 GitHub (${result.repo}): cerrado`);
+  else if (result.repo) parts.push(`⚠️ GitHub (${result.repo}): issue no encontrado`);
+
+  return `✅ Issue *"${p.titulo}"* cerrado:\n${parts.join('\n')}`;
 }
 
 // ─── TRACKER: Marcar actividad ───────────────────────────────────────────────
@@ -194,7 +226,8 @@ const NOTION_TASK_CREATE = /crea[r]?\s+(una?\s+)?tarea|añade?\s+(una?\s+)?tarea
 
 const CALENDAR_CREATE = /crea[r]?\s+(un[ao]?\s+)?evento|añade?\s+(un[ao]?\s+)?evento|nuevo\s+evento|agenda[r]?\s+(una?\s+)?(reuni[oó]n|cita|evento)|programa[r]?\s+(una?\s+)?(reuni[oó]n|cita)|bloquea[r]?\s+(tiempo|horas?)\s+en|pon\s+(en\s+)?(mi\s+)?(agenda|calendario)|a[pñ]unt[ao][r]?\s+(en\s+)?(el\s+)?(calendario|agenda)|añade?\s+(a\s+)?(mi\s+)?(calendario|agenda)|met[e]?\s+(en\s+)?(mi\s+)?(calendario|agenda)|quiero\s+agendar|apunta\s+que\s+tengo|guarda[r]?\s+(en\s+)?(mi\s+)?(calendario|agenda)|recuerda[r]?\s+que\s+tengo\s+.+\s+(a\s+las?|mañana|el\s+\w+)/i;
 
-const GITHUB_ISSUE_CREATE = /crea[r]?\s+(un[ao]?\s+)?issue|abre?\s+(un[ao]?\s+)?issue|nuevo\s+issue|reporta[r]?\s+(un[ao]?\s+)?(bug|error|problema|issue)/i;
+const GITHUB_ISSUE_CREATE = /crea[r]?\s+(un[ao]?\s+)?issue|abre?\s+(un[ao]?\s+)?issue|nuevo\s+issue|reporta[r]?\s+(un[ao]?\s+)?(bug|error|problema|issue)|a[nñ]ade?\s+(un[ao]?\s+)?issue/i;
+const ISSUE_CLOSE         = /cierra?\s+(el\s+)?issue|completa?\s+(el\s+)?issue|marca[r]?\s+(el\s+)?issue\s+como\s+(completad[ao]|cerrad[ao])|cerrar\s+issue|issue\s+completad[ao]/i;
 
 // Marcar actividad del Tracker: "completé X", "hice X", "no pude hacer X", "X no completada"
 const TRACKER_MARK = /(?:complet[eé]|hice|he?\s+hecho|hiciste?\s+el|ya\s+hice?|ya\s+complet[eé]|registra[r]?\s+que|marca[r]?\s+como|no\s+(?:pude?|hice?|fui?)\s+(?:a\s+)?|no\s+(?:he?\s+)?(?:hecho|completado))\s+.+/i;
@@ -220,7 +253,12 @@ export async function tryExecuteAction(userText: string): Promise<ExecutionResul
     }
 
     if (GITHUB_ISSUE_CREATE.test(userText)) {
-      const text = await executeCreateGitHubIssue(userText);
+      const text = await executeCreateIssueSynced(userText);
+      return { text, voice: stripMarkdown(text) };
+    }
+
+    if (ISSUE_CLOSE.test(userText)) {
+      const text = await executeCloseIssueSynced(userText);
       return { text, voice: stripMarkdown(text) };
     }
 

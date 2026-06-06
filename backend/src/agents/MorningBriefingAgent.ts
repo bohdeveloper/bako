@@ -96,12 +96,7 @@ function buildTasksText(notionTasks: NotionTask[], notionProjects: NotionProject
     }
   }
 
-  if (github.issues.length > 0) {
-    const list = github.issues.slice(0, 3).map(i => i.title).join(', ');
-    parts.push(`En GitHub: ${list}.`);
-  }
-
-  if (parts.length === 0) return 'No tiene tareas pendientes.';
+  if (parts.length === 0) return 'No tiene issues pendientes.';
   return parts.join(' ');
 }
 

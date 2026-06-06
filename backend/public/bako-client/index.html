@@ -1319,6 +1319,7 @@
       localStorage.setItem('bako-user', JSON.stringify(data.user));
       showApp(data.user);
       startNotificationPolling();
+      registerPush();
     } catch {
       loginError.textContent = 'Sin conexión con BAKO';
     } finally {
@@ -3170,6 +3171,48 @@
         .catch(() => {});
     }
   });
+
+  // ── Web Push (notificaciones nativas aunque la app esté cerrada) ─────────
+  async function registerPush() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    try {
+      const reg = await navigator.serviceWorker.register('/bako-client/sw.js');
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') return;
+
+      const existing = await reg.pushManager.getSubscription();
+      if (existing) { await storePushSub(existing); return; }
+
+      const { key } = await fetch(`${BAKO_URL}/api/push/vapid-public-key`, { headers: authHeaders() }).then(r => r.json());
+      if (!key) return;
+
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(key),
+      });
+      await storePushSub(sub);
+    } catch { /* push no disponible en este navegador */ }
+  }
+
+  async function storePushSub(sub) {
+    const json = sub.toJSON();
+    await fetch(`${BAKO_URL}/api/push/subscribe`, {
+      method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
+    }).catch(() => {});
+  }
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding  = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64   = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const raw      = atob(base64);
+    const output   = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) output[i] = raw.charCodeAt(i);
+    return output;
+  }
+
+  // Registrar push al cargar si ya hay sesión activa
+  if (getToken()) registerPush();
 
   // ── Notificaciones del sistema (polling) ──────────────────────────────────
   // Cada cliente guarda su propio ?since= — sin carreras con Desktop ni otros clientes

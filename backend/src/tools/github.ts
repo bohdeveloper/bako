@@ -149,6 +149,32 @@ export async function createGitHubIssue(
   return { number: data.number, url: data.html_url, title: data.title };
 }
 
+export async function closeGitHubIssue(repo: string, issueNumber: number): Promise<void> {
+  const username = process.env.GITHUB_USERNAME;
+  if (!username) throw new Error('GITHUB_USERNAME no está definido en .env');
+  await getClient().patch(`/repos/${username}/${repo}/issues/${issueNumber}`, { state: 'closed' });
+}
+
+export async function findGitHubIssueByTitle(repo: string, title: string): Promise<number | null> {
+  const username = process.env.GITHUB_USERNAME;
+  if (!username) return null;
+  try {
+    const { data } = await getClient().get(`/repos/${username}/${repo}/issues`, {
+      params: { state: 'open', per_page: 50 },
+    });
+    const lower = title.toLowerCase();
+    const found = data
+      .filter((i: any) => !i.pull_request)
+      .find((i: any) => {
+        const t = i.title.toLowerCase();
+        return t === lower || t.includes(lower) || lower.includes(t);
+      });
+    return found?.number ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export interface PRFile {
   filename:  string;
   status:    string;
