@@ -95,6 +95,17 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | Badge LLM en navbar — Ollama (teal) o Groq (amarillo), refresco cada 60s | ✅ |
 | Desktop optimizado — llama3.2:3b, prompt compacto para Ollama (sin Knowledge, budget reducido), num_ctx 2048, timeout 45s | ✅ |
 | Embeddings semánticos — nomic-embed-text (Ollama) + bge-small-en-v1.5 (Cloudflare Workers AI fallback), cosine similarity en Node.js | ✅ |
+| **Sesión 06/06/2026** | |
+| Notificaciones por cliente — `?since=` timestamp, sin race condition WPA/Desktop | ✅ |
+| TTS en WPA — BAKO habla al llegar notificaciones; botón 🔊 en cada burbuja | ✅ |
+| Briefing en español — noticias traducidas/resumidas por LLM (Claude/Groq) | ✅ |
+| Noticias actualidad española — El Confidencial, 20minutos, La Vanguardia en feeds | ✅ |
+| Notion Issues — "Tareas" renombrada a "Issues"; proyectos Pausado/Activo en briefing | ✅ |
+| Notion siguiente_acción — briefing menciona el siguiente paso de cada proyecto activo | ✅ |
+| Issues en GitHub — 20 issues creados: 6 BAKO, 8 Diamadmin, 6 Unyona (token PAT clásico) | ✅ |
+| **Web Push móvil** — `sw.js` + PushSubscription MongoDB + `/api/push` · notificaciones nativas aunque la WPA esté cerrada | ✅ |
+| **Issue sync Notion+GitHub** — "crea issue X en Y" / "cierra issue X" sincroniza automáticamente en ambos | ✅ |
+| Briefing: fuente de verdad Notion — issues GitHub eliminados del briefing (Notion es canonical) | ✅ |
 
 ---
 
@@ -214,7 +225,7 @@ BAKO lee pero no actúa. Necesita poder ejecutar órdenes.
 
 - ✅ **Notion**: crear tareas, cambiar estado, asignar fecha límite
 - ✅ **Google Calendar**: crear eventos con hora, descripción, ubicación
-- ✅ **GitHub**: crear issues por voz/texto ("crea un issue en diamadmin sobre el bug del login")
+- ✅ **GitHub + Notion sync**: "crea un issue X en Diamadmin" → crea en GitHub Y en Notion simultáneamente · "cierra issue X" → cierra en ambos
 - ✅ **Tracker Personal**: marcar actividades por voz/texto ("completé el Kronoshin", "no pude ir a BIZIKI porque llovía")
 - ✅ **Recordatorios**: "recuérdame en X minutos/horas [qué]" — setTimeout + voz al disparar · `/recordatorios` · `/cancelarrecordatorio [id]`
 - ⚠️ Confirmación antes de ejecutar acciones irreversibles (confía en el LLM para interpretar intención)
@@ -338,8 +349,8 @@ BAKO_HOTKEY=ctrl+alt+b
 ### App React Native (Horizonte 1) ❌ Pendiente
 - App nativa Android + iOS
 - Wake word "Bako" con pantalla bloqueada
-- Notificaciones push proactivas
 - Acceso completo sin abrir ninguna app
+- Web Push ya funciona en la PWA — notificaciones nativas en móvil con app cerrada ✅
 
 ---
 
