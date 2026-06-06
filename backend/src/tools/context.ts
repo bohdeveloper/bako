@@ -78,8 +78,9 @@ export async function getAmbientContext(
   location = process.env.WEATHER_CITY ?? 'Errentería'
 ): Promise<string> {
   const now   = nowInSpain();
-  const hora  = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Madrid' });
-  const fecha = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Madrid' });
+  // nowInSpain() ya devuelve la hora de Madrid como UTC local — no añadir timeZone aquí
+  const hora  = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+  const fecha = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   const parts: string[] = [
     `📅 ${fecha} — 🕐 ${hora} (Europe/Madrid)`,

@@ -12,7 +12,7 @@ router.post('/', async (req: Request, res: Response) => {
     if (!text || typeof text !== 'string') {
       res.status(400).json({ error: 'Campo text requerido' }); return;
     }
-    const clean  = cleanForVoice(text.slice(0, 600));
+    const clean  = cleanForVoice(text.slice(0, 3000));
     const buffer = await generateVoiceBuffer(clean);
     res.json({ audio: buffer.toString('base64') });
   } catch (err) {

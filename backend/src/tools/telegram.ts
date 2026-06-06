@@ -78,11 +78,14 @@ ${memoriesSection ? `RECUERDOS DINÁMICOS (hechos, observaciones, estados — co
 IDENTIDAD: ${BAKO_PROFILE.identidad.nombre}, ${BAKO_PROFILE.identidad.edad} años (cumple el ${BAKO_PROFILE.identidad.cumpleanos}). Vive en ${BAKO_PROFILE.identidad.ubicacion}. ${BAKO_PROFILE.identidad.situacion_laboral}`;
 }
 
-export async function getPeopleSection(): Promise<string> {
+export async function getPeopleSection(charBudget = Infinity): Promise<string> {
   try {
     const people = await Person.find({ activo: true }).sort({ relacion: 1, nombre: 1 });
     if (!people.length) return '';
-    return people.map(formatPersonForContext).join('\n');
+    const full = people.map(formatPersonForContext).join('\n');
+    if (full.length <= charBudget) return full;
+    const cut = full.lastIndexOf('\n', charBudget);
+    return cut > 0 ? full.slice(0, cut) : full.slice(0, charBudget);
   } catch {
     return '';
   }

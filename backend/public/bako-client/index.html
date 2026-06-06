@@ -3276,7 +3276,8 @@
   let notifPollTimer = null;
   let lastNotifAt    = localStorage.getItem('bako-last-notif-at');
   let isPolling      = false;
-  const shownNotifIds = new Set(); // dedup in-memory por sesión
+  // Persistir IDs mostrados para evitar reaparición entre sesiones
+  const shownNotifIds = new Set(JSON.parse(localStorage.getItem('bako-shown-notifs') || '[]'));
 
   function requestBrowserNotifPermission() {
     if ('Notification' in window && Notification.permission === 'default') {
@@ -3310,9 +3311,12 @@
 
       let newest = new Date(since);
       for (const n of notifications) {
-        // Dedup: ignorar si ya fue mostrada en esta sesión
+        // Dedup: ignorar si ya fue mostrada (persiste entre sesiones vía localStorage)
         if (n._id && shownNotifIds.has(n._id)) continue;
-        if (n._id) shownNotifIds.add(n._id);
+        if (n._id) {
+          shownNotifIds.add(n._id);
+          localStorage.setItem('bako-shown-notifs', JSON.stringify([...shownNotifIds].slice(-100)));
+        }
 
         addSystemMessage(n.text, n.voiceText);
         showBrowserNotif(n.text);

@@ -81,9 +81,7 @@ function buildTasksText(notionTasks: NotionTask[], notionProjects: NotionProject
     }
   }
 
-  if (diferidos.length > 0) {
-    parts.push(`Proyectos pausados: ${diferidos.map(p => p.nombre).join(', ')}.`);
-  }
+  // Proyectos pausados no se mencionan en el briefing
 
   // Issues pendientes en Notion — agrupados por proyecto
   if (notionTasks.length > 0) {

@@ -99,7 +99,7 @@ async function getFullSystemPrompt(message = '', compact = false): Promise<strin
     getDynamicProfileSection(),
     getAmbientContext(location),
     getEmailContext(message),
-    getPeopleSection(),
+    getPeopleSection(compact ? 800 : undefined),
     getProjectsSection(compact ? 600 : undefined),
     compact ? Promise.resolve('') : getKnowledgeSection(),
   ]);
