@@ -11,13 +11,17 @@ export interface NewsItem {
 
 // Todos los feeds disponibles — ninguno de política general
 export const PRESET_FEEDS: Record<string, { url: string; name: string }> = {
-  hacker_news: { url: 'https://news.ycombinator.com/rss',                name: 'Hacker News' },
-  xataka:      { url: 'https://feeds.xataka.com/xataka/portada',         name: 'Xataka' },
-  tldr_tech:   { url: 'https://tldr.tech/api/rss/tech',                  name: 'TLDR Tech' },
-  bbc_tech:    { url: 'http://feeds.bbci.co.uk/news/technology/rss.xml', name: 'BBC Tech' },
-  mit_tech:    { url: 'https://www.technologyreview.com/feed/',           name: 'MIT Tech Review' },
-  the_verge:   { url: 'https://www.theverge.com/rss/index.xml',          name: 'The Verge' },
-  meneame:     { url: 'https://www.meneame.net/rss',                     name: 'Menéame' },
+  hacker_news:     { url: 'https://news.ycombinator.com/rss',                         name: 'Hacker News' },
+  xataka:          { url: 'https://feeds.xataka.com/xataka/portada',                  name: 'Xataka' },
+  tldr_tech:       { url: 'https://tldr.tech/api/rss/tech',                           name: 'TLDR Tech' },
+  bbc_tech:        { url: 'http://feeds.bbci.co.uk/news/technology/rss.xml',          name: 'BBC Tech' },
+  mit_tech:        { url: 'https://www.technologyreview.com/feed/',                    name: 'MIT Tech Review' },
+  the_verge:       { url: 'https://www.theverge.com/rss/index.xml',                   name: 'The Verge' },
+  meneame:         { url: 'https://www.meneame.net/rss',                              name: 'Menéame' },
+  // Actualidad española
+  el_confidencial: { url: 'https://rss.elconfidencial.com/espana/',                   name: 'El Confidencial' },
+  veinte_minutos:  { url: 'https://www.20minutos.es/rss/',                            name: '20minutos' },
+  la_vanguardia:   { url: 'https://www.lavanguardia.com/mvc/feed/rss/home',           name: 'La Vanguardia' },
 };
 
 const DEFAULT_FEED_KEYS = ['hacker_news', 'xataka'];

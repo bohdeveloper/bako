@@ -23,6 +23,7 @@ export interface NotionProject {
   nombre: string;
   estado: string;
   descripcion: string;
+  siguiente_accion: string;
 }
 
 function extractText(prop: any): string {
@@ -72,16 +73,20 @@ export async function getNotionProjects(): Promise<NotionProject[]> {
 
   const { data } = await api.post(`/databases/${dbId}/query`, {
     filter: {
-      property: 'Estado',
-      select: { equals: 'Activo' },
+      or: [
+        { property: 'Estado', select: { equals: 'Activo' } },
+        { property: 'Estado', select: { equals: 'Diferido' } },
+      ],
     },
+    sorts: [{ property: 'Estado', direction: 'ascending' }],
   });
 
   return data.results.map((p: any) => ({
-    id:          p.id,
-    nombre:      extractTitle(p.properties.Nombre),
-    estado:      extractSelect(p.properties.Estado),
-    descripcion: extractText(p.properties.Descripción),
+    id:               p.id,
+    nombre:           extractTitle(p.properties.Nombre),
+    estado:           extractSelect(p.properties.Estado),
+    descripcion:      extractText(p.properties.Descripción),
+    siguiente_accion: extractText(p.properties['Siguiente acción'] ?? p.properties['Siguiente paso'] ?? {}),
   }));
 }
 

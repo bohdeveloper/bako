@@ -14,7 +14,8 @@ Instalación:
   pip install -r requirements.txt
 """
 
-import os, sys, time, tempfile, threading, wave, base64, re, json
+import os, sys, time, tempfile, threading, wave, base64, re, json, urllib.parse
+from datetime import datetime, timedelta, timezone
 import tkinter as tk
 from tkinter import font as tkfont, messagebox
 import requests
@@ -220,6 +221,8 @@ class BakoDesktopApp:
         self._is_active   = False   # True mientras BAKO procesa o reproduce
         self._cancel_flag = threading.Event()
         self._notif_stop  = threading.Event()  # señal para parar el polling
+        # Timestamp de la última notificación vista — cada cliente lleva el suyo
+        self._last_notif_at = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime('%Y-%m-%dT%H:%M:%S.000Z')
 
         # ── Tema ──────────────────────────────────────────────────────────────
         saved = 'dark'
@@ -401,26 +404,28 @@ class BakoDesktopApp:
 
     def _poll_notifications_loop(self):
         # Primer check inmediato, luego cada 60 segundos
+        # Cada cliente lleva su propio since= — sin carreras con WPA ni otros clientes
         while not self._notif_stop.is_set():
             try:
                 if self.jwt_token or DESKTOP_TOKEN:
                     headers = self._get_headers()
+                    since_enc = urllib.parse.quote(self._last_notif_at)
                     r = requests.get(
-                        f'{BAKO_URL}/api/notifications/unread',
+                        f'{BAKO_URL}/api/notifications/unread?since={since_enc}',
                         headers=headers, timeout=15
                     )
                     if r.ok:
                         items = r.json().get('notifications', [])
                         if items:
-                            ids = [n['_id'] for n in items]
+                            newest = self._last_notif_at
                             for n in items:
                                 text = n.get('text', '')
                                 self.root.after(0, lambda t=text: self._add_message('bako', t))
                                 self._show_toast(text)
-                            requests.post(
-                                f'{BAKO_URL}/api/notifications/mark-read',
-                                json={'ids': ids}, headers=headers, timeout=10
-                            )
+                                ts = n.get('createdAt', '')
+                                if ts > newest:
+                                    newest = ts
+                            self._last_notif_at = newest
             except Exception:
                 pass
             self._notif_stop.wait(timeout=60)

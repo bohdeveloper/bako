@@ -14,6 +14,7 @@ import projectsRoutes from './routes/projects';
 import knowledgeRoutes from './routes/knowledge';
 import notificationsRoutes from './routes/notifications';
 import autoconfigRoutes from './routes/autoconfig';
+import ttsRoutes from './routes/tts';
 import { startTelegramBot } from './tools/telegram';
 import { startProactivityService } from './services/ProactivityService';
 import { User } from './memory/User';
@@ -43,6 +44,7 @@ app.use('/api/agent',         requireAuth, agentRoutes);
 app.use('/api/desktop',       desktopRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/autoconfig',    autoconfigRoutes);
+app.use('/api/tts',           ttsRoutes);
 app.use('/bako-client', bakoClientRoutes);
 
 mongoose.connect(process.env.MONGODB_URI!)

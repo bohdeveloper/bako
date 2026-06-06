@@ -170,6 +170,24 @@
     .msg:hover .msg-reuse,
     .msg:focus-within .msg-reuse { opacity: 1; }
 
+    .msg-tts {
+      flex-shrink: 0;
+      background: none;
+      border: none;
+      border-radius: 6px;
+      color: var(--dim);
+      font-size: 14px;
+      padding: 3px 5px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.15s;
+      margin-bottom: 2px;
+      line-height: 1;
+    }
+    .msg:hover .msg-tts,
+    .msg:focus-within .msg-tts { opacity: 1; }
+    .msg-tts.playing { opacity: 1; color: var(--teal); }
+
     /* Burbuja de estado (grabando, procesando...) */
     .msg-status {
       align-self: center;
@@ -2517,6 +2535,19 @@
 
     div.appendChild(bubble);
     div.appendChild(reuse);
+
+    if (role === 'bako') {
+      const ttsBtn = document.createElement('button');
+      ttsBtn.className = 'msg-tts';
+      ttsBtn.title = 'Escuchar';
+      ttsBtn.textContent = '🔊';
+      ttsBtn.addEventListener('click', () => {
+        ttsBtn.classList.add('playing');
+        playTTS(text).finally(() => ttsBtn.classList.remove('playing'));
+      });
+      div.appendChild(ttsBtn);
+    }
+
     chatHistory.appendChild(div);
     chatHistory.scrollTop = chatHistory.scrollHeight;
     return div;
@@ -2529,6 +2560,31 @@
     chatHistory.appendChild(div);
     chatHistory.scrollTop = chatHistory.scrollHeight;
     return div;
+  }
+
+  // ── TTS en navegador ───────────────────────────────────────────────────────
+  function b64ToBlob(b64, mime) {
+    const bytes = atob(b64);
+    const arr = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+    return new Blob([arr], { type: mime });
+  }
+
+  async function playTTS(text) {
+    try {
+      const res = await fetch(`${BAKO_URL}/api/tts`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) return;
+      const { audio } = await res.json();
+      const blob = b64ToBlob(audio, 'audio/webm');
+      const url  = URL.createObjectURL(blob);
+      const el   = new Audio(url);
+      el.onended = () => URL.revokeObjectURL(url);
+      await el.play();
+    } catch { /* silencioso */ }
   }
 
   // ── Utilidades UI ──────────────────────────────────────────────────────────
@@ -3116,7 +3172,9 @@
   });
 
   // ── Notificaciones del sistema (polling) ──────────────────────────────────
+  // Cada cliente guarda su propio ?since= — sin carreras con Desktop ni otros clientes
   let notifPollTimer = null;
+  let lastNotifAt    = localStorage.getItem('bako-last-notif-at');
 
   function requestBrowserNotifPermission() {
     if ('Notification' in window && Notification.permission === 'default') {
@@ -3131,35 +3189,44 @@
     }
   }
 
-  function addSystemMessage(text) {
+  function addSystemMessage(text, voiceText) {
     const div = addMessage('bako', text);
     if (div) div.classList.add('system');
+    return div;
   }
 
   async function pollNotifications() {
     if (!getToken()) return;
     try {
-      const res = await fetch(`${BAKO_URL}/api/notifications/unread`, { headers: authHeaders() });
+      const since = lastNotifAt || new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      const url   = `${BAKO_URL}/api/notifications/unread?since=${encodeURIComponent(since)}`;
+      const res   = await fetch(url, { headers: authHeaders() });
       if (!res.ok) return;
       const { notifications } = await res.json();
       if (!notifications || notifications.length === 0) return;
 
-      const ids = notifications.map(n => n._id);
+      let newest = new Date(since);
       for (const n of notifications) {
-        addSystemMessage(n.text);
+        addSystemMessage(n.text, n.voiceText);
         showBrowserNotif(n.text);
+        const ts = new Date(n.createdAt);
+        if (ts > newest) newest = ts;
+        if (n.voiceText) playTTS(n.voiceText).catch(() => {});
       }
 
-      await fetch(`${BAKO_URL}/api/notifications/mark-read`, {
-        method: 'POST', headers: authHeaders(),
-        body: JSON.stringify({ ids }),
-      });
+      lastNotifAt = newest.toISOString();
+      localStorage.setItem('bako-last-notif-at', lastNotifAt);
     } catch { /* silencioso */ }
   }
 
   function startNotificationPolling() {
     requestBrowserNotifPermission();
     if (notifPollTimer) clearInterval(notifPollTimer);
+    // Inicializar since a "ahora" la primera vez (evita reproducir notificaciones viejas)
+    if (!lastNotifAt) {
+      lastNotifAt = new Date().toISOString();
+      localStorage.setItem('bako-last-notif-at', lastNotifAt);
+    }
     pollNotifications();
     notifPollTimer = setInterval(pollNotifications, 60_000);
   }
@@ -3178,13 +3245,16 @@
   const autoconfFb      = document.getElementById('autoconfFeedback');
 
   const AVAILABLE_FEEDS = [
-    { key: 'hacker_news', name: 'Hacker News',      desc: 'Tech & programación' },
-    { key: 'xataka',      name: 'Xataka',            desc: 'Tech en español' },
-    { key: 'tldr_tech',   name: 'TLDR Tech',         desc: 'Resumen tech diario' },
-    { key: 'bbc_tech',    name: 'BBC Tech',           desc: 'Tech internacional' },
-    { key: 'mit_tech',    name: 'MIT Tech Review',    desc: 'Investigación & IA' },
-    { key: 'the_verge',   name: 'The Verge',          desc: 'Gadgets & cultura digital' },
-    { key: 'meneame',     name: 'Menéame',            desc: 'Comunidad hispanohablante' },
+    { key: 'hacker_news',     name: 'Hacker News',      desc: 'Tech & programación' },
+    { key: 'xataka',          name: 'Xataka',            desc: 'Tech en español' },
+    { key: 'tldr_tech',       name: 'TLDR Tech',         desc: 'Resumen tech diario' },
+    { key: 'bbc_tech',        name: 'BBC Tech',           desc: 'Tech internacional' },
+    { key: 'mit_tech',        name: 'MIT Tech Review',    desc: 'Investigación & IA' },
+    { key: 'the_verge',       name: 'The Verge',          desc: 'Gadgets & cultura digital' },
+    { key: 'meneame',         name: 'Menéame',            desc: 'Comunidad hispanohablante' },
+    { key: 'el_confidencial', name: 'El Confidencial',    desc: 'Actualidad española' },
+    { key: 'veinte_minutos',  name: '20minutos',          desc: 'Noticias España' },
+    { key: 'la_vanguardia',   name: 'La Vanguardia',      desc: 'Diario España' },
   ];
 
   let currentFeeds = []; // array de {key?} o {url, name}
