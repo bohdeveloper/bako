@@ -62,6 +62,7 @@ async function fetchWeatherFromCoords(lat: string, lon: string, city: string): P
       timezone: 'auto',
       forecast_days: 3,
     },
+    timeout: 8000,
   });
 
   const c = data.current;

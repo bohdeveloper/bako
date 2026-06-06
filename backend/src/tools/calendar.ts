@@ -57,7 +57,7 @@ export async function getCalendarEvents(days = 2): Promise<CalendarEvent[]> {
   const timeMax = new Date(timeMin);
   timeMax.setDate(timeMax.getDate() + days);
 
-  const { data } = await calendar.events.list({
+  const listPromise = calendar.events.list({
     calendarId:   'primary',
     timeMin:      timeMin.toISOString(),
     timeMax:      timeMax.toISOString(),
@@ -65,6 +65,10 @@ export async function getCalendarEvents(days = 2): Promise<CalendarEvent[]> {
     orderBy:      'startTime',
     maxResults:   20,
   });
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('Google Calendar API timeout')), 8000)
+  );
+  const { data } = await Promise.race([listPromise, timeoutPromise]);
 
   return (data.items ?? []).map((e) => {
     const allDay = Boolean(e.start?.date && !e.start?.dateTime);

@@ -6,7 +6,9 @@ const router = Router();
 router.use(requireAuth);
 
 router.get('/vapid-public-key', (_req: Request, res: Response) => {
-  res.json({ key: process.env.VAPID_PUBLIC_KEY ?? '' });
+  const raw = process.env.VAPID_PUBLIC_KEY ?? '';
+  const key = raw.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  res.json({ key });
 });
 
 // GET /api/push/status — diagnóstico para el panel admin
