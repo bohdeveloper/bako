@@ -692,20 +692,98 @@
       .person-form-row .admin-select { min-width: 0; }
     }
 
+    /* ── Tooltip PC (hover) ─────────────────────────────────────────────────── */
+    [data-tooltip] { position: relative; }
+    [data-tooltip]::after {
+      content: attr(data-tooltip);
+      position: absolute; bottom: calc(100% + 6px); left: 50%;
+      transform: translateX(-50%);
+      background: #1a1a1a; border: 1px solid var(--border);
+      color: #e8e8e8; font-size: 11px; line-height: 1.4;
+      padding: 5px 9px; border-radius: 7px;
+      pointer-events: none; opacity: 0; transition: opacity 0.15s;
+      z-index: 200; max-width: 220px; white-space: normal;
+      text-align: center; word-break: break-word;
+    }
+    [data-tooltip]:hover::after { opacity: 1; }
+    @media (max-width: 767px) { [data-tooltip]::after { display: none; } }
+
+    /* ── Info button mobile ─────────────────────────────────────────────────── */
+    .btn-info-wrap { position: relative; margin-bottom: 6px; }
+    .mobile-info {
+      display: none;
+      position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: var(--teal); font-size: 14px;
+      cursor: pointer; padding: 4px; z-index: 1; line-height: 1;
+    }
+    @media (max-width: 767px) {
+      .mobile-info { display: block; }
+      .btn-info-wrap [data-tooltip] { padding-right: 30px; }
+    }
+
+    /* ── Info toast ─────────────────────────────────────────────────────────── */
+    .info-toast {
+      position: fixed; bottom: 80px; left: 50%;
+      transform: translateX(-50%) translateY(0);
+      background: #1a1a1a; border: 1px solid var(--border); color: #e8e8e8;
+      font-size: 13px; padding: 10px 16px; border-radius: 10px;
+      z-index: 500; max-width: min(300px,88vw); text-align: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,.45); pointer-events: none;
+      animation: toastIn .2s ease, toastOut .25s ease 2.3s forwards;
+    }
+    @keyframes toastIn  { from { opacity:0; transform:translateX(-50%) translateY(10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+    @keyframes toastOut { to { opacity:0; } }
+
     /* ── Modal Mensajes automáticos ─────────────────────────────────────────── */
     .autoconf-overlay {
-      display: none; position: fixed; inset: 0;
+      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0,0,0,0.55); z-index: 30;
     }
     .autoconf-overlay.visible { display: block; }
     .autoconf-modal {
-      position: fixed; inset: 0;
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
       background: var(--bg); z-index: 31;
       display: flex; flex-direction: column;
       transform: translateY(100%);
       transition: transform 0.3s cubic-bezier(.4,0,.2,1);
     }
     .autoconf-modal.visible { transform: translateY(0); }
+
+    /* ── Schedule editor ────────────────────────────────────────────────────── */
+    .job-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .btn-edit-sched {
+      background: none; border: 1px solid var(--border); border-radius: 6px;
+      color: var(--dim); font-size: 13px; padding: 4px 7px; cursor: pointer;
+      transition: border-color 0.15s, color 0.15s; line-height: 1;
+    }
+    .btn-edit-sched:hover,
+    .btn-edit-sched.active { border-color: var(--teal); color: var(--teal); }
+    .sched-editor {
+      margin-top: 10px; padding: 10px 12px; background: var(--bg2);
+      border: 1px solid var(--border); border-radius: 8px;
+    }
+    .sched-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+    .sched-label { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .8px; min-width: 30px; }
+    .sched-h, .sched-m {
+      width: 52px; padding: 5px 6px; font-size: 15px; text-align: center;
+      background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); outline: none; font-family: inherit; -moz-appearance: textfield;
+    }
+    .sched-h::-webkit-inner-spin-button, .sched-h::-webkit-outer-spin-button,
+    .sched-m::-webkit-inner-spin-button, .sched-m::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    .sched-h:focus, .sched-m:focus { border-color: var(--teal); }
+    .sched-sep { color: var(--dim); font-weight: 600; }
+    .day-picker { display: flex; gap: 4px; flex-wrap: wrap; }
+    .day-pill {
+      display: flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 1px solid var(--border); cursor: pointer;
+      font-size: 12px; font-weight: 600; color: var(--dim);
+      user-select: none; -webkit-user-select: none; transition: all 0.15s;
+    }
+    .day-pill input[type=checkbox] { display: none; }
+    .day-pill.active { background: var(--teal); border-color: var(--teal); color: #fff; }
+    .sched-actions { display: flex; gap: 6px; margin-top: 2px; }
     .autoconf-header {
       display: flex; align-items: center; gap: 12px;
       padding: 14px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
@@ -823,16 +901,16 @@
     </div>
     <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
       <div class="admin-section-title">Datos estructurados</div>
-      <button class="btn-create-user secondary" id="btnMigrateMemories" style="width:100%;margin-bottom:6px">Migrar memoria</button>
-      <button class="btn-create-user secondary" id="btnDedupePreview" style="width:100%;margin-bottom:6px">Previsualizar deduplicación</button>
-      <button class="btn-create-user secondary" id="btnDedupe" style="width:100%;margin-bottom:6px">Deduplicar memoria</button>
-      <button class="btn-create-user secondary" id="btnEmbedMemories" style="width:100%;margin-bottom:6px">Generar embeddings</button>
-      <button class="btn-create-user secondary" id="btnCleanManual" style="width:100%;margin-bottom:6px;border-color:#ef4444;color:#ef4444">Limpiar memorias importadas</button>
+      <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnMigrateMemories" data-tooltip="Analiza conversaciones con IA y extrae Personas, Proyectos y Conocimiento" style="width:100%">Migrar memoria</button><button class="mobile-info" data-target="btnMigrateMemories" type="button">ℹ</button></div>
+      <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnDedupePreview" data-tooltip="Muestra grupos de memorias duplicadas sin eliminar nada" style="width:100%">Previsualizar deduplicación</button><button class="mobile-info" data-target="btnDedupePreview" type="button">ℹ</button></div>
+      <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnDedupe" data-tooltip="Elimina permanentemente los duplicados detectados" style="width:100%">Deduplicar memoria</button><button class="mobile-info" data-target="btnDedupe" type="button">ℹ</button></div>
+      <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnEmbedMemories" data-tooltip="Genera vectores de búsqueda semántica para todas las memorias" style="width:100%">Generar embeddings</button><button class="mobile-info" data-target="btnEmbedMemories" type="button">ℹ</button></div>
+      <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnCleanManual" data-tooltip="Elimina TODAS las memorias importadas manualmente (source=manual)" style="width:100%;border-color:#ef4444;color:#ef4444">Limpiar memorias importadas</button><button class="mobile-info" data-target="btnCleanManual" type="button" style="color:#ef4444">ℹ</button></div>
       <div class="admin-feedback" id="seedFeedback"></div>
     </div>
     <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
       <div class="admin-section-title">Mensajes automáticos</div>
-      <button class="btn-create-user secondary" id="btnOpenAutoconf" style="width:100%">⚙️ Configurar avisos automáticos</button>
+      <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnOpenAutoconf" data-tooltip="Gestiona horarios y fuentes de noticias de los avisos automáticos" style="width:100%">⚙️ Configurar avisos automáticos</button><button class="mobile-info" data-target="btnOpenAutoconf" type="button">ℹ</button></div>
     </div>
     <button class="logout-btn" id="logoutBtn">Cerrar sesión</button>
   </div>
@@ -3111,7 +3189,84 @@
 
   let currentFeeds = []; // array de {key?} o {url, name}
 
+  // ── Helpers de cron ───────────────────────────────────────────────────────
+
+  function parseCronExpr(expr) {
+    const parts = (expr || '').trim().split(/\s+/);
+    if (parts.length < 5) return { hour: 8, minute: 0, days: [1,2,3,4,5] };
+    const minute = parseInt(parts[0], 10);
+    const hour   = parseInt(parts[1], 10);
+    const dayStr = parts[4];
+    let days = [];
+    if (dayStr === '*') {
+      days = [0,1,2,3,4,5,6];
+    } else if (dayStr.includes('-')) {
+      const [a, b] = dayStr.split('-').map(Number);
+      for (let d = a; d <= b; d++) days.push(d);
+    } else {
+      days = dayStr.split(',').map(Number).filter(n => !isNaN(n));
+    }
+    return { hour, minute, days };
+  }
+
+  function buildCronExpr(hour, minute, days) {
+    const sorted = [...days].sort((a, b) => a - b);
+    if (sorted.length === 7) return `${minute} ${hour} * * *`;
+    if (sorted.length === 0) return `${minute} ${hour} * * 1`;
+    // Comprimir rangos consecutivos
+    const ranges = [];
+    let start = sorted[0], prev = sorted[0];
+    for (let i = 1; i <= sorted.length; i++) {
+      if (i < sorted.length && sorted[i] === prev + 1) {
+        prev = sorted[i];
+      } else {
+        ranges.push(start === prev ? `${start}` : `${start}-${prev}`);
+        if (i < sorted.length) { start = sorted[i]; prev = sorted[i]; }
+      }
+    }
+    return `${minute} ${hour} * * ${ranges.join(',')}`;
+  }
+
+  const DAY_ES = ['D','L','M','X','J','V','S'];
+
+  function formatSchedule(hour, minute, days) {
+    const sorted = [...days].sort((a, b) => a - b);
+    const h = String(hour).padStart(2,'0');
+    const m = String(minute).padStart(2,'0');
+    if (!sorted.length)  return `-- ${h}:${m}`;
+    if (sorted.length === 7) return `Todos ${h}:${m}`;
+    if (sorted.length === 5 && sorted.every((d,i) => d === i+1)) return `L-V ${h}:${m}`;
+    if (sorted.length === 1) return `${DAY_ES[sorted[0]]} ${h}:${m}`;
+    return `${sorted.map(d => DAY_ES[d]).join(' ')} ${h}:${m}`;
+  }
+
+  // ── Info toast (mobile) ───────────────────────────────────────────────────
+
+  function showInfoToast(msg) {
+    document.querySelectorAll('.info-toast').forEach(t => t.remove());
+    const toast = document.createElement('div');
+    toast.className = 'info-toast';
+    toast.textContent = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2800);
+  }
+
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.mobile-info');
+    if (!btn) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const target = document.getElementById(btn.dataset.target);
+    if (target?.dataset.tooltip) showInfoToast(target.dataset.tooltip);
+  });
+
+  // ── Modal mensajes automáticos ────────────────────────────────────────────
+
   function openAutoconf() {
+    const headerEl = document.querySelector('.header');
+    const hTop = headerEl ? headerEl.getBoundingClientRect().height + 'px' : '0';
+    autoconfModal.style.top   = hTop;
+    autoconfOverlay.style.top = hTop;
     autoconfOverlay.classList.add('visible');
     autoconfModal.classList.add('visible');
     loadJobs();
@@ -3134,35 +3289,112 @@
       const res  = await fetch(`${BAKO_URL}/api/autoconfig/jobs`, { headers: authHeaders() });
       const data = await res.json();
       el.innerHTML = '';
+
+      const dayDefs = [
+        { v:1, l:'L' }, { v:2, l:'M' }, { v:3, l:'X' },
+        { v:4, l:'J' }, { v:5, l:'V' }, { v:6, l:'S' }, { v:0, l:'D' },
+      ];
+
       data.jobs.forEach(job => {
-        const item = document.createElement('div');
-        item.className = 'job-item' + (job.enabled ? '' : ' disabled');
-        item.id = `job-${job.key}`;
-        item.innerHTML = `
-          <div class="job-info">
-            <div class="job-name">${job.icon} ${job.nombre}</div>
-            <div class="job-sched">${job.horario}</div>
-            <div class="job-desc">${job.descripcion}</div>
+        const { hour, minute, days } = parseCronExpr(job.cron);
+        const hPad = String(hour).padStart(2,'0');
+        const mPad = String(minute).padStart(2,'0');
+        const schedLabel = formatSchedule(hour, minute, days);
+
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = `
+          <div class="job-item${job.enabled ? '' : ' disabled'}" id="job-${job.key}">
+            <div class="job-info">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:2px">
+                <span class="job-name">${job.icon} ${job.nombre}</span>
+                <span class="job-sched" id="sched-lbl-${job.key}">${schedLabel}</span>
+              </div>
+              <div class="job-desc">${job.descripcion}</div>
+              <div class="sched-editor" id="sched-${job.key}" style="display:none">
+                <div class="sched-row">
+                  <span class="sched-label">Hora</span>
+                  <input class="sched-h" type="number" min="0" max="23" value="${hPad}">
+                  <span class="sched-sep">:</span>
+                  <input class="sched-m" type="number" min="0" max="59" value="${mPad}">
+                </div>
+                <div class="sched-row">
+                  <span class="sched-label">Días</span>
+                  <div class="day-picker">
+                    ${dayDefs.map(d => `<label class="day-pill${days.includes(d.v) ? ' active' : ''}"><input type="checkbox" value="${d.v}"${days.includes(d.v) ? ' checked' : ''}>${d.l}</label>`).join('')}
+                  </div>
+                </div>
+                <div class="sched-actions">
+                  <button class="btn-mem-save sched-save">Guardar horario</button>
+                  <button class="btn-mem-cancel sched-cancel">Cancelar</button>
+                </div>
+              </div>
+            </div>
+            <div class="job-actions">
+              <button class="btn-edit-sched" title="Editar horario">🕐</button>
+              <label class="toggle-switch" title="${job.enabled ? 'Activo' : 'Inactivo'}">
+                <input type="checkbox" data-key="${job.key}"${job.enabled ? ' checked' : ''}>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
           </div>
-          <label class="toggle-switch" title="${job.enabled ? 'Activo — clic para desactivar' : 'Inactivo — clic para activar'}">
-            <input type="checkbox" data-key="${job.key}" ${job.enabled ? 'checked' : ''}>
-            <span class="toggle-slider"></span>
-          </label>
         `;
-        el.appendChild(item);
-      });
-      el.querySelectorAll('input[type=checkbox]').forEach(chk => {
-        chk.addEventListener('change', async e => {
-          const key     = e.target.dataset.key;
-          const enabled = e.target.checked;
-          const item    = document.getElementById(`job-${key}`);
-          if (item) item.classList.toggle('disabled', !enabled);
+        const jobDiv = wrapper.firstElementChild;
+        el.appendChild(jobDiv);
+
+        // Abrir/cerrar editor de horario
+        jobDiv.querySelector('.btn-edit-sched').addEventListener('click', function() {
+          const editor = document.getElementById(`sched-${job.key}`);
+          const isOpen = editor.style.display !== 'none';
+          editor.style.display = isOpen ? 'none' : 'block';
+          this.classList.toggle('active', !isOpen);
+        });
+
+        // Day pills — toggle activo
+        jobDiv.querySelectorAll('.day-pill').forEach(pill => {
+          pill.addEventListener('click', () => {
+            const chk = pill.querySelector('input[type=checkbox]');
+            chk.checked = !chk.checked;
+            pill.classList.toggle('active', chk.checked);
+          });
+        });
+
+        // Guardar horario
+        jobDiv.querySelector('.sched-save').addEventListener('click', async () => {
+          const h     = parseInt(jobDiv.querySelector('.sched-h').value, 10);
+          const m     = parseInt(jobDiv.querySelector('.sched-m').value, 10);
+          const selDays = [...jobDiv.querySelectorAll('.day-pill input:checked')].map(i => parseInt(i.value, 10));
+          if (selDays.length === 0) { setAutoconfFb('Selecciona al menos un día', false); return; }
+          if (h < 0 || h > 23 || m < 0 || m > 59) { setAutoconfFb('Hora inválida (0-23 : 0-59)', false); return; }
+          const cronExpr = buildCronExpr(h, m, selDays);
           try {
-            await fetch(`${BAKO_URL}/api/autoconfig/jobs/${key}`, {
-              method: 'PATCH', headers: authHeaders(),
-              body: JSON.stringify({ enabled }),
+            const r = await fetch(`${BAKO_URL}/api/autoconfig/jobs/${job.key}/schedule`, {
+              method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ cron: cronExpr }),
             });
-            setAutoconfFb(enabled ? `✓ ${key} activado` : `— ${key} desactivado`, true);
+            if (!r.ok) throw new Error((await r.json()).error);
+            document.getElementById(`sched-lbl-${job.key}`).textContent = formatSchedule(h, m, selDays);
+            document.getElementById(`sched-${job.key}`).style.display = 'none';
+            jobDiv.querySelector('.btn-edit-sched').classList.remove('active');
+            setAutoconfFb(`✓ Horario de "${job.nombre}" actualizado`, true);
+          } catch (err) {
+            setAutoconfFb('Error al guardar: ' + err.message, false);
+          }
+        });
+
+        // Cancelar editor de horario
+        jobDiv.querySelector('.sched-cancel').addEventListener('click', () => {
+          document.getElementById(`sched-${job.key}`).style.display = 'none';
+          jobDiv.querySelector('.btn-edit-sched').classList.remove('active');
+        });
+
+        // Toggle enable/disable
+        jobDiv.querySelector('input[data-key]').addEventListener('change', async e => {
+          const enabled = e.target.checked;
+          jobDiv.classList.toggle('disabled', !enabled);
+          try {
+            await fetch(`${BAKO_URL}/api/autoconfig/jobs/${job.key}`, {
+              method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ enabled }),
+            });
+            setAutoconfFb(enabled ? `✓ ${job.nombre} activado` : `— ${job.nombre} desactivado`, true);
           } catch {
             setAutoconfFb('Error al guardar', false);
           }
