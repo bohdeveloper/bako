@@ -111,14 +111,38 @@ async function getTTSOgg(): Promise<MsEdgeTTS> {
   return _ttsOggPromise;
 }
 
-export async function generateVoiceBuffer(text: string): Promise<Buffer> {
-  const tts = await getTTSOgg();
-  const { audioStream } = await tts.toStream(text);
-  const chunks: Buffer[] = [];
+// Divide texto en fragmentos de máx ~900 chars cortando en límites de oración.
+// msedge-tts puede cortar el audio silenciosamente en textos muy largos.
+function splitForTTS(text: string, maxChars = 900): string[] {
+  if (text.length <= maxChars) return [text];
+  const parts: string[] = [];
+  let remaining = text;
+  while (remaining.length > maxChars) {
+    let cut = remaining.lastIndexOf('. ', maxChars);
+    if (cut < 200) cut = remaining.lastIndexOf(' ', maxChars);
+    if (cut < 1) cut = maxChars;
+    parts.push(remaining.slice(0, cut + 1).trim());
+    remaining = remaining.slice(cut + 1).trim();
+  }
+  if (remaining) parts.push(remaining);
+  return parts;
+}
 
-  return new Promise((resolve, reject) => {
-    audioStream.on('data', (chunk: Buffer) => chunks.push(chunk));
-    audioStream.on('end', () => resolve(Buffer.concat(chunks)));
-    audioStream.on('error', reject);
-  });
+export async function generateVoiceBuffer(text: string): Promise<Buffer> {
+  const tts    = await getTTSOgg();
+  const parts  = splitForTTS(text);
+  const buffers: Buffer[] = [];
+
+  for (const part of parts) {
+    const { audioStream } = await tts.toStream(part);
+    const buf = await new Promise<Buffer>((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      audioStream.on('data', (c: Buffer) => chunks.push(c));
+      audioStream.on('end', () => resolve(Buffer.concat(chunks)));
+      audioStream.on('error', reject);
+    });
+    buffers.push(buf);
+  }
+
+  return Buffer.concat(buffers);
 }

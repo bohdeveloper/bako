@@ -3275,6 +3275,8 @@
   // Cada cliente guarda su propio ?since= — sin carreras con Desktop ni otros clientes
   let notifPollTimer = null;
   let lastNotifAt    = localStorage.getItem('bako-last-notif-at');
+  let isPolling      = false;
+  const shownNotifIds = new Set(); // dedup in-memory por sesión
 
   function requestBrowserNotifPermission() {
     if ('Notification' in window && Notification.permission === 'default') {
@@ -3296,7 +3298,8 @@
   }
 
   async function pollNotifications() {
-    if (!getToken()) return;
+    if (!getToken() || isPolling) return;
+    isPolling = true;
     try {
       const since = lastNotifAt || new Date(Date.now() - 24 * 3600 * 1000).toISOString();
       const url   = `${BAKO_URL}/api/notifications/unread?since=${encodeURIComponent(since)}`;
@@ -3307,6 +3310,10 @@
 
       let newest = new Date(since);
       for (const n of notifications) {
+        // Dedup: ignorar si ya fue mostrada en esta sesión
+        if (n._id && shownNotifIds.has(n._id)) continue;
+        if (n._id) shownNotifIds.add(n._id);
+
         addSystemMessage(n.text, n.voiceText);
         showBrowserNotif(n.text);
         const ts = new Date(n.createdAt);
@@ -3321,6 +3328,7 @@
       lastNotifAt = new Date(newest.getTime() + 1).toISOString();
       localStorage.setItem('bako-last-notif-at', lastNotifAt);
     } catch { /* silencioso */ }
+    finally { isPolling = false; }
   }
 
   function startNotificationPolling() {
