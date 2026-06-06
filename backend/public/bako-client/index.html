@@ -936,6 +936,7 @@
     <button class="admin-tab-btn"        id="tabBtnProjects" data-tab="tabProjects">Proyectos</button>
     <button class="admin-tab-btn"        id="tabBtnKnow"     data-tab="tabKnow">Conocimiento</button>
     <button class="admin-tab-btn"        id="tabBtnMemories" data-tab="tabMemories">Memorias</button>
+    <button class="admin-tab-btn"        id="tabBtnPush"     data-tab="tabPush">Push</button>
   </div>
   <div class="admin-body">
 
@@ -1161,6 +1162,25 @@
     <button class="mem-load-more" id="memLoadMore" style="display:none">Cargar más</button>
   </div>
 
+  <div class="admin-tab-content" id="tabPush" data-section="Push">
+    <div class="admin-section-title">Estado Web Push</div>
+    <div id="pushStatusBox" style="background:var(--surface2);border-radius:8px;padding:12px;font-size:13px;margin-bottom:12px;line-height:1.8">
+      <span style="color:var(--dim)">Cargando…</span>
+    </div>
+    <div style="font-size:12px;color:var(--dim);margin-bottom:14px;line-height:1.6">
+      Para recibir notificaciones push en el móvil:<br>
+      1. Añade <code>VAPID_PUBLIC_KEY</code> y <code>VAPID_PRIVATE_KEY</code> en Render<br>
+      2. Abre la PWA en Chrome móvil y acepta los permisos<br>
+      3. Pulsa "Volver a suscribir" para crear la suscripción
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="admin-btn" id="pushTestBtn">📤 Enviar push de prueba</button>
+      <button class="admin-btn" id="pushResubBtn">🔄 Volver a suscribir</button>
+      <button class="admin-btn" id="pushStatusRefreshBtn">↺ Actualizar estado</button>
+    </div>
+    <div id="pushActionResult" style="margin-top:10px;font-size:12px;color:var(--teal)"></div>
+  </div>
+
   </div><!-- /admin-body -->
 </div>
 
@@ -1204,7 +1224,7 @@
   </button>
   <h1 id="bakoTitle" style="cursor:pointer" title="Limpiar chat">BAKO</h1>
   <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:8px">
-    <span id="llmBadge" style="font-size:10px;font-weight:600;letter-spacing:.04em;padding:2px 7px;border-radius:20px;opacity:.75;background:transparent;border:1px solid currentColor;display:none"></span>
+    <span id="llmBadge" style="font-size:10px;font-weight:600;letter-spacing:.04em;padding:2px 7px;border-radius:20px;opacity:.75;background:transparent;border:1px solid currentColor;display:none;cursor:pointer" title="Clic para forzar Groq / volver a automático"></span>
   <button class="theme-toggle" id="themeToggle" title="Cambiar tema" style="position:static;transform:none">
     <!-- Icono luna (visible en modo oscuro → click para ir a claro) -->
     <svg id="iconMoon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -1608,6 +1628,7 @@
       if (btn.dataset.tab === 'tabPeople')    loadPeople();
       if (btn.dataset.tab === 'tabProjects')  loadProjects();
       if (btn.dataset.tab === 'tabKnow')      loadKnowledge();
+      if (btn.dataset.tab === 'tabPush')      loadPushStatus();
     });
   });
 
@@ -2450,6 +2471,48 @@
     finally { document.getElementById('btnSaveNewMem').disabled = false; }
   });
 
+  // ── Web Push diagnóstico ─────────────────────────────────────────────────
+  async function loadPushStatus() {
+    const box = document.getElementById('pushStatusBox');
+    const res  = document.getElementById('pushActionResult');
+    if (res) res.textContent = '';
+    try {
+      const r = await fetch(`${BAKO_URL}/api/push/status`, { headers: authHeaders() });
+      if (!r.ok) { box.innerHTML = '<span style="color:var(--err)">Error al consultar estado</span>'; return; }
+      const { vapidConfigured, subscriptions } = await r.json();
+      box.innerHTML =
+        `<b>VAPID keys:</b> ${vapidConfigured
+          ? '<span style="color:#22c55e">✓ Configuradas en Render</span>'
+          : '<span style="color:#ef4444">✗ NO configuradas — añade VAPID_PUBLIC_KEY y VAPID_PRIVATE_KEY en Render</span>'}<br>` +
+        `<b>Suscripciones activas:</b> ${subscriptions}` +
+        (subscriptions === 0 ? ' <span style="color:#f59e0b">— ningún dispositivo suscrito aún</span>' : '');
+    } catch {
+      box.innerHTML = '<span style="color:var(--err)">Sin conexión</span>';
+    }
+  }
+
+  document.getElementById('pushTestBtn')?.addEventListener('click', async () => {
+    const res = document.getElementById('pushActionResult');
+    res.textContent = 'Enviando…';
+    try {
+      const r = await fetch(`${BAKO_URL}/api/push/test`, { method: 'POST', headers: authHeaders() });
+      const data = await r.json();
+      res.textContent = r.ok ? `✓ Enviado a ${data.sentTo} dispositivo(s)` : `Error: ${data.error}`;
+    } catch { res.textContent = 'Error de conexión'; }
+  });
+
+  document.getElementById('pushResubBtn')?.addEventListener('click', async () => {
+    const res = document.getElementById('pushActionResult');
+    res.textContent = 'Suscribiendo…';
+    try {
+      await registerPush();
+      res.textContent = '✓ Suscripción creada/actualizada';
+      await loadPushStatus();
+    } catch (e) { res.textContent = 'Error: ' + e.message; }
+  });
+
+  document.getElementById('pushStatusRefreshBtn')?.addEventListener('click', loadPushStatus);
+
   // Filtros en tiempo real
   ['memSearch','memFilterTier','memFilterImp'].forEach(id => {
     document.getElementById(id)?.addEventListener('input', () => { _memPage = 20; renderMemories(); });
@@ -2917,7 +2980,10 @@
       const res = await fetch(`${BAKO_URL}/api/desktop/text`, {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({
+          message: text,
+          ...(llmMode === 'groq' ? { useCloud: true } : {}),
+        }),
         signal: currentController.signal,
       });
       lastRequestMs = Date.now();
@@ -3193,21 +3259,41 @@
       addMessage('bako', '¿En qué puedo ayudarle, señor?');
     });
 
-    // Badge LLM — consulta al backend y refresca cada 60s
+    // Badge LLM — modo: 'auto' | 'groq'. Clic para alternar.
+    let llmMode = localStorage.getItem('bako-llm-mode') || 'auto';
+    let detectedLlm = 'groq';
+
+    function renderLlmBadge() {
+      const badge    = document.getElementById('llmBadge');
+      const isForced = llmMode !== 'auto';
+      const name     = llmMode === 'groq' ? 'Groq' : (detectedLlm === 'ollama' ? 'Ollama' : 'Groq');
+      const isOllama = name === 'Ollama';
+      badge.textContent   = name + (isForced ? ' ✦' : '');
+      badge.style.color   = isOllama ? '#14b8a6' : '#f59e0b';
+      badge.style.borderColor = isOllama ? '#14b8a6' : '#f59e0b';
+      badge.style.opacity = isForced ? '1' : '0.75';
+      badge.title         = isForced
+        ? `Forzado: ${name} — clic para volver a automático`
+        : `Auto: ${name} — clic para forzar Groq`;
+      badge.style.display = 'inline';
+    }
+
     async function refreshLlmBadge() {
       try {
-        const res  = await fetch(`${BAKO_URL}/api/desktop/llm-status`, { headers: authHeaders() });
+        const res = await fetch(`${BAKO_URL}/api/desktop/llm-status`, { headers: authHeaders() });
         if (!res.ok) return;
-        const { llm, model } = await res.json();
-        const badge = document.getElementById('llmBadge');
-        const isOllama = llm === 'ollama';
-        badge.textContent = isOllama ? 'Ollama' : 'Groq';
-        badge.style.color        = isOllama ? '#14b8a6' : '#f59e0b';
-        badge.style.borderColor  = isOllama ? '#14b8a6' : '#f59e0b';
-        badge.title              = model;
-        badge.style.display      = 'inline';
-      } catch { /* silencioso */ }
+        const { llm } = await res.json();
+        detectedLlm = llm;
+        renderLlmBadge();
+      } catch { }
     }
+
+    document.getElementById('llmBadge').addEventListener('click', () => {
+      llmMode = llmMode === 'groq' ? 'auto' : 'groq';
+      localStorage.setItem('bako-llm-mode', llmMode);
+      renderLlmBadge();
+    });
+
     refreshLlmBadge();
     setInterval(refreshLlmBadge, 60_000);
   })();

@@ -140,9 +140,10 @@ router.post('/voice', upload.single('audio'), async (req: Request, res: Response
       return;
     }
 
+    const systemPrompt = await getFullSystemPrompt(transcription, false);
     const ollamaOk     = await getCachedOllamaStatus();
-    const systemPrompt = await getFullSystemPrompt(transcription, ollamaOk);
-    const response     = await askClaude(transcription, { systemPrompt, temperature: 0.4, maxTokens: 400 });
+    const useCloud     = !ollamaOk;
+    const response     = await askClaude(transcription, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
     const audioBuffer  = await generateVoiceBuffer(cleanForVoice(response));
     res.json({ transcription, response, audio: audioBuffer.toString('base64') });
 
@@ -157,7 +158,7 @@ router.post('/voice', upload.single('audio'), async (req: Request, res: Response
 // POST /api/desktop/text
 router.post('/text', async (req: Request, res: Response) => {
   // auth handled by router.use(requireAuth)
-  const { message } = req.body;
+  const { message, useCloud: clientUseCloud } = req.body;
   if (!message) { res.status(400).json({ error: 'Se requiere campo "message"' }); return; }
 
   try {
@@ -168,9 +169,12 @@ router.post('/text', async (req: Request, res: Response) => {
       return;
     }
 
+    // Siempre contexto completo — Ollama con num_ctx 8192 lo puede manejar
+    const systemPrompt = await getFullSystemPrompt(message, false);
     const ollamaOk     = await getCachedOllamaStatus();
-    const systemPrompt = await getFullSystemPrompt(message, ollamaOk);
-    const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400 });
+    // useCloud: el cliente puede forzar (true=Groq, false=Ollama), o auto según disponibilidad
+    const useCloud     = clientUseCloud !== undefined ? Boolean(clientUseCloud) : !ollamaOk;
+    const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
     const audioBuffer  = await generateVoiceBuffer(cleanForVoice(response));
     res.json({ response, audio: audioBuffer.toString('base64') });
 

@@ -9,6 +9,29 @@ router.get('/vapid-public-key', (_req: Request, res: Response) => {
   res.json({ key: process.env.VAPID_PUBLIC_KEY ?? '' });
 });
 
+// GET /api/push/status — diagnóstico para el panel admin
+router.get('/status', async (_req: Request, res: Response) => {
+  try {
+    const count     = await PushSubscription.countDocuments();
+    const vapidOk   = !!(process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY);
+    res.json({ vapidConfigured: vapidOk, subscriptions: count });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
+// POST /api/push/test — envía notificación de prueba a todos los suscritos
+router.post('/test', async (_req: Request, res: Response) => {
+  try {
+    const { sendPushToAll } = await import('../services/pushService');
+    await sendPushToAll('🔔 Prueba de notificación push de BAKO. ¡Funciona!', 'Prueba de notificación push de BAKO. ¡Funciona!');
+    const count = await PushSubscription.countDocuments();
+    res.json({ ok: true, sentTo: count });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 router.post('/subscribe', async (req: Request, res: Response) => {
   try {
     const { endpoint, keys } = req.body;
