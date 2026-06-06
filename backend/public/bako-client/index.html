@@ -1212,6 +1212,7 @@
     <div style="display:flex;flex-direction:column;gap:8px">
       <button class="btn-create-user secondary" id="pushModalTestBtn" style="width:100%">📤 Enviar push de prueba</button>
       <button class="btn-create-user secondary" id="pushModalResubBtn" style="width:100%">🔄 Volver a suscribir este dispositivo</button>
+      <button class="btn-create-user secondary" id="pushModalClearBtn" style="width:100%;border-color:#ef4444;color:#ef4444">🗑 Limpiar todas las suscripciones</button>
     </div>
     <div id="pushModalResult" style="margin-top:10px;font-size:12px;color:var(--teal);min-height:16px"></div>
   </div>
@@ -2522,6 +2523,18 @@
       res.textContent = '✓ Suscripción creada/actualizada';
       loadPushModalStatus();
     } catch (e) { res.textContent = 'Error: ' + e.message; }
+  });
+
+  document.getElementById('pushModalClearBtn')?.addEventListener('click', async () => {
+    const res = document.getElementById('pushModalResult');
+    if (!confirm('¿Borrar todas las suscripciones push? Los dispositivos deberán volver a suscribirse.')) return;
+    res.textContent = 'Limpiando…';
+    try {
+      const r = await fetch(`${BAKO_URL}/api/push/all`, { method: 'DELETE', headers: authHeaders() });
+      const data = await r.json();
+      res.textContent = r.ok ? `✓ Eliminadas ${data.deleted} suscripciones` : `Error: ${data.error}`;
+      loadPushModalStatus();
+    } catch { res.textContent = 'Error de conexión'; }
   });
 
   // Filtros en tiempo real

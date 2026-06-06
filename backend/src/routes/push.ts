@@ -61,4 +61,14 @@ router.delete('/subscribe', async (req: Request, res: Response) => {
   }
 });
 
+// DELETE /api/push/all — borra todas las suscripciones (para limpiar entradas inválidas)
+router.delete('/all', async (_req: Request, res: Response) => {
+  try {
+    const { deletedCount } = await PushSubscription.deleteMany({});
+    res.json({ ok: true, deleted: deletedCount });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
+});
+
 export default router;

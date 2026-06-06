@@ -5,7 +5,7 @@ let vapidConfigured = false;
 
 // Convierte a base64url sin padding (requerido por web-push)
 function toBase64url(key: string): string {
-  return key.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  return key.trim().replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
 function ensureVapid() {

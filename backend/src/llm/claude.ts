@@ -35,7 +35,7 @@ async function askOllama(messages: Message[], maxTokens?: number, temperature?: 
       ...(maxTokens   ? { num_predict: maxTokens }   : {}),
       ...(temperature !== undefined ? { temperature } : {}),
     },
-  }, { timeout: 20_000 });
+  }, { timeout: 10_000 });
   return data.message?.content ?? 'Sin respuesta';
 }
 
@@ -56,7 +56,7 @@ async function askGroq(messages: Message[], maxTokens?: number, temperature?: nu
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      timeout: 30_000,
+      timeout: 15_000,
     }
   );
   return data.choices[0]?.message?.content ?? 'Sin respuesta';

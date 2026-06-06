@@ -22,6 +22,10 @@ import { User } from './memory/User';
 
 dotenv.config();
 
+// Captura errores no controlados para que no cuelguen el proceso
+process.on('uncaughtException',   (err) => console.error('🚨 UNCAUGHT EXCEPTION:', err.message, err.stack));
+process.on('unhandledRejection',  (reason) => console.error('🚨 UNHANDLED REJECTION:', reason));
+
 const app = express();
 app.use(cors());
 app.use(express.json());

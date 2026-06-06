@@ -138,6 +138,10 @@ router.post('/voice', upload.single('audio'), async (req: Request, res: Response
   // auth handled by router.use(requireAuth)
   if (!req.file) { res.status(400).json({ error: 'Se requiere campo "audio"' }); return; }
 
+  const safety = setTimeout(() => {
+    if (!res.headersSent) res.status(504).json({ error: 'BAKO tardó demasiado. Inténtalo de nuevo.' });
+  }, 25_000);
+
   try {
     const transcription = await transcribeAudio(req.file.buffer);
     if (!transcription.trim()) { res.status(400).json({ error: 'No se detectó habla' }); return; }
@@ -158,9 +162,12 @@ router.post('/voice', upload.single('audio'), async (req: Request, res: Response
 
   } catch (err) {
     console.error('❌ Desktop /voice:', (err as Error).message);
+    if (res.headersSent) return;
     if (isRateLimit(err))        { res.status(429).json({ error: 'Rate limit de Groq alcanzado.', rateLimited: true }); return; }
     if (isContextTooLarge(err))  { res.status(413).json({ error: 'Contexto demasiado grande. Intenta de nuevo.' }); return; }
     res.status(500).json({ error: (err as Error).message });
+  } finally {
+    clearTimeout(safety);
   }
 });
 
@@ -170,7 +177,16 @@ router.post('/text', async (req: Request, res: Response) => {
   const { message, useCloud: clientUseCloud } = req.body;
   if (!message) { res.status(400).json({ error: 'Se requiere campo "message"' }); return; }
 
+  // Safety timer: si todo lo demás cuelga, responder antes de que Render corte el TCP (~30s)
+  const safety = setTimeout(() => {
+    if (!res.headersSent) {
+      console.warn('⏱ Desktop /text: safety timeout (25s) — enviando error graceful');
+      res.status(504).json({ error: 'BAKO tardó demasiado. Inténtalo de nuevo.' });
+    }
+  }, 25_000);
+
   try {
+    console.log('🔵 Desktop /text: inicio', JSON.stringify(message).slice(0, 60));
     const action = await tryExecuteAction(message);
     if (action) {
       const audioBuffer = await safeVoiceBuffer(action.voice);
@@ -179,20 +195,26 @@ router.post('/text', async (req: Request, res: Response) => {
     }
 
     const ollamaOk     = await getCachedOllamaStatus();
+    console.log(`🔵 Desktop /text: ollamaOk=${ollamaOk}`);
     // compact=Ollama (presupuesto amplio), full=Groq (presupuesto generoso)
     const systemPrompt = await getFullSystemPrompt(message, ollamaOk);
+    console.log(`🔵 Desktop /text: prompt listo (${systemPrompt.length} chars)`);
     // useCloud: el cliente puede forzar (true=Groq, false=Ollama), o auto según disponibilidad
     const useCloud     = clientUseCloud !== undefined ? Boolean(clientUseCloud) : !ollamaOk;
     const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
+    console.log(`🔵 Desktop /text: respuesta LLM OK (${response.length} chars)`);
     const audioBuffer  = await safeVoiceBuffer(response);
     res.json({ response, audio: audioBuffer?.toString('base64') });
 
   } catch (err) {
     const e = err as any;
     console.error('❌ Desktop /text:', e?.response?.status, e?.response?.data ?? e?.message);
+    if (res.headersSent) return;
     if (isRateLimit(err))        { res.status(429).json({ error: 'Rate limit de Groq alcanzado.', rateLimited: true }); return; }
     if (isContextTooLarge(err))  { res.status(413).json({ error: 'Contexto demasiado grande. Intenta de nuevo.' }); return; }
     res.status(500).json({ error: (err as Error).message });
+  } finally {
+    clearTimeout(safety);
   }
 });
 
