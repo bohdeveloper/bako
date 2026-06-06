@@ -12,6 +12,8 @@ import authRoutes  from './routes/auth';
 import peopleRoutes from './routes/people';
 import projectsRoutes from './routes/projects';
 import knowledgeRoutes from './routes/knowledge';
+import notificationsRoutes from './routes/notifications';
+import autoconfigRoutes from './routes/autoconfig';
 import { startTelegramBot } from './tools/telegram';
 import { startProactivityService } from './services/ProactivityService';
 import { User } from './memory/User';
@@ -37,8 +39,10 @@ app.use('/api/auth',      authRoutes);
 app.use('/api/people',    peopleRoutes);
 app.use('/api/projects',  projectsRoutes);
 app.use('/api/knowledge', knowledgeRoutes);
-app.use('/api/agent',   requireAuth, agentRoutes);
-app.use('/api/desktop', desktopRoutes);
+app.use('/api/agent',         requireAuth, agentRoutes);
+app.use('/api/desktop',       desktopRoutes);
+app.use('/api/notifications', notificationsRoutes);
+app.use('/api/autoconfig',    autoconfigRoutes);
 app.use('/bako-client', bakoClientRoutes);
 
 mongoose.connect(process.env.MONGODB_URI!)

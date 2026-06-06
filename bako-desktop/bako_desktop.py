@@ -8,6 +8,7 @@ Novedades respecto a v3:
   - Menú de presets ⚡ con 63 comandos en 11 categorías
   - Panel de administración de usuarios (superadmin)
   - Compatibilidad retroactiva con DESKTOP_TOKEN (legacy)
+  - Notificaciones del sistema: polling cada 60s + toast nativo de Windows
 
 Instalación:
   pip install -r requirements.txt
@@ -36,6 +37,13 @@ try:
     HAS_KEYBOARD = True
 except ImportError:
     HAS_KEYBOARD = False
+
+try:
+    from win10toast import ToastNotifier
+    _toaster = ToastNotifier()
+    HAS_TOAST = True
+except ImportError:
+    HAS_TOAST = False
 
 # ── Configuración ──────────────────────────────────────────────────────────────
 BAKO_URL        = os.getenv('BAKO_URL',      'https://ai-personal-os.onrender.com')
@@ -211,6 +219,7 @@ class BakoDesktopApp:
         self.bako_role    = 'user'
         self._is_active   = False   # True mientras BAKO procesa o reproduce
         self._cancel_flag = threading.Event()
+        self._notif_stop  = threading.Event()  # señal para parar el polling
 
         # ── Tema ──────────────────────────────────────────────────────────────
         saved = 'dark'
@@ -230,10 +239,12 @@ class BakoDesktopApp:
         if DESKTOP_TOKEN:
             self._add_message('bako', '¿En qué puedo ayudarle, señor?')
             self._set_status('✅ Listo')
+            self._start_notification_polling()
         elif self._load_auth():
             self._update_admin_btn()
             self._add_message('bako', '¿En qué puedo ayudarle, señor?')
             self._set_status('✅ Listo')
+            self._start_notification_polling()
         else:
             self.root.after(150, self._show_login_dialog)
 
@@ -345,6 +356,7 @@ class BakoDesktopApp:
                             self._add_message('bako', '¿En qué puedo ayudarle, señor?'),
                             self._set_status('✅ Listo'),
                         ])
+                        self._start_notification_polling()
                     else:
                         msg = r.json().get('error', 'Error al acceder')
                         self.root.after(0, lambda: [
@@ -369,6 +381,7 @@ class BakoDesktopApp:
         dlg.protocol('WM_DELETE_WINDOW', lambda: None)  # no cerrar sin login
 
     def _logout(self):
+        self._notif_stop.set()
         self._clear_auth()
         self._update_admin_btn()
         self.root.after(100, self._show_login_dialog)
@@ -376,6 +389,53 @@ class BakoDesktopApp:
     # ─────────────────────────────────────────────────────────────────────────
     # Interrupt BAKO
     # ─────────────────────────────────────────────────────────────────────────
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Notificaciones del sistema (polling)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _start_notification_polling(self):
+        self._notif_stop.clear()
+        t = threading.Thread(target=self._poll_notifications_loop, daemon=True)
+        t.start()
+
+    def _poll_notifications_loop(self):
+        # Primer check inmediato, luego cada 60 segundos
+        while not self._notif_stop.is_set():
+            try:
+                if self.jwt_token or DESKTOP_TOKEN:
+                    headers = self._get_headers()
+                    r = requests.get(
+                        f'{BAKO_URL}/api/notifications/unread',
+                        headers=headers, timeout=15
+                    )
+                    if r.ok:
+                        items = r.json().get('notifications', [])
+                        if items:
+                            ids = [n['_id'] for n in items]
+                            for n in items:
+                                text = n.get('text', '')
+                                self.root.after(0, lambda t=text: self._add_message('bako', t))
+                                self._show_toast(text)
+                            requests.post(
+                                f'{BAKO_URL}/api/notifications/mark-read',
+                                json={'ids': ids}, headers=headers, timeout=10
+                            )
+            except Exception:
+                pass
+            self._notif_stop.wait(timeout=60)
+
+    def _show_toast(self, text: str):
+        clean = re.sub(r'[\*_`]', '', text)[:200]
+        if HAS_TOAST:
+            try:
+                _toaster.show_toast('BAKO', clean, duration=8, threaded=True)
+                return
+            except Exception:
+                pass
+        # Fallback: messagebox de tkinter (solo si la ventana está minimizada)
+        if self.root.state() == 'iconic':
+            self.root.after(0, lambda: messagebox.showinfo('BAKO — Aviso', clean))
 
     def _stop_bako(self):
         """Cancela la petición en curso o detiene el audio."""

@@ -1594,6 +1594,14 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
 }
 
 export async function sendSystemMessage(text: string, voiceText?: string): Promise<void> {
+  // Guardar en Notification para que WPA/desktop puedan recibirlos
+  try {
+    const { Notification } = await import('../memory/Notification');
+    await Notification.create({ text, voiceText: voiceText ?? text });
+  } catch (err) {
+    console.warn('⚠️  No se pudo guardar notificación en BD:', (err as Error).message);
+  }
+
   const chatId = Number(process.env.TELEGRAM_CHAT_ID);
   if (!chatId) {
     console.warn('⚠️  TELEGRAM_CHAT_ID no definido — ignorando mensaje de sistema');

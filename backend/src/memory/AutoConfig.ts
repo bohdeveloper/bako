@@ -3,6 +3,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface IAutoConfig extends Document {
   key:         string;
   enabled:     boolean;
+  value?:      string;   // JSON config opcional (ej. lista de feeds de noticias)
   updatedAt:   Date;
 }
 
@@ -10,6 +11,7 @@ const AutoConfigSchema = new Schema<IAutoConfig>(
   {
     key:     { type: String, required: true, unique: true },
     enabled: { type: Boolean, default: true },
+    value:   { type: String },
   },
   { timestamps: true }
 );
