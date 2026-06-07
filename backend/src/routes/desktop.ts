@@ -108,9 +108,9 @@ async function getFullSystemPrompt(message = '', compact = false): Promise<strin
     getDynamicProfileSection(),
     getAmbientContext(location),
     getEmailContext(message),
-    getPeopleSection(compact ? 5000 : 12000),
-    getProjectsSection(compact ? 6000 : 12000),
-    getKnowledgeSection(compact ? 4000 : 10000),
+    getPeopleSection(compact ? 5000 : 6000),
+    getProjectsSection(compact ? 6000 : 6000),
+    getKnowledgeSection(compact ? 4000 : 5500),
   ]);
   const fullAmbient = ambientCtx + emailCtx;
   const prompt = buildSystemPrompt(fullAmbient, memories, dynProfile, people, projects, knowledge);
