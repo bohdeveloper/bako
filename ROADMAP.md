@@ -97,7 +97,14 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | Embeddings semánticos — nomic-embed-text (Ollama) + bge-small-en-v1.5 (Cloudflare Workers AI fallback), cosine similarity en Node.js | ✅ |
 | **Sesión 07/06/2026** | |
 | Fix crítico "Sin conexión" — `llmMode` con `let` dentro de IIFE `initAuth` causaba ReferenceError; `sendMessage` en scope exterior nunca ejecutaba el fetch | ✅ |
-| Contexto BAKO mejorado — sort People/Projects por `orden` (manual), budgets aumentados (compact: 4k/2.5k/3.5k · full: 12k/8k/8k), secciones reordenadas: Proyectos→Personas→Conocimiento→Memorias | ✅ |
+| Contexto BAKO mejorado — sort People/Projects por `orden` (manual), budgets calibrados (compact: people=5k/projects=6k/knowledge=4k · full: 6k/6k/5.5k), secciones reordenadas: Proyectos→Personas→Conocimiento→Memorias | ✅ |
+| Groq por defecto en PWA/Desktop — llama3.2:3b sufre "lost-in-the-middle"; Groq siempre salvo badge Ollama✦ forzado | ✅ |
+| **Fase 7c — Rate limits Groq** | |
+| Routing por complejidad — clasificador regex determinista (0ms, sin LLM): saludos/tiempo/hora → Ollama minimal; todo lo demás → Groq completo | ✅ |
+| Prompt minimal para Ollama (~5854 chars) — solo identidad + contexto ambiental, sin People/Projects/Knowledge (Ollama via Cloudflare tunnel timeout con 17k chars) | ✅ |
+| Multi-provider fallback — Groq 429 → OpenRouter automático (google/gemma-4-31b-it:free); OPENROUTER_MODEL env var para cambiar modelo sin código | ✅ |
+| Cadena completa Ollama→Groq→OpenRouter — fallback en ambas rutas (badge auto y badge Ollama forzado) | ✅ |
+| Error handling graceful — si OpenRouter también falla: re-throw 429 original (cliente ve "Rate limit" en vez de 500 rojo) | ✅ |
 | **Sesión 06/06/2026** | |
 | Notificaciones por cliente — `?since=` timestamp, sin race condition WPA/Desktop | ✅ |
 | TTS en WPA — BAKO habla al llegar notificaciones; botón 🔊 en cada burbuja | ✅ |
@@ -417,24 +424,26 @@ El sistema de tiers desaparece o se simplifica enormemente: en lugar de cargar l
 - "Ya no voy a BIZIKI" → detecta memoria existente (similitud ≥0.85) → LLM decide actualizar/crear
 - Memorias `source: 'manual'` son intocables (solo lectura)
 
-### Fase 7c — Eliminar rate limits Groq ⏳ Próxima sesión
-> Groq free tier: ~14,400 tokens/min. Con prompts de ~6k tokens = 2-3 req/min max antes de 429. En uso normal no molesta; en conversaciones rápidas bloquea 30s.
+### Fase 7c — Eliminar rate limits Groq ✅ Completado (07/06/2026)
+> Groq free tier: ~6.000 tokens/min (TPM). Cada query compleja consume ~4.500 tokens → 1 req/min antes de 429.
 
-**Paso 1 — Routing inteligente por complejidad** (~2h, $0)
-- Antes de llamar al LLM, clasificar la pregunta con Ollama local (`llama3.2:3b` sí puede hacer esto)
-- Preguntas simples (tiempo, hora, saludos, rutina) → Ollama (sin límite)
-- Preguntas complejas (personas, proyectos, memoria) → Groq (contexto completo)
-- Reducción esperada de uso Groq: ~60-70%
+**Paso 1 — Routing por complejidad ✅** (regex, 0ms, sin Ollama)
+- `classifyQueryComplexity()` en `claude.ts` — determinista, sin LLM, sin latencia
+- Simple (saludos puros, tiempo/clima, hora/fecha) → `getMinimalSystemPrompt()` → Ollama (~5854 chars)
+- Complex (todo lo demás) → `getFullSystemPrompt()` → Groq (~18033 chars completo)
+- Nota: el clasificador LLM (llama3.2:3b) fue descartado — clasificaba "Diamadmin", "BIZIKI", "mi rutina" como simple
+- Nota: Ollama via Cloudflare tunnel timeout con 17k chars (sin GPU, modelo 3B en CPU); el prompt minimal sí cabe en 10s
 
-**Paso 2 — Multi-provider fallback** (~3h, $0)
-- Cuando Groq devuelve 429, reintentar automáticamente con OpenRouter
-- `Groq → OpenRouter (meta-llama/llama-3.1-8b-instruct:free) → Ollama local`
-- OpenRouter: tier gratuito sin tarjeta de crédito, API compatible con OpenAI
-- Solo requiere añadir `OPENROUTER_API_KEY` en Render
+**Paso 2 — Multi-provider fallback ✅** (Groq → OpenRouter → re-throw)
+- `askOpenRouter()` en `claude.ts`, API compatible OpenAI, default `google/gemma-4-31b-it:free`
+- Cadena completa en AMBAS rutas: `Ollama→Groq→OpenRouter` y `Groq directo→OpenRouter`
+- Si OpenRouter también falla: re-throw 429 original (cliente ve "Rate limit" limpio, no 500)
+- `OPENROUTER_API_KEY` en Render · `OPENROUTER_MODEL` env var para cambiar modelo sin tocar código
+- ⚠️ Modelos gratuitos de OpenRouter cambian frecuentemente — consultar `/api/v1/models` si 404
 
-**Paso 3 — Cache respuestas frecuentes** (~1h, $0, complementario)
+**Paso 3 — Cache respuestas frecuentes** ❌ Pendiente/Opcional
 - Preguntas recurrentes (briefing, agenda) → cache 5 min en MongoDB
-- ~20% reducción adicional de tokens Groq
+- ~20% reducción adicional de tokens Groq — solo implementar si siguen apareciendo 429s en uso normal
 
 ### Fase 8 — Automatización (sin n8n) ✅ Completado (junio 2026)
 Implementado directamente en ProactivityService sin infraestructura adicional:
