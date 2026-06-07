@@ -69,7 +69,7 @@ async function askOpenRouter(messages: Message[], maxTokens?: number, temperatur
   const { data } = await axios.post(
     'https://openrouter.ai/api/v1/chat/completions',
     {
-      model: process.env.OPENROUTER_MODEL ?? 'mistralai/mistral-7b-instruct:free',
+      model: process.env.OPENROUTER_MODEL ?? 'google/gemma-4-31b-it:free',
       messages,
       ...(maxTokens ? { max_tokens: maxTokens } : {}),
       temperature: temperature ?? 0.4,
@@ -205,9 +205,14 @@ export async function askClaude(prompt: string, options: AskClaudeOptions = {}):
     } catch (err) {
       if (isGroqRateLimit(err) && process.env.OPENROUTER_API_KEY) {
         console.warn('⚡ BAKO: Groq rate limited → OpenRouter fallback');
-        const response = await askOpenRouter(messages, maxTokens, temperature);
-        console.log('⚡ BAKO: OpenRouter respondió (fallback)');
-        return response;
+        try {
+          const response = await askOpenRouter(messages, maxTokens, temperature);
+          console.log('⚡ BAKO: OpenRouter respondió (fallback)');
+          return response;
+        } catch (orErr) {
+          console.warn('⚡ BAKO: OpenRouter también falló:', (orErr as any)?.response?.status, (orErr as any)?.response?.data?.error?.message);
+          throw err; // re-throw error original de Groq (429) → cliente ve "Rate limit"
+        }
       }
       throw err;
     }
