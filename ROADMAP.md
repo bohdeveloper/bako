@@ -417,6 +417,25 @@ El sistema de tiers desaparece o se simplifica enormemente: en lugar de cargar l
 - "Ya no voy a BIZIKI" → detecta memoria existente (similitud ≥0.85) → LLM decide actualizar/crear
 - Memorias `source: 'manual'` son intocables (solo lectura)
 
+### Fase 7c — Eliminar rate limits Groq ⏳ Próxima sesión
+> Groq free tier: ~14,400 tokens/min. Con prompts de ~6k tokens = 2-3 req/min max antes de 429. En uso normal no molesta; en conversaciones rápidas bloquea 30s.
+
+**Paso 1 — Routing inteligente por complejidad** (~2h, $0)
+- Antes de llamar al LLM, clasificar la pregunta con Ollama local (`llama3.2:3b` sí puede hacer esto)
+- Preguntas simples (tiempo, hora, saludos, rutina) → Ollama (sin límite)
+- Preguntas complejas (personas, proyectos, memoria) → Groq (contexto completo)
+- Reducción esperada de uso Groq: ~60-70%
+
+**Paso 2 — Multi-provider fallback** (~3h, $0)
+- Cuando Groq devuelve 429, reintentar automáticamente con OpenRouter
+- `Groq → OpenRouter (meta-llama/llama-3.1-8b-instruct:free) → Ollama local`
+- OpenRouter: tier gratuito sin tarjeta de crédito, API compatible con OpenAI
+- Solo requiere añadir `OPENROUTER_API_KEY` en Render
+
+**Paso 3 — Cache respuestas frecuentes** (~1h, $0, complementario)
+- Preguntas recurrentes (briefing, agenda) → cache 5 min en MongoDB
+- ~20% reducción adicional de tokens Groq
+
 ### Fase 8 — Automatización (sin n8n) ✅ Completado (junio 2026)
 Implementado directamente en ProactivityService sin infraestructura adicional:
 - ✅ **Tech Radar semanal** (lunes 09:30) — 5 feeds tech (JS Weekly, Node, React, HN, TLDR AI) → LLM filtra top 5 relevantes para el stack de Borja · `/techradar` manual
