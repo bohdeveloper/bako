@@ -71,8 +71,8 @@ CONTEXTO ACTUAL:
 - Situación probable: ${situacion}
 ${extraContext}
 ${dynamicProfileSection ? `\n${dynamicProfileSection}\n` : ''}
-${peopleSection ? `PERSONAS QUE BAKO CONOCE (úsalas con naturalidad al hablar, no las enumeres a menos que se pidan explícitamente):\n${peopleSection}\n` : ''}
 ${projectsSection ? `PROYECTOS DE BORJA (estado actual y siguiente acción — úsalos como contexto, no los listes a menos que se pidan):\n${projectsSection}\n` : ''}
+${peopleSection ? `PERSONAS QUE BAKO CONOCE (úsalas con naturalidad al hablar, no las enumeres a menos que se pidan explícitamente):\n${peopleSection}\n` : ''}
 ${knowledgeSection ? `CONOCIMIENTO PERSONAL DE BORJA (salud, valores, finanzas, historia, rutina — úsalo como contexto natural):\n${knowledgeSection}\n` : ''}
 ${memoriesSection ? `RECUERDOS DINÁMICOS (hechos, observaciones, estados — complementan el perfil estructurado):\n${memoriesSection}\n` : ''}
 IDENTIDAD: ${BAKO_PROFILE.identidad.nombre}, ${BAKO_PROFILE.identidad.edad} años (cumple el ${BAKO_PROFILE.identidad.cumpleanos}). Vive en ${BAKO_PROFILE.identidad.ubicacion}. ${BAKO_PROFILE.identidad.situacion_laboral}`;
@@ -80,7 +80,7 @@ IDENTIDAD: ${BAKO_PROFILE.identidad.nombre}, ${BAKO_PROFILE.identidad.edad} año
 
 export async function getPeopleSection(charBudget = Infinity): Promise<string> {
   try {
-    const people = await Person.find({ activo: true }).sort({ relacion: 1, nombre: 1 });
+    const people = await Person.find({ activo: true }).sort({ orden: 1, nombre: 1 });
     if (!people.length) return '';
     const full = people.map(formatPersonForContext).join('\n');
     if (full.length <= charBudget) return full;
@@ -93,7 +93,7 @@ export async function getPeopleSection(charBudget = Infinity): Promise<string> {
 
 export async function getProjectsSection(charBudget = 3000): Promise<string> {
   try {
-    const projects = await Project.find({ activo: { $ne: false } }).sort({ prioridad: 1, nombre: 1 });
+    const projects = await Project.find({ activo: { $ne: false } }).sort({ orden: 1, nombre: 1 });
     if (!projects.length) return '';
     const full = projects.map(formatProjectForContext).join('\n');
     if (full.length <= charBudget) return full;

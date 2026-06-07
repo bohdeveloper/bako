@@ -95,6 +95,9 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | Badge LLM en navbar — Ollama (teal) o Groq (amarillo), refresco cada 60s | ✅ |
 | Desktop optimizado — llama3.2:3b, prompt compacto para Ollama (sin Knowledge, budget reducido), num_ctx 2048, timeout 45s | ✅ |
 | Embeddings semánticos — nomic-embed-text (Ollama) + bge-small-en-v1.5 (Cloudflare Workers AI fallback), cosine similarity en Node.js | ✅ |
+| **Sesión 07/06/2026** | |
+| Fix crítico "Sin conexión" — `llmMode` con `let` dentro de IIFE `initAuth` causaba ReferenceError; `sendMessage` en scope exterior nunca ejecutaba el fetch | ✅ |
+| Contexto BAKO mejorado — sort People/Projects por `orden` (manual), budgets aumentados (compact: 4k/2.5k/3.5k · full: 12k/8k/8k), secciones reordenadas: Proyectos→Personas→Conocimiento→Memorias | ✅ |
 | **Sesión 06/06/2026** | |
 | Notificaciones por cliente — `?since=` timestamp, sin race condition WPA/Desktop | ✅ |
 | TTS en WPA — BAKO habla al llegar notificaciones; botón 🔊 en cada burbuja | ✅ |
