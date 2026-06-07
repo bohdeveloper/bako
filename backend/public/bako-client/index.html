@@ -3027,7 +3027,7 @@
         headers: authHeaders(),
         body: JSON.stringify({
           message: text,
-          ...(llmMode === 'groq' ? { useCloud: true } : {}),
+          ...(llmMode === 'ollama' ? { useCloud: false } : {}),
         }),
         signal: currentController.signal,
       });
@@ -3304,22 +3304,23 @@
       addMessage('bako', '¿En qué puedo ayudarle, señor?');
     });
 
-    // Badge LLM — modo: 'auto' | 'groq'. Clic para alternar.
-    llmMode = localStorage.getItem('bako-llm-mode') || 'auto'; // inicializa la var del scope externo
-    let detectedLlm = 'groq';
+    // Badge LLM — modo: 'auto' (=Groq por defecto) | 'ollama' (forzar local).
+    // Migramos 'groq' (estado antiguo guardado) a 'auto' — semánticamente equivalente.
+    llmMode = localStorage.getItem('bako-llm-mode') || 'auto';
+    if (llmMode === 'groq') { llmMode = 'auto'; localStorage.setItem('bako-llm-mode', 'auto'); }
+    let detectedOllamaAvailable = false;
 
     function renderLlmBadge() {
       const badge    = document.getElementById('llmBadge');
-      const isForced = llmMode !== 'auto';
-      const name     = llmMode === 'groq' ? 'Groq' : (detectedLlm === 'ollama' ? 'Ollama' : 'Groq');
-      const isOllama = name === 'Ollama';
-      badge.textContent   = name + (isForced ? ' ✦' : '');
-      badge.style.color   = isOllama ? '#14b8a6' : '#f59e0b';
+      const isOllama = llmMode === 'ollama';
+      const name     = isOllama ? 'Ollama' : 'Groq';
+      badge.textContent       = name + (isOllama ? ' ✦' : '');
+      badge.style.color       = isOllama ? '#14b8a6' : '#f59e0b';
       badge.style.borderColor = isOllama ? '#14b8a6' : '#f59e0b';
-      badge.style.opacity = isForced ? '1' : '0.75';
-      badge.title         = isForced
-        ? `Forzado: ${name} — clic para volver a automático`
-        : `Auto: ${name} — clic para forzar Groq`;
+      badge.style.opacity     = isOllama ? '1' : '0.75';
+      badge.title             = isOllama
+        ? `Forzado: Ollama local — clic para volver a Groq (por defecto)`
+        : `Auto: Groq${detectedOllamaAvailable ? ' (Ollama disponible — clic para forzar local)' : ''}`;
       badge.style.display = 'inline';
     }
 
@@ -3327,14 +3328,14 @@
       try {
         const res = await fetch(`${BAKO_URL}/api/desktop/llm-status`, { headers: authHeaders() });
         if (!res.ok) return;
-        const { llm } = await res.json();
-        detectedLlm = llm;
+        const data = await res.json();
+        detectedOllamaAvailable = data.ollamaAvailable ?? false;
         renderLlmBadge();
       } catch { }
     }
 
     document.getElementById('llmBadge').addEventListener('click', () => {
-      llmMode = llmMode === 'groq' ? 'auto' : 'groq';
+      llmMode = llmMode === 'ollama' ? 'auto' : 'ollama';
       localStorage.setItem('bako-llm-mode', llmMode);
       renderLlmBadge();
     });

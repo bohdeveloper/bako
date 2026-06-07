@@ -53,15 +53,15 @@ async function getCachedOllamaStatus(): Promise<boolean> {
   return available;
 }
 
-// GET /api/desktop/llm-status — devuelve qué LLM está activo ahora mismo
+// GET /api/desktop/llm-status — devuelve qué LLM usa el endpoint /text por defecto
 router.get('/llm-status', async (_req: Request, res: Response) => {
   const ollama = await getCachedOllamaStatus();
   console.log(`🔍 llm-status: Ollama=${ollama} (URL=${process.env.OLLAMA_URL ?? 'localhost:11434'})`);
+  // /text usa Groq por defecto — llama3.2:3b no retiene bien el contexto complejo
   res.json({
-    llm:   ollama ? 'ollama' : 'groq',
-    model: ollama
-      ? (process.env.OLLAMA_MODEL ?? 'llama3.2:3b')
-      : (process.env.GROQ_MODEL   ?? 'llama-3.1-8b-instant'),
+    llm:            'groq',
+    model:          process.env.GROQ_MODEL ?? 'llama-3.1-8b-instant',
+    ollamaAvailable: ollama,
   });
 });
 
@@ -194,13 +194,14 @@ router.post('/text', async (req: Request, res: Response) => {
       return;
     }
 
-    const ollamaOk     = await getCachedOllamaStatus();
+    const ollamaOk = await getCachedOllamaStatus();
     console.log(`🔵 Desktop /text: ollamaOk=${ollamaOk}`);
-    // compact=Ollama (presupuesto amplio), full=Groq (presupuesto generoso)
-    const systemPrompt = await getFullSystemPrompt(message, ollamaOk);
-    console.log(`🔵 Desktop /text: prompt listo (${systemPrompt.length} chars)`);
-    // useCloud: el cliente puede forzar (true=Groq, false=Ollama), o auto según disponibilidad
-    const useCloud     = clientUseCloud !== undefined ? Boolean(clientUseCloud) : !ollamaOk;
+    // Groq por defecto — llama3.2:3b no retiene bien el contexto complejo (lost-in-the-middle)
+    // Ollama solo cuando el cliente lo fuerza explícitamente (useCloud: false desde el badge)
+    const useCloud = clientUseCloud !== undefined ? Boolean(clientUseCloud) : true;
+    // compact solo si se usa Ollama (prompt más largo no supone problema para Groq)
+    const systemPrompt = await getFullSystemPrompt(message, !useCloud);
+    console.log(`🔵 Desktop /text: prompt listo (${systemPrompt.length} chars, ${useCloud ? 'Groq' : 'Ollama'})`);
     const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
     console.log(`🔵 Desktop /text: respuesta LLM OK (${response.length} chars)`);
     const audioBuffer  = await safeVoiceBuffer(response);
