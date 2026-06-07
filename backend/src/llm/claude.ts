@@ -224,9 +224,24 @@ export async function askClaude(prompt: string, options: AskClaudeOptions = {}):
     return response;
   } catch {
     console.warn('⚠️  Ollama no disponible → cambiando a Groq...');
-    const response = await askGroq(messages, maxTokens, temperature);
-    console.log(`☁️  BAKO: Groq fallback (temp=${temperature ?? 0.4})`);
-    return response;
+    try {
+      const response = await askGroq(messages, maxTokens, temperature);
+      console.log(`☁️  BAKO: Groq fallback (temp=${temperature ?? 0.4})`);
+      return response;
+    } catch (groqErr) {
+      if (isGroqRateLimit(groqErr) && process.env.OPENROUTER_API_KEY) {
+        console.warn('⚡ BAKO: Groq rate limited (Ollama→Groq) → OpenRouter fallback');
+        try {
+          const response = await askOpenRouter(messages, maxTokens, temperature);
+          console.log('⚡ BAKO: OpenRouter respondió (Ollama→Groq→OR)');
+          return response;
+        } catch (orErr) {
+          console.warn('⚡ BAKO: OpenRouter también falló:', (orErr as any)?.response?.status);
+          throw groqErr;
+        }
+      }
+      throw groqErr;
+    }
   }
 }
 
