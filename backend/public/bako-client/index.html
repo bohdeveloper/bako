@@ -2638,6 +2638,7 @@
   let currentController = null;  // AbortController para cancelar fetch
   let micState         = 'idle'; // tracking del estado actual del mic
   let lastRequestMs    = 0;
+  let llmMode          = 'auto'; // 'auto' | 'groq' — inicializado en initAuth
   let cooldownUntil    = 0;
   let countdownTimer   = null;
   let countdownVal     = REVIEW_SECS;
@@ -3284,7 +3285,7 @@
     });
 
     // Badge LLM — modo: 'auto' | 'groq'. Clic para alternar.
-    let llmMode = localStorage.getItem('bako-llm-mode') || 'auto';
+    llmMode = localStorage.getItem('bako-llm-mode') || 'auto'; // inicializa la var del scope externo
     let detectedLlm = 'groq';
 
     function renderLlmBadge() {
