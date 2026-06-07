@@ -62,6 +62,36 @@ async function askGroq(messages: Message[], maxTokens?: number, temperature?: nu
   return data.choices[0]?.message?.content ?? 'Sin respuesta';
 }
 
+async function askOpenRouter(messages: Message[], maxTokens?: number, temperature?: number): Promise<string> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new Error('OPENROUTER_API_KEY no definido');
+
+  const { data } = await axios.post(
+    'https://openrouter.ai/api/v1/chat/completions',
+    {
+      model: process.env.OPENROUTER_MODEL ?? 'meta-llama/llama-3.1-8b-instruct:free',
+      messages,
+      ...(maxTokens ? { max_tokens: maxTokens } : {}),
+      temperature: temperature ?? 0.4,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://ai-personal-os.onrender.com',
+        'X-Title': 'BAKO Personal OS',
+      },
+      timeout: 20_000,
+    }
+  );
+  return data.choices[0]?.message?.content ?? 'Sin respuesta';
+}
+
+function isGroqRateLimit(err: unknown): boolean {
+  const e = err as any;
+  return e?.response?.status === 429 || String(e?.message ?? '').includes('429');
+}
+
 // ── Streaming ─────────────────────────────────────────────────────────────
 
 async function* streamOllama(messages: Message[], maxTokens?: number, temperature?: number): AsyncGenerator<string> {
@@ -168,9 +198,19 @@ export async function askClaude(prompt: string, options: AskClaudeOptions = {}):
   }
 
   if (useCloud) {
-    const response = await askGroq(messages, maxTokens, temperature);
-    console.log(`☁️  BAKO: Groq (temp=${temperature ?? 0.4})`);
-    return response;
+    try {
+      const response = await askGroq(messages, maxTokens, temperature);
+      console.log(`☁️  BAKO: Groq (temp=${temperature ?? 0.4})`);
+      return response;
+    } catch (err) {
+      if (isGroqRateLimit(err) && process.env.OPENROUTER_API_KEY) {
+        console.warn('⚡ BAKO: Groq rate limited → OpenRouter fallback');
+        const response = await askOpenRouter(messages, maxTokens, temperature);
+        console.log('⚡ BAKO: OpenRouter respondió (fallback)');
+        return response;
+      }
+      throw err;
+    }
   }
 
   try {
@@ -182,5 +222,19 @@ export async function askClaude(prompt: string, options: AskClaudeOptions = {}):
     const response = await askGroq(messages, maxTokens, temperature);
     console.log(`☁️  BAKO: Groq fallback (temp=${temperature ?? 0.4})`);
     return response;
+  }
+}
+
+export async function classifyQueryComplexity(message: string): Promise<'simple' | 'complex'> {
+  const prompt = `Clasifica esta pregunta en "simple" o "complex".
+Simple: saludos, tiempo/clima, hora/fecha, rutina, cómo estás.
+Complex: personas concretas, proyectos, memoria previa, análisis, recomendaciones, información específica.
+Responde SOLO con "simple" o "complex". Nada más.
+Pregunta: "${message.slice(0, 200)}"`;
+  try {
+    const result = await askOllama([{ role: 'user', content: prompt }], 5, 0, 1024);
+    return result.trim().toLowerCase().startsWith('simple') ? 'simple' : 'complex';
+  } catch {
+    return 'complex';
   }
 }

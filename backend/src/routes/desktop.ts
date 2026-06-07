@@ -9,7 +9,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import axios from 'axios';
 import FormData from 'form-data';
-import { askClaude, askClaudeStream, isOllamaAvailable } from '../llm/claude';
+import { askClaude, askClaudeStream, isOllamaAvailable, classifyQueryComplexity } from '../llm/claude';
 import { generateVoiceBuffer, cleanForVoice } from '../tools/tts';
 import { getMemoriesSection, getDynamicProfileSection, getPeopleSection, getProjectsSection, getKnowledgeSection, buildSystemPrompt } from '../tools/telegram';
 import { getAmbientContext } from '../tools/context';
@@ -196,10 +196,20 @@ router.post('/text', async (req: Request, res: Response) => {
 
     const ollamaOk = await getCachedOllamaStatus();
     console.log(`🔵 Desktop /text: ollamaOk=${ollamaOk}`);
-    // Groq por defecto — llama3.2:3b no retiene bien el contexto complejo (lost-in-the-middle)
-    // Ollama solo cuando el cliente lo fuerza explícitamente (useCloud: false desde el badge)
-    const useCloud = clientUseCloud !== undefined ? Boolean(clientUseCloud) : true;
-    // compact solo si se usa Ollama (prompt más largo no supone problema para Groq)
+
+    // Routing: badge del cliente tiene prioridad; si no, clasificar por complejidad
+    // Simple (saludo, hora, rutina) → Ollama local (sin rate limit)
+    // Compleja (personas, proyectos, memoria) → Groq (contexto completo)
+    let useCloud: boolean;
+    if (clientUseCloud !== undefined) {
+      useCloud = Boolean(clientUseCloud);
+    } else if (!ollamaOk) {
+      useCloud = true;
+    } else {
+      const complexity = await classifyQueryComplexity(message);
+      useCloud = complexity === 'complex';
+      console.log(`🔵 Desktop /text: '${complexity}' → ${useCloud ? 'Groq ☁️' : 'Ollama 🏠'}`);
+    }
     const systemPrompt = await getFullSystemPrompt(message, !useCloud);
     console.log(`🔵 Desktop /text: prompt listo (${systemPrompt.length} chars, ${useCloud ? 'Groq' : 'Ollama'})`);
     const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
