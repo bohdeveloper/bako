@@ -101,6 +101,19 @@ async function getEmailContext(message: string): Promise<string> {
   }
 }
 
+// Prompt mínimo para preguntas simples (saludo, hora, rutina) → Ollama puede responder en <5s
+async function getMinimalSystemPrompt(message = ''): Promise<string> {
+  const location = await getCurrentLocation();
+  const [dynProfile, ambientCtx, emailCtx] = await Promise.all([
+    getDynamicProfileSection(),
+    getAmbientContext(location),
+    getEmailContext(message),
+  ]);
+  const prompt = buildSystemPrompt(ambientCtx + emailCtx, '', dynProfile, '', '', '');
+  console.log(`📊 Desktop prompt (minimal): ${prompt.length} chars`);
+  return prompt;
+}
+
 async function getFullSystemPrompt(message = '', compact = false): Promise<string> {
   const location = await getCurrentLocation();
   const [memories, dynProfile, ambientCtx, emailCtx, people, projects, knowledge] = await Promise.all([
@@ -198,9 +211,10 @@ router.post('/text', async (req: Request, res: Response) => {
     console.log(`🔵 Desktop /text: ollamaOk=${ollamaOk}`);
 
     // Routing: badge del cliente tiene prioridad; si no, clasificar por complejidad
-    // Simple (saludo, hora, rutina) → Ollama local (sin rate limit)
-    // Compleja (personas, proyectos, memoria) → Groq (contexto completo)
+    // Simple (saludo, hora, rutina) → Ollama local con prompt mínimo (~1500 chars, <5s)
+    // Compleja (personas, proyectos, memoria) → Groq con prompt completo
     let useCloud: boolean;
+    let useMinimalPrompt = false;
     if (clientUseCloud !== undefined) {
       useCloud = Boolean(clientUseCloud);
     } else if (!ollamaOk) {
@@ -208,9 +222,12 @@ router.post('/text', async (req: Request, res: Response) => {
     } else {
       const complexity = await classifyQueryComplexity(message);
       useCloud = complexity === 'complex';
-      console.log(`🔵 Desktop /text: '${complexity}' → ${useCloud ? 'Groq ☁️' : 'Ollama 🏠'}`);
+      useMinimalPrompt = !useCloud;
+      console.log(`🔵 Desktop /text: '${complexity}' → ${useCloud ? 'Groq ☁️' : 'Ollama 🏠 (minimal)'}`);
     }
-    const systemPrompt = await getFullSystemPrompt(message, !useCloud);
+    const systemPrompt = useMinimalPrompt
+      ? await getMinimalSystemPrompt(message)
+      : await getFullSystemPrompt(message, !useCloud);
     console.log(`🔵 Desktop /text: prompt listo (${systemPrompt.length} chars, ${useCloud ? 'Groq' : 'Ollama'})`);
     const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
     console.log(`🔵 Desktop /text: respuesta LLM OK (${response.length} chars)`);
