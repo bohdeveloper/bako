@@ -69,7 +69,7 @@ async function askOpenRouter(messages: Message[], maxTokens?: number, temperatur
   const { data } = await axios.post(
     'https://openrouter.ai/api/v1/chat/completions',
     {
-      model: process.env.OPENROUTER_MODEL ?? 'meta-llama/llama-3.1-8b-instruct:free',
+      model: process.env.OPENROUTER_MODEL ?? 'mistralai/mistral-7b-instruct:free',
       messages,
       ...(maxTokens ? { max_tokens: maxTokens } : {}),
       temperature: temperature ?? 0.4,
@@ -232,7 +232,7 @@ Complex: personas concretas, proyectos, memoria previa, análisis, recomendacion
 Responde SOLO con "simple" o "complex". Nada más.
 Pregunta: "${message.slice(0, 200)}"`;
   try {
-    const result = await askOllama([{ role: 'user', content: prompt }], 5, 0, 1024);
+    const result = await askOllama([{ role: 'user', content: prompt }], 5, 0);
     return result.trim().toLowerCase().startsWith('simple') ? 'simple' : 'complex';
   } catch {
     return 'complex';
