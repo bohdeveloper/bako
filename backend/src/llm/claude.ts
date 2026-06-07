@@ -225,16 +225,19 @@ export async function askClaude(prompt: string, options: AskClaudeOptions = {}):
   }
 }
 
-export async function classifyQueryComplexity(message: string): Promise<'simple' | 'complex'> {
-  const prompt = `Clasifica esta pregunta en "simple" o "complex".
-Simple: saludos, tiempo/clima, hora/fecha, rutina, cómo estás.
-Complex: personas concretas, proyectos, memoria previa, análisis, recomendaciones, información específica.
-Responde SOLO con "simple" o "complex". Nada más.
-Pregunta: "${message.slice(0, 200)}"`;
-  try {
-    const result = await askOllama([{ role: 'user', content: prompt }], 5, 0);
-    return result.trim().toLowerCase().startsWith('simple') ? 'simple' : 'complex';
-  } catch {
-    return 'complex';
-  }
+// Clasificador por regex — determinista, 0ms, sin Ollama.
+// Conservador: solo marca simple lo que claramente no necesita contexto de Atlas.
+// Todo lo demás va a Groq con prompt completo.
+export function classifyQueryComplexity(message: string): 'simple' | 'complex' {
+  const msg = message.trim();
+  const simple = [
+    // saludos puros
+    /^(hola|buenas?|buenos\s+d[íi]as?|buenas?\s+(tardes?|noches?))[\s.!?]*$/i,
+    /^(c[óo]mo\s+est[áa]s|qu[ée]\s+tal)[\s.!?]*$/i,
+    // tiempo / clima
+    /\b(llover[áa]|llueve|la\s+lluvia|(?:el\s+)?tiempo\s+(?:ahora|hoy|esta?\s+tarde?|esta?\s+ma[ñn]ana?)|clima|temperatura)\b/i,
+    // hora y fecha
+    /\b(qu[ée]\s+hora\s+es|qu[ée]\s+d[íi]a\s+(?:es|estamos?)|la\s+fecha\s+(?:de\s+)?hoy|fecha\s+actual)\b/i,
+  ];
+  return simple.some(p => p.test(msg)) ? 'simple' : 'complex';
 }

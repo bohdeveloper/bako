@@ -220,7 +220,7 @@ router.post('/text', async (req: Request, res: Response) => {
     } else if (!ollamaOk) {
       useCloud = true;
     } else {
-      const complexity = await classifyQueryComplexity(message);
+      const complexity = classifyQueryComplexity(message);
       useCloud = complexity === 'complex';
       useMinimalPrompt = !useCloud;
       console.log(`🔵 Desktop /text: '${complexity}' → ${useCloud ? 'Groq ☁️' : 'Ollama 🏠 (minimal)'}`);
