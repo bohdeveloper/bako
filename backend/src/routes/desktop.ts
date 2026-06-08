@@ -167,7 +167,7 @@ router.post('/voice', upload.single('audio'), async (req: Request, res: Response
     }
 
     const ollamaOk     = await getCachedOllamaStatus();
-    const systemPrompt = await getFullSystemPrompt(transcription, ollamaOk);
+    const systemPrompt = await getFullSystemPrompt(transcription, true); // always compact — full exceeds Groq 6000 TPM
     const useCloud     = !ollamaOk;
     const response     = await askClaude(transcription, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
     const audioBuffer  = await safeVoiceBuffer(response);
@@ -227,7 +227,7 @@ router.post('/text', async (req: Request, res: Response) => {
     }
     const systemPrompt = useMinimalPrompt
       ? await getMinimalSystemPrompt(message)
-      : await getFullSystemPrompt(message, !useCloud);
+      : await getFullSystemPrompt(message, true); // always compact — full (18104 chars) always exceeds Groq 6000 TPM
     console.log(`🔵 Desktop /text: prompt listo (${systemPrompt.length} chars, ${useCloud ? 'Groq' : 'Ollama'})`);
     const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
     console.log(`🔵 Desktop /text: respuesta LLM OK (${response.length} chars)`);
@@ -254,7 +254,7 @@ router.post('/stream', async (req: Request, res: Response) => {
   try {
     // Todo el trabajo previo antes de abrir el stream (permite devolver errores HTTP reales)
     const action       = await tryExecuteAction(message);
-    const systemPrompt = action ? '' : await getFullSystemPrompt(message);
+    const systemPrompt = action ? '' : await getFullSystemPrompt(message, true);
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');

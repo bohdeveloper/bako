@@ -89,7 +89,11 @@ async function askOpenRouter(messages: Message[], maxTokens?: number, temperatur
 
 function isGroqRateLimit(err: unknown): boolean {
   const e = err as any;
-  return e?.response?.status === 429 || String(e?.message ?? '').includes('429');
+  const status = e?.response?.status;
+  // 429 = rate limit over time; 413 = single request too large for TPM quota
+  return status === 429 || status === 413 ||
+    String(e?.message ?? '').includes('429') ||
+    String(e?.message ?? '').includes('413');
 }
 
 // ── Streaming ─────────────────────────────────────────────────────────────

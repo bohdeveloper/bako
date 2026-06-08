@@ -441,7 +441,12 @@ El sistema de tiers desaparece o se simplifica enormemente: en lugar de cargar l
 - `OPENROUTER_API_KEY` en Render · `OPENROUTER_MODEL` env var para cambiar modelo sin tocar código
 - ⚠️ Modelos gratuitos de OpenRouter cambian frecuentemente — consultar `/api/v1/models` si 404
 
-**Paso 3 — Cache respuestas frecuentes** ❌ Pendiente/Opcional
+**Paso 3 — Prompt siempre compact + captura 413 ✅** (08/06/2026)
+- `getFullSystemPrompt(compact=true)` en los 3 endpoints desktop (`/text`, `/voice`, `/stream`) — full (18104 chars ≈ 6023 tokens) siempre supera el límite de 6000 TPM de Groq → siempre 413
+- `isGroqRateLimit()` captura también **413** (request too large) además de 429 — ahora el fallback OpenRouter salta en ambos casos
+- Flujo unificado: Ollama disponible → Ollama · Ollama caído → Groq (compact) → si 429/413 → OpenRouter
+
+**Paso 4 — Cache respuestas frecuentes** ❌ Pendiente/Opcional
 - Preguntas recurrentes (briefing, agenda) → cache 5 min en MongoDB
 - ~20% reducción adicional de tokens Groq — solo implementar si siguen apareciendo 429s en uso normal
 
