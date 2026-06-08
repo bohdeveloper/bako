@@ -12,7 +12,7 @@ import FormData from 'form-data';
 import { askClaude, askClaudeStream, isOllamaAvailable, classifyQueryComplexity } from '../llm/claude';
 import { generateVoiceBuffer, cleanForVoice } from '../tools/tts';
 import { getMemoriesSection, getDynamicProfileSection, getPeopleSection, getProjectsSection, getKnowledgeSection, buildSystemPrompt } from '../tools/telegram';
-import { getAmbientContext } from '../tools/context';
+import { getAmbientContext, invalidateTrackerCache } from '../tools/context';
 import { getCurrentLocation } from '../tools/memory';
 import { tryExecuteAction } from '../tools/actions';
 import { requireAuth } from '../middleware/authMiddleware';
@@ -102,7 +102,10 @@ async function getEmailContext(message: string): Promise<string> {
 }
 
 // Prompt mínimo para preguntas simples (saludo, hora, rutina) → Ollama puede responder en <5s
+const TRACKER_REGEX = /tracker|kronoshin|biziki|meditaci[oó]n|gym|shaolin|rutina|actividad|completad|perdid/i;
+
 async function getMinimalSystemPrompt(message = ''): Promise<string> {
+  if (TRACKER_REGEX.test(message)) invalidateTrackerCache();
   const location = await getCurrentLocation();
   const [dynProfile, ambientCtx, emailCtx] = await Promise.all([
     getDynamicProfileSection(),
@@ -115,6 +118,7 @@ async function getMinimalSystemPrompt(message = ''): Promise<string> {
 }
 
 async function getFullSystemPrompt(message = '', compact = false): Promise<string> {
+  if (TRACKER_REGEX.test(message)) invalidateTrackerCache();
   const location = await getCurrentLocation();
   const [memories, dynProfile, ambientCtx, emailCtx, people, projects, knowledge] = await Promise.all([
     getMemoriesSection(compact ? 2 : 5, 44, compact ? 700 : 1800),

@@ -20,7 +20,7 @@ import { Person, formatPersonForContext } from '../memory/Person';
 import { Project, formatProjectForContext } from '../memory/Project';
 import { KnowledgeEntry, formatKnowledgeForContext } from '../memory/KnowledgeEntry';
 import { tryExecuteAction } from './actions';
-import { getAmbientContext, invalidateCityWeatherCache, invalidateCalendarCache } from './context';
+import { getAmbientContext, invalidateCityWeatherCache, invalidateCalendarCache, invalidateTrackerCache } from './context';
 
 export function buildSystemPrompt(extraContext = '', memoriesSection = '', dynamicProfileSection = '', peopleSection = '', projectsSection = '', knowledgeSection = ''): string {
   const now   = nowInSpain();
@@ -1544,6 +1544,9 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
       // Forzar datos frescos si el mensaje pregunta por calendar, gmail u otros servicios externos
       if (/calendario|agenda|cita|reuni[oó]n|evento|gmail|correo|email|mail/i.test(text)) {
         invalidateCalendarCache();
+      }
+      if (/tracker|kronoshin|biziki|meditaci[oó]n|gym|shaolin|rutina|actividad|completad|perdid/i.test(text)) {
+        invalidateTrackerCache();
       }
 
       // Contexto ambiental siempre activo: tiempo (ciudad actual), ubicación, agenda, tracker

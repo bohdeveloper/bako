@@ -82,6 +82,11 @@ export function invalidateCalendarCache(): void {
   calendarCache = null;
 }
 
+// Invalida el cache del tracker (llamar cuando el estado puede haber cambiado externamente)
+export function invalidateTrackerCache(): void {
+  trackerCache = null;
+}
+
 // ─── Contexto principal ───────────────────────────────────────────────────────
 
 export async function getAmbientContext(
