@@ -49,10 +49,29 @@ const PERSONAL_TAGS = [
 
 export async function getMemories(
   technicalLimit = 2,
-  _personalLimit = 44,  // ignorado — ahora usamos tiers
+  _personalLimit = 44,  // ignorado — ahora usamos tiers o semántica
+  query?: string,       // 7b-C: si se pasa, usa búsqueda semántica en lugar de tiers
 ): Promise<IMemory[]> {
+  // ── 7b-C: búsqueda semántica cuando hay query y embeddings suficientes ───────
+  if (query) {
+    try {
+      const { vector, dim } = await generateEmbedding(query);
+      const candidates = await Memory.find({ embeddingDim: dim }).lean() as any[];
+      if (candidates.length >= 10) {
+        const scored = candidates
+          .map((m: any) => ({ m, score: cosineSimilarity(vector, m.embedding ?? []) }))
+          .filter(s => s.score > 0.15)
+          .sort((a, b) => b.score - a.score);
+        if (scored.length >= 5) {
+          console.log(`🔍 Memoria semántica: top ${Math.min(scored.length, 15)} de ${candidates.length} candidatas (dim=${dim})`);
+          return scored.slice(0, 15).map(s => s.m as IMemory);
+        }
+      }
+    } catch { /* fallback a tiers si falla el embedding */ }
+  }
+
+  // ── Fallback: sistema de tiers heurístico ────────────────────────────────────
   // Tier 1 — familia, amigos, pareja: SIEMPRE primeros (top 20)
-  // El char budget de 1800 en getMemoriesSection protege contra 413.
   const social = await Memory.find({ tags: { $in: SOCIAL_TAGS } })
     .sort({ importance: -1, updatedAt: -1 }).limit(20);
 
@@ -74,12 +93,11 @@ export async function getMemories(
 
   const personalIds = personal.map(m => (m as any)._id);
 
-  // Tier 4 — técnico: según LLM (default 2)
+  // Tier 4 — técnico: según límite
   const technical = await Memory.find({
     _id: { $nin: [...socialIds, ...projectIds, ...personalIds] },
   }).sort({ updatedAt: -1 }).limit(technicalLimit);
 
-  // Total: 15+5+3+2 = 25 máx — el char budget de 1800 es la red de seguridad para 413
   return [...social, ...projects, ...personal, ...technical];
 }
 
@@ -173,6 +191,53 @@ Responde ÚNICAMENTE con JSON válido (sin texto adicional):
 
 Si no hay nada que merezca guardarse, responde exactamente: []`;
 
+const UPDATE_OR_CREATE_SYSTEM = `Tienes dos memorias del asistente BAKO sobre Borja. ¿La nueva información actualiza/reemplaza a la existente, o es información adicional diferente? Responde solo: ACTUALIZAR o CREAR`;
+
+// 7b-D: guarda o actualiza según similitud semántica con memorias existentes
+async function deduplicateAndSave(entry: {
+  content:    string;
+  type:       IMemory['type'];
+  importance: IMemory['importance'];
+  tags:       string[];
+}): Promise<void> {
+  try {
+    const { vector, dim } = await generateEmbedding(entry.content);
+    const candidates = await Memory.find({ embeddingDim: dim, source: { $ne: 'manual' } }).lean() as any[];
+    const similar = candidates
+      .map((m: any) => ({ m, score: cosineSimilarity(vector, m.embedding ?? []) }))
+      .filter(s => s.score >= 0.85)
+      .sort((a, b) => b.score - a.score);
+
+    if (similar.length > 0) {
+      const best = similar[0];
+      const decision = await askClaude(
+        `Existente: "${best.m.content}"\nNueva: "${entry.content}"`,
+        { systemPrompt: UPDATE_OR_CREATE_SYSTEM, maxTokens: 10, useCloud: false }
+      );
+      if (decision.trim().toUpperCase().startsWith('ACTUALIZAR')) {
+        await Memory.findByIdAndUpdate(best.m._id, {
+          content:      entry.content,
+          type:         entry.type,
+          importance:   entry.importance,
+          tags:         entry.tags,
+          embedding:    vector,
+          embeddingDim: dim,
+        });
+        console.log(`🔄 Memoria actualizada: "${entry.content}"`);
+        return;
+      }
+    }
+  } catch { /* fallback a crear nueva */ }
+
+  await saveMemory(entry.content, {
+    type:       entry.type,
+    importance: entry.importance,
+    source:     'extracted',
+    tags:       entry.tags ?? [],
+  });
+  console.log(`🧠 Memoria guardada: "${entry.content}"`);
+}
+
 export async function extractAndSaveMemories(userMessage: string, assistantResponse: string): Promise<void> {
   try {
     const conversation = `Usuario: ${userMessage}\nBAKO: ${assistantResponse}`;
@@ -194,13 +259,12 @@ export async function extractAndSaveMemories(userMessage: string, assistantRespo
 
     for (const entry of entries) {
       if (entry.content?.length > 10) {
-        await saveMemory(entry.content, {
+        await deduplicateAndSave({
+          content:    entry.content,
           type:       entry.type,
           importance: entry.importance,
-          source:     'extracted',
           tags:       entry.tags ?? [],
         });
-        console.log(`🧠 Memoria guardada: "${entry.content}"`);
       }
     }
   } catch {

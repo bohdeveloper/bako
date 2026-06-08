@@ -117,9 +117,9 @@ export async function getKnowledgeSection(charBudget = Infinity): Promise<string
   }
 }
 
-export async function getMemoriesSection(technicalLimit = 5, personalLimit = 44, charBudget = 1800): Promise<string> {
+export async function getMemoriesSection(technicalLimit = 5, personalLimit = 44, charBudget = 1800, query?: string): Promise<string> {
   try {
-    const memories = await getMemories(technicalLimit, personalLimit);
+    const memories = await getMemories(technicalLimit, personalLimit, query);
     const full = formatMemoriesForPrompt(memories);
     if (full.length <= charBudget) return full;
     // Truncar en el último salto de línea dentro del presupuesto
@@ -1123,7 +1123,7 @@ export function startTelegramBot(): void {
         return;
       }
       await bot.sendMessage(chatId, '🔒 Procesando en modo privado (solo local)...');
-      const memoriesSection = await getMemoriesSection(llmMode === 'groq' ? 20 : 5);
+      const memoriesSection = await getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, text);
       const response = await askClaude(text, {
         systemPrompt: buildSystemPrompt('', memoriesSection),
         private: true,
@@ -1306,7 +1306,7 @@ export function startTelegramBot(): void {
 
       const voiceLocation = await getCurrentLocation();
       const [memoriesSection, ambientCtx, dynProfile, peopleSection, projectsSection, knowledgeSection] = await Promise.all([
-        getMemoriesSection(llmMode === 'groq' ? 20 : 5),
+        getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, transcription),
         getAmbientContext(voiceLocation),
         getDynamicProfileSection(),
         getPeopleSection(),
@@ -1461,7 +1461,7 @@ export function startTelegramBot(): void {
         const asunto  = draftMatch[2]?.trim() ?? '';
         await bot.sendMessage(chatId, `✍️ Redactando email para ${destino}${asunto ? ` sobre "${asunto}"` : ''}...`);
         try {
-          const memoriesSection = await getMemoriesSection(llmMode === 'groq' ? 20 : 5);
+          const memoriesSection = await getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, text);
           const draftPrompt = `Redacta un email profesional pero cercano.
 Destinatario: ${destino}
 ${asunto ? `Asunto: ${asunto}` : ''}
@@ -1522,7 +1522,7 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
           return;
         }
         await bot.sendMessage(chatId, '🔒 Contenido sensible detectado — procesando solo en local...');
-        const memoriesSection = await getMemoriesSection(llmMode === 'groq' ? 20 : 5);
+        const memoriesSection = await getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, text);
         const response = await askClaude(text, {
           systemPrompt: buildSystemPrompt('', memoriesSection),
           private: true,
@@ -1552,7 +1552,7 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
       // Contexto ambiental siempre activo: tiempo (ciudad actual), ubicación, agenda, tracker
       const currentLocation = await getCurrentLocation();
       const [memoriesSection, ambientCtx, dynProfile, peopleSection, projectsSection, knowledgeSection] = await Promise.all([
-        getMemoriesSection(llmMode === 'groq' ? 20 : 5),
+        getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, text),
         getAmbientContext(currentLocation),
         getDynamicProfileSection(),
         getPeopleSection(),

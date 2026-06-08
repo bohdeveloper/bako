@@ -121,7 +121,7 @@ async function getFullSystemPrompt(message = '', compact = false): Promise<strin
   if (TRACKER_REGEX.test(message)) invalidateTrackerCache();
   const location = await getCurrentLocation();
   const [memories, dynProfile, ambientCtx, emailCtx, people, projects, knowledge] = await Promise.all([
-    getMemoriesSection(compact ? 2 : 5, 44, compact ? 700 : 1800),
+    getMemoriesSection(compact ? 2 : 5, 44, compact ? 700 : 1800, message),
     getDynamicProfileSection(),
     getAmbientContext(location),
     getEmailContext(message),

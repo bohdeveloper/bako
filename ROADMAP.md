@@ -252,7 +252,7 @@ Panel integrado en la PWA (no en bohdeveloper.com).
 - ❌ Edición de perfil ampliada — más campos que ProfileOverride (pendiente Fase 7b)
 - ❌ Widget de chat público en bohdeveloper.com (diferido)
 
-### Fase 7b — Memoria Cognitiva ⚠️ En progreso
+### Fase 7b — Memoria Cognitiva ✅ Completado (08/06/2026)
 > Convertir la memoria plana de 103 registros en un sistema cognitivo real: estructurado, semántico y auto-actualizable. **Coste objetivo: $0.**
 
 #### El problema actual
@@ -416,13 +416,15 @@ El sistema de tiers desaparece o se simplifica enormemente: en lugar de cargar l
 - ✅ Endpoint `POST /api/agent/embed-memories` — backfill memorias existentes sin embedding
 - ✅ Botón "Generar embeddings" en panel admin
 
-**Fase 7b-C — Búsqueda semántica ❌ Pendiente**
-- Similitud coseno en Node.js (sin Qdrant)
-- Reemplaza el sistema de tiers heurístico
+**Fase 7b-C — Búsqueda semántica ✅ Completado (08/06/2026)**
+- `getMemories(query?)` — si hay query: cosine similarity contra embeddings MongoDB, top-15 relevantes
+- Fallback automático a tiers si embedding falla o <5 candidatos relevantes
+- Callers: Telegram (x5) + Desktop pasan mensaje del usuario como query
 
-**Fase 7b-D — Modificación activa ❌ Pendiente**
-- "Ya no voy a BIZIKI" → detecta memoria existente (similitud ≥0.85) → LLM decide actualizar/crear
-- Memorias `source: 'manual'` son intocables (solo lectura)
+**Fase 7b-D — Modificación activa ✅ Completado (08/06/2026)**
+- `deduplicateAndSave()` — antes de crear memoria: busca similares (≥0.85), excluye `source: 'manual'`
+- LLM decide ACTUALIZAR o CREAR con prompt mínimo (~10 tokens de respuesta)
+- "Ya no voy a BIZIKI" → actualiza memoria existente de BIZIKI en lugar de duplicar
 
 ### Fase 7c — Eliminar rate limits Groq ✅ Completado (07/06/2026)
 > Groq free tier: ~6.000 tokens/min (TPM). Cada query compleja consume ~4.500 tokens → 1 req/min antes de 429.
