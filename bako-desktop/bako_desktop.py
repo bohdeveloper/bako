@@ -40,6 +40,12 @@ except ImportError:
     HAS_KEYBOARD = False
 
 try:
+    from openwakeword.model import Model as OWWModel
+    HAS_WAKE_WORD = True
+except ImportError:
+    HAS_WAKE_WORD = False
+
+try:
     from win10toast import ToastNotifier
     _toaster = ToastNotifier()
     HAS_TOAST = True
@@ -50,6 +56,12 @@ except ImportError:
 BAKO_URL        = os.getenv('BAKO_URL',      'https://ai-personal-os.onrender.com')
 DESKTOP_TOKEN   = os.getenv('DESKTOP_TOKEN', '')   # legacy — si está definido, omite login JWT
 HOTKEY          = os.getenv('BAKO_HOTKEY',   'ctrl+alt+b')
+WAKE_WORD_ENABLED = os.getenv('BAKO_WAKE_WORD', '0') == '1'
+# Modelo wake word — usa 'hey_jarvis' por defecto (similar fonético en español).
+# Para activar con "Bako" exacto: entrenar modelo custom con openwakeword y poner la ruta aquí.
+WAKE_WORD_MODEL = os.getenv('BAKO_WAKE_MODEL', 'hey_jarvis')
+WAKE_WORD_THRESHOLD = float(os.getenv('BAKO_WAKE_THRESHOLD', '0.5'))
+WAKE_WORD_CHUNK = 1280  # muestras por chunk (80ms a 16kHz)
 SAMPLE_RATE     = 16000
 CHANNELS        = 1
 MAX_DURATION    = 15
@@ -221,6 +233,7 @@ class BakoDesktopApp:
         self._is_active   = False   # True mientras BAKO procesa o reproduce
         self._cancel_flag = threading.Event()
         self._notif_stop  = threading.Event()  # señal para parar el polling
+        self._wake_stop   = threading.Event()  # señal para parar el wake word listener
         # Timestamp de la última notificación vista — cada cliente lleva el suyo
         self._last_notif_at = (datetime.now(timezone.utc) - timedelta(hours=24)).strftime('%Y-%m-%dT%H:%M:%S.000Z')
 
@@ -237,6 +250,7 @@ class BakoDesktopApp:
         self._build_fonts()
         self._build_ui()
         self._setup_hotkey()
+        self._start_wake_word_listener()
 
         # Auth: si hay DESKTOP_TOKEN, acceso directo; si no, usar JWT
         if DESKTOP_TOKEN:
@@ -2219,6 +2233,63 @@ class BakoDesktopApp:
         if 'alt'   in mods and not keyboard.is_pressed('alt'):   return False
         if 'shift' in mods and not keyboard.is_pressed('shift'): return False
         return True
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # Wake Word (openwakeword — opt-in con BAKO_WAKE_WORD=1)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _start_wake_word_listener(self):
+        if not WAKE_WORD_ENABLED:
+            return
+        if not HAS_WAKE_WORD:
+            print('⚠️  Wake word desactivado: instala openwakeword  →  pip install openwakeword')
+            return
+        t = threading.Thread(target=self._wake_word_loop, daemon=True, name='wake-word')
+        t.start()
+        print(f'🎤  Wake word activo — modelo: {WAKE_WORD_MODEL} · umbral: {WAKE_WORD_THRESHOLD}')
+
+    def _wake_word_loop(self):
+        try:
+            oww = OWWModel(wakeword_models=[WAKE_WORD_MODEL], inference_framework='onnx')
+        except Exception as e:
+            print(f'❌  No se pudo cargar el modelo wake word "{WAKE_WORD_MODEL}": {e}')
+            return
+
+        def _audio_callback(indata, frames, time_info, status):
+            if self._wake_stop.is_set():
+                raise sd.CallbackStop()
+            # No procesar si ya hay grabación activa o BAKO está respondiendo
+            if self.is_recording or self._is_active:
+                return
+            audio_int16 = (indata[:, 0] * 32767).astype('int16')
+            scores = oww.predict(audio_int16)
+            for model_name, score in scores.items():
+                if score >= WAKE_WORD_THRESHOLD:
+                    print(f'🔔  Wake word detectado ({model_name}: {score:.2f})')
+                    oww.reset()
+                    self.root.after(0, self._on_wake_word_triggered)
+                    break
+
+        try:
+            with sd.InputStream(
+                samplerate=SAMPLE_RATE,
+                channels=1,
+                dtype='float32',
+                blocksize=WAKE_WORD_CHUNK,
+                callback=_audio_callback,
+            ):
+                while not self._wake_stop.is_set():
+                    time.sleep(0.1)
+        except Exception as e:
+            if not self._wake_stop.is_set():
+                print(f'❌  Wake word loop error: {e}')
+
+    def _on_wake_word_triggered(self):
+        if self.is_recording or self._is_active:
+            return
+        self._set_status('🔔 Wake word detectado…', self.t.get('accent', '#14b8a6'))
+        # Pequeña pausa antes de grabar para que el usuario empiece a hablar
+        self.root.after(300, self._on_mic_press)
 
 
 # ── Punto de entrada ───────────────────────────────────────────────────────────
