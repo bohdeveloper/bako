@@ -465,10 +465,19 @@ Implementado directamente en ProactivityService sin infraestructura adicional:
 - ✅ Morning Briefing (05:45), Weekly Summary (viernes 18:00), Alerta Tracker (22:00)
 - ✅ **Gestión mensajes automáticos** — `/automaticos` con botones inline, 7 crons configurables, estado persiste en MongoDB (`AutoConfig`)
 
-### Fase 9 — Wake Word ❌ Pendiente
-- **OpenWakeWord** — escucha el micrófono en background, sin internet
-- Dices "Bako" → detecta → ejecuta briefing → responde por voz
-- Sin tocar el teclado, sin abrir el móvil
+### Fase 9 — Wake Word ✅ Completado (08/06/2026)
+
+**Desktop (Python):** OpenWakeWord opt-in (`BAKO_WAKE_WORD=1`)
+- Hilo daemon en Python, escucha en background sin bloquear el GUI tkinter
+- Modelo `hey_jarvis` como placeholder fonético (similar a "bako" en español)
+- Umbral configurable via `BAKO_WAKE_THRESHOLD` · Modelo intercambiable via `BAKO_WAKE_MODEL`
+- Prerequisito: `pip install openwakeword` · Custom model: ~30 grabaciones de "Bako" → ONNX
+
+**PWA (JavaScript):** Web Speech API opt-in (botón 👂 en el header)
+- `SpeechRecognition` continua en Chrome/Edge — detecta "bako" y variantes fonéticas
+- Toggle persistido en `localStorage` · Pulso visual verde cuando activo
+- Se reinicia automáticamente tras cada respuesta de BAKO
+- Limitación inherente del navegador: requiere tab en primer plano
 
 ---
 

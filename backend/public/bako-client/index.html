@@ -105,6 +105,17 @@
     .theme-toggle:hover { border-color: var(--blue); color: var(--blue); }
     .theme-toggle svg   { width: 18px; height: 18px; display: block; }
 
+    .wake-btn {
+      background: none; border: 1px solid var(--border); border-radius: 8px;
+      padding: 5px; cursor: pointer; color: var(--dim);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; width: 32px; height: 32px;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .wake-btn:hover { border-color: var(--teal); color: var(--teal); }
+    .wake-btn.active { color: var(--teal); border-color: var(--teal); animation: wakePulse 2s ease-in-out infinite; }
+    @keyframes wakePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(20,184,166,0); } 50% { box-shadow: 0 0 0 4px rgba(20,184,166,0.2); } }
+
     /* ── Chat history ────────────────────────────────────────────────────────── */
     .chat-history {
       flex: 1;
@@ -1228,6 +1239,7 @@
   <h1 id="bakoTitle" style="cursor:pointer" title="Limpiar chat">BAKO</h1>
   <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:8px">
     <span id="llmBadge" style="font-size:10px;font-weight:600;letter-spacing:.04em;padding:2px 7px;border-radius:20px;opacity:.75;background:transparent;border:1px solid currentColor;display:none;cursor:pointer" title="Clic para forzar Groq / volver a automático"></span>
+    <button class="wake-btn" id="btnWakeWord" title="Activar wake word — di 'Bako'">👂</button>
   <button class="theme-toggle" id="themeToggle" title="Cambiar tema" style="position:static;transform:none">
     <!-- Icono luna (visible en modo oscuro → click para ir a claro) -->
     <svg id="iconMoon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -2752,6 +2764,7 @@
     }
     micBtn.title = (state === 'processing' || state === 'playing') ? 'Toca para parar a BAKO' : 'Mantén para hablar';
     wave.classList.toggle('active', state === 'recording');
+    if (state === 'idle' && typeof resumeWakeWord === 'function') resumeWakeWord();
   }
 
   // Reproduce audio base64 — devuelve Promise que resuelve cuando termina o se interrumpe
@@ -2951,6 +2964,7 @@
     stopCountdown();
     reviewPanel.classList.remove('visible');
     if (!isCoolingDown()) setStatus('Listo');
+    if (typeof resumeWakeWord === 'function') resumeWakeWord();
   }
 
   function sendReview() {
@@ -3806,6 +3820,105 @@
     autoconfFb.className   = 'admin-feedback ' + (ok ? 'ok' : 'err');
     setTimeout(() => { autoconfFb.textContent = ''; autoconfFb.className = 'admin-feedback'; }, 3000);
   }
+
+  // ── Wake Word (Web Speech API — Chrome/Edge con tab en primer plano) ─────────
+  (function() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const HAS_SR = !!SpeechRecognition;
+    // Variantes fonéticas de "bako" en español
+    const WAKE_REGEX = /\b(bako|baco|vako|vaco|banco|barco|boca|boca)\b/i;
+
+    let wakeRecognizer   = null;
+    let wakeWordActive   = false;
+    let wakeRestartTimer = null;
+    let wakeTriggering   = false;
+
+    const wakeBtn = document.getElementById('btnWakeWord');
+
+    function updateWakeBtn() {
+      if (!wakeBtn) return;
+      wakeBtn.classList.toggle('active', wakeWordActive);
+      wakeBtn.title = wakeWordActive
+        ? 'Wake word activo — di "Bako" (toca para desactivar)'
+        : 'Activar wake word — di "Bako"';
+    }
+
+    window.resumeWakeWord = function() {
+      if (!wakeWordActive || !HAS_SR || wakeTriggering) return;
+      if (reviewPanel && reviewPanel.classList.contains('visible')) return;
+      clearTimeout(wakeRestartTimer);
+      wakeRestartTimer = setTimeout(startWakeWord, 400);
+    };
+
+    function startWakeWord() {
+      if (!HAS_SR || !wakeWordActive) return;
+      try { wakeRecognizer && wakeRecognizer.abort(); } catch {}
+
+      const recog = new SpeechRecognition();
+      wakeRecognizer = recog;
+      recog.lang = 'es-ES';
+      recog.continuous = true;
+      recog.interimResults = true;
+      recog.maxAlternatives = 3;
+
+      recog.onresult = (e) => {
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          for (let alt = 0; alt < e.results[i].length; alt++) {
+            if (WAKE_REGEX.test(e.results[i][alt].transcript)) {
+              if (isRecording || isCoolingDown() || !wakeWordActive || wakeTriggering) return;
+              console.log('🔔 Wake word PWA:', e.results[i][alt].transcript);
+              wakeTriggering = true;
+              try { recog.abort(); } catch {}
+              setStatus('🔔 ¡Bako! Habla ahora…', 'ok');
+              setTimeout(() => { wakeTriggering = false; startRecording(); }, 350);
+              return;
+            }
+          }
+        }
+      };
+
+      recog.onend = () => {
+        if (!wakeWordActive || wakeTriggering) return;
+        clearTimeout(wakeRestartTimer);
+        wakeRestartTimer = setTimeout(startWakeWord, 300);
+      };
+
+      recog.onerror = (e) => {
+        if (e.error !== 'no-speech' && e.error !== 'aborted') console.warn('Wake word error:', e.error);
+        if (!wakeWordActive || wakeTriggering) return;
+        clearTimeout(wakeRestartTimer);
+        wakeRestartTimer = setTimeout(startWakeWord, e.error === 'not-allowed' ? 30000 : 600);
+      };
+
+      try { recog.start(); } catch {}
+    }
+
+    function toggleWakeWord() {
+      if (!HAS_SR) { setStatus('⚠️ Wake word solo disponible en Chrome/Edge', 'error'); return; }
+      wakeWordActive = !wakeWordActive;
+      localStorage.setItem('bako_wake_word', wakeWordActive ? '1' : '0');
+      updateWakeBtn();
+      if (wakeWordActive) {
+        setStatus('👂 Escuchando "Bako"…', 'ok');
+        startWakeWord();
+      } else {
+        clearTimeout(wakeRestartTimer);
+        try { wakeRecognizer && wakeRecognizer.abort(); } catch {}
+        wakeRecognizer = null;
+        if (!isCoolingDown()) setStatus('Listo');
+      }
+    }
+
+    if (wakeBtn) wakeBtn.addEventListener('click', toggleWakeWord);
+
+    // Restaurar estado persistido
+    if (localStorage.getItem('bako_wake_word') === '1' && HAS_SR) {
+      wakeWordActive = true;
+      updateWakeBtn();
+      setStatus('👂 Escuchando "Bako"…', 'ok');
+      setTimeout(startWakeWord, 800); // pequeña pausa para que el DOM esté listo
+    }
+  })();
 
   // ── Pull-to-refresh (deslizar hacia abajo para actualizar notificaciones) ───
   (function() {
