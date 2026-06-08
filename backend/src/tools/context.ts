@@ -18,6 +18,7 @@ let calendarCache: { data: CalendarEvent[]; ts: number } | null = null;
 const CALENDAR_TTL = 60 * 1000; // 1 min — eventos reflejan cambios rápidamente
 
 let trackerCache: { data: TrackerDaySummary; ts: number; date: string } | null = null;
+let trackerFetchError: string | null = null;
 const TRACKER_TTL  =  5 * 60 * 1000; // 5 min — cambia cuando Borja registra actividades
 
 async function cachedWeatherForCity(city: string): Promise<WeatherData | null> {
@@ -56,8 +57,17 @@ async function cachedTracker(): Promise<TrackerDaySummary | null> {
   try {
     const data = await getTrackerSummary();
     trackerCache = { data, ts: now, date: today };
+    trackerFetchError = null;
     return data;
-  } catch {
+  } catch (err) {
+    const status = (err as any)?.response?.status;
+    if (status === 401) {
+      trackerFetchError = 'token Cloudflare caducado (401) — hay que renovar CLOUDFLARE_API_TOKEN en Render';
+    } else if (status) {
+      trackerFetchError = `error ${status} al conectar con Cloudflare D1`;
+    } else {
+      trackerFetchError = 'Cloudflare D1 no disponible';
+    }
     return (trackerCache?.date === today) ? trackerCache!.data : null;
   }
 }
@@ -150,6 +160,8 @@ export async function getAmbientContext(
     if (tracker.note) parts.push(`   Nota del día: ${tracker.note}`);
   } else if (tracker) {
     parts.push(`📊 Tracker Personal: sin actividades programadas para hoy`);
+  } else if (trackerFetchError) {
+    parts.push(`📊 Tracker Personal: no disponible (${trackerFetchError})`);
   }
 
   return `CONTEXTO AMBIENTAL:\n${parts.join('\n')}`;
