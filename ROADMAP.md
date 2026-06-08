@@ -452,7 +452,12 @@ El sistema de tiers desaparece o se simplifica enormemente: en lugar de cargar l
 - Preguntas recurrentes (briefing, agenda) → cache 5 min en MongoDB
 - ~20% reducción adicional de tokens Groq — solo implementar si siguen apareciendo 429s en uso normal
 
-**Sesión 08/06/2026 — Tracker: datos en tiempo real + respuesta explícita del estado**
+**Sesión 08/06/2026 (parte 2) — Memoria cognitiva completa + Wake Word PWA**
+- **7b-C**: `getMemories(query?)` — cosine similarity contra embeddings MongoDB, top-15 relevantes; fallback a tiers si falla
+- **7b-D**: `deduplicateAndSave()` — similitud ≥0.85 → LLM decide ACTUALIZAR o CREAR; `source:manual` intocables
+- **Fase 9 PWA**: botón 👂 en header → `SpeechRecognition` continua (Chrome/Edge), detecta "bako" + variantes, toggle persistido en localStorage
+
+**Sesión 08/06/2026 (parte 1) — Tracker: datos en tiempo real + respuesta explícita del estado**
 - `executeQueryTracker()` — extrae actividad consultada (LLM), consulta D1 directamente (sin caché), responde: "completada" / "no completada: [motivo]" / "pendiente"
 - `IS_QUESTION` regex — separa consultas (¿?) de acciones de marcado para evitar falsos positivos
 - `executeMarkTracker` — responde "completada" o "marcada como no completada" en lugar del genérico "registrada" (el emoji solo no era suficiente para voz)
