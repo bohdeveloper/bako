@@ -450,6 +450,12 @@ El sistema de tiers desaparece o se simplifica enormemente: en lugar de cargar l
 - Preguntas recurrentes (briefing, agenda) → cache 5 min en MongoDB
 - ~20% reducción adicional de tokens Groq — solo implementar si siguen apareciendo 429s en uso normal
 
+**Sesión 08/06/2026 — Tracker: datos en tiempo real + respuesta explícita del estado**
+- `executeQueryTracker()` — extrae actividad consultada (LLM), consulta D1 directamente (sin caché), responde: "completada" / "no completada: [motivo]" / "pendiente"
+- `IS_QUESTION` regex — separa consultas (¿?) de acciones de marcado para evitar falsos positivos
+- `executeMarkTracker` — responde "completada" o "marcada como no completada" en lugar del genérico "registrada" (el emoji solo no era suficiente para voz)
+- `invalidateTrackerCache()` en `context.ts` — exportada y llamada en Desktop (`getFullSystemPrompt`/`getMinimalSystemPrompt`) y Telegram cuando el mensaje menciona tracker/kronoshin/etc. — BAKO siempre consulta D1 en tiempo real para respuestas sobre el tracker
+
 ### Fase 8 — Automatización (sin n8n) ✅ Completado (junio 2026)
 Implementado directamente en ProactivityService sin infraestructura adicional:
 - ✅ **Tech Radar semanal** (lunes 09:30) — 5 feeds tech (JS Weekly, Node, React, HN, TLDR AI) → LLM filtra top 5 relevantes para el stack de Borja · `/techradar` manual
