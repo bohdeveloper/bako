@@ -495,6 +495,15 @@ Implementado directamente en ProactivityService sin infraestructura adicional:
 - Problema: wake word llamaba `startRecording()` (MediaRecorder push-to-talk) → grabación infinita en PC; en móvil el reconocedor continuo generaba clics constantes
 - Solución: modo conversación con `SpeechRecognition(continuous:false)` post-wake-word + detección mobile
 - ⏳ Pendiente Desktop: añadir VAD por amplitud en `_record_loop` (Python) para auto-stop tras silencio
+- ⏳ **Pendiente Móvil — Wake word sin clics (WebAudio VAD):**
+  - Limitación actual: `SpeechRecognition(continuous:true)` genera clic de OS en cada restart (~5s) → desactivado
+  - Pantalla bloqueada: imposible en PWA (JS congelado por el OS — requeriría app nativa)
+  - Pantalla encendida: solución viable con WebAudio amplitude detection
+    1. `getUserMedia` abre el micro una vez (un solo clic de activación)
+    2. `AudioContext + AnalyserNode` monitoriza volumen en silencio (sin SpeechRecognition, sin clics)
+    3. Al superar umbral de amplitud → lanza `SpeechRecognition` una sola vez para capturar la frase
+    4. Si detecta "bako" → modo conversación; si no → vuelve a escuchar volumen
+  - Trade-off: detecta cualquier sonido alto (falsos positivos en entornos ruidosos); detección exacta de "bako" requeriría modelo ONNX en JS (TensorFlow.js + openwakeword, alta complejidad)
 
 ---
 
