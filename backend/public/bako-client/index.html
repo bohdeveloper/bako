@@ -3821,19 +3821,29 @@
     setTimeout(() => { autoconfFb.textContent = ''; autoconfFb.className = 'admin-feedback'; }, 3000);
   }
 
-  // ── Wake Word (Web Speech API — Chrome/Edge con tab en primer plano) ─────────
+  // ── Wake Word + Modo Conversación (Web Speech API — Chrome/Edge, no móvil) ──
+  // Flujo: wake word ("bako") → conversation loop con SpeechRecognition(continuous:false)
+  // El browser detecta el fin de frase automáticamente; al terminar BAKO vuelve a escuchar.
+  // En móvil SpeechRecognition continua genera clics constantes → se oculta el botón.
   (function() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const HAS_SR = !!SpeechRecognition;
-    // Variantes fonéticas de "bako" en español
-    const WAKE_REGEX = /\b(bako|baco|vako|vaco|banco|barco|boca|boca)\b/i;
+    const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const WAKE_REGEX = /\b(bako|baco|vako|vaco|banco|barco|boca)\b/i;
+    const CONV_IDLE_MS = 20000; // salir de conversación tras 20s sin hablar
 
     let wakeRecognizer   = null;
+    let convRecognizer   = null;
     let wakeWordActive   = false;
     let wakeRestartTimer = null;
     let wakeTriggering   = false;
+    let inConversation   = false;
+    let convIdleTimer    = null;
 
     const wakeBtn = document.getElementById('btnWakeWord');
+
+    // En móvil el reconocedor continuo no funciona bien — ocultar y salir
+    if (IS_MOBILE && wakeBtn) { wakeBtn.style.display = 'none'; return; }
 
     function updateWakeBtn() {
       if (!wakeBtn) return;
@@ -3843,34 +3853,101 @@
         : 'Activar wake word — di "Bako"';
     }
 
+    // ── Modo conversación ─────────────────────────────────────────────────────
+
+    function exitConversation() {
+      inConversation = false;
+      clearTimeout(convIdleTimer);
+      try { convRecognizer && convRecognizer.abort(); } catch {}
+      convRecognizer = null;
+      if (wakeWordActive) {
+        clearTimeout(wakeRestartTimer);
+        wakeRestartTimer = setTimeout(startWakeWord, 500);
+        setStatus('👂 Escuchando "Bako"…', 'ok');
+      }
+    }
+
+    function startConversationListen() {
+      if (!inConversation || !wakeWordActive) return;
+      // Esperar si BAKO está procesando o reproduciendo
+      if (micState === 'processing' || micState === 'playing' || isCoolingDown()) {
+        clearTimeout(convIdleTimer);
+        convIdleTimer = setTimeout(startConversationListen, 800);
+        return;
+      }
+
+      try { convRecognizer && convRecognizer.abort(); } catch {}
+
+      const recog = new SpeechRecognition();
+      convRecognizer = recog;
+      recog.lang            = 'es-ES';
+      recog.continuous      = false;  // el browser detecta el fin de la frase
+      recog.interimResults  = false;
+      recog.maxAlternatives = 1;
+
+      recog.onresult = (e) => {
+        const transcript = Array.from(e.results)
+          .map(r => r[0].transcript).join(' ').trim();
+        if (!transcript || isCoolingDown()) return;
+        clearTimeout(convIdleTimer);
+        console.log('💬 Conversación PWA:', transcript);
+        sendMessage(transcript); // directo, sin review panel
+      };
+
+      recog.onend = () => {
+        if (!inConversation) return;
+        // Reiniciar timer; el loop continúa vía resumeWakeWord tras respuesta de BAKO
+        clearTimeout(convIdleTimer);
+        convIdleTimer = setTimeout(exitConversation, CONV_IDLE_MS);
+      };
+
+      recog.onerror = (e) => {
+        if (e.error === 'no-speech') { exitConversation(); return; }
+        if (e.error !== 'aborted') console.warn('Conv recog error:', e.error);
+      };
+
+      setStatus('👂 Te escucho…', 'ok');
+      try { recog.start(); } catch {}
+      clearTimeout(convIdleTimer);
+      convIdleTimer = setTimeout(exitConversation, CONV_IDLE_MS);
+    }
+
+    // Llamado desde setMicState('idle') y cancelReview() — reanuda escucha
     window.resumeWakeWord = function() {
       if (!wakeWordActive || !HAS_SR || wakeTriggering) return;
       if (reviewPanel && reviewPanel.classList.contains('visible')) return;
       clearTimeout(wakeRestartTimer);
-      wakeRestartTimer = setTimeout(startWakeWord, 400);
+      if (inConversation) {
+        setTimeout(startConversationListen, 400);
+      } else {
+        wakeRestartTimer = setTimeout(startWakeWord, 400);
+      }
     };
 
+    // ── Wake word listener ────────────────────────────────────────────────────
+
     function startWakeWord() {
-      if (!HAS_SR || !wakeWordActive) return;
+      if (!HAS_SR || !wakeWordActive || inConversation) return;
       try { wakeRecognizer && wakeRecognizer.abort(); } catch {}
 
       const recog = new SpeechRecognition();
       wakeRecognizer = recog;
-      recog.lang = 'es-ES';
-      recog.continuous = true;
-      recog.interimResults = true;
+      recog.lang            = 'es-ES';
+      recog.continuous      = true;
+      recog.interimResults  = true;
       recog.maxAlternatives = 3;
 
       recog.onresult = (e) => {
         for (let i = e.resultIndex; i < e.results.length; i++) {
           for (let alt = 0; alt < e.results[i].length; alt++) {
             if (WAKE_REGEX.test(e.results[i][alt].transcript)) {
-              if (isRecording || isCoolingDown() || !wakeWordActive || wakeTriggering) return;
+              if (inConversation || isCoolingDown() || !wakeWordActive || wakeTriggering) return;
               console.log('🔔 Wake word PWA:', e.results[i][alt].transcript);
               wakeTriggering = true;
               try { recog.abort(); } catch {}
+              inConversation = true;
               setStatus('🔔 ¡Bako! Habla ahora…', 'ok');
-              setTimeout(() => { wakeTriggering = false; startRecording(); }, 350);
+              setTimeout(() => { wakeTriggering = false; startConversationListen(); }, 500);
               return;
             }
           }
@@ -3878,14 +3955,14 @@
       };
 
       recog.onend = () => {
-        if (!wakeWordActive || wakeTriggering) return;
+        if (!wakeWordActive || wakeTriggering || inConversation) return;
         clearTimeout(wakeRestartTimer);
         wakeRestartTimer = setTimeout(startWakeWord, 300);
       };
 
       recog.onerror = (e) => {
         if (e.error !== 'no-speech' && e.error !== 'aborted') console.warn('Wake word error:', e.error);
-        if (!wakeWordActive || wakeTriggering) return;
+        if (!wakeWordActive || wakeTriggering || inConversation) return;
         clearTimeout(wakeRestartTimer);
         wakeRestartTimer = setTimeout(startWakeWord, e.error === 'not-allowed' ? 30000 : 600);
       };
@@ -3903,8 +3980,12 @@
         startWakeWord();
       } else {
         clearTimeout(wakeRestartTimer);
+        clearTimeout(convIdleTimer);
+        inConversation = false;
         try { wakeRecognizer && wakeRecognizer.abort(); } catch {}
+        try { convRecognizer && convRecognizer.abort(); } catch {}
         wakeRecognizer = null;
+        convRecognizer = null;
         if (!isCoolingDown()) setStatus('Listo');
       }
     }
@@ -3916,7 +3997,7 @@
       wakeWordActive = true;
       updateWakeBtn();
       setStatus('👂 Escuchando "Bako"…', 'ok');
-      setTimeout(startWakeWord, 800); // pequeña pausa para que el DOM esté listo
+      setTimeout(startWakeWord, 800);
     }
   })();
 
