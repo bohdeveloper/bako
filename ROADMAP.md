@@ -204,7 +204,8 @@ Reducir al mínimo los pasos para hablar con BAKO.
 - ✅ Sin asteriscos en voz (`cleanForVoice` elimina todo markdown antes del TTS)
 - ✅ System prompt reordenado: personalidad y estado de ánimo van PRIMERO
 - ✅ Respuestas en menos de 2 segundos (Ollama local: ~1s · Groq: ~2-3s)
-- ❌ Wake word en PC — diferido a Horizonte 1 (requiere OpenWakeWord + setup local)
+- ✅ Wake word PWA (Chrome/Edge PC) — botón 👂, detecta "bako", modo conversación auto (09/06/2026)
+- ⚠️ Wake word Desktop — opt-in `BAKO_WAKE_WORD=1`, sigue en push-to-talk tras activación (VAD pendiente)
 
 ### Gap 5 — Conocimiento vivo 📚 ✅ Verificado
 El perfil deja de ser un archivo que editas a mano.
@@ -470,19 +471,30 @@ Implementado directamente en ProactivityService sin infraestructura adicional:
 - ✅ Morning Briefing (05:45), Weekly Summary (viernes 18:00), Alerta Tracker (22:00)
 - ✅ **Gestión mensajes automáticos** — `/automaticos` con botones inline, 7 crons configurables, estado persiste en MongoDB (`AutoConfig`)
 
-### Fase 9 — Wake Word ✅ Completado (08/06/2026)
+### Fase 9 — Wake Word + Modo Conversación ✅ Completado (08-09/06/2026)
 
 **Desktop (Python):** OpenWakeWord opt-in (`BAKO_WAKE_WORD=1`)
 - Hilo daemon en Python, escucha en background sin bloquear el GUI tkinter
 - Modelo `hey_jarvis` como placeholder fonético (similar a "bako" en español)
 - Umbral configurable via `BAKO_WAKE_THRESHOLD` · Modelo intercambiable via `BAKO_WAKE_MODEL`
 - Prerequisito: `pip install openwakeword` · Custom model: ~30 grabaciones de "Bako" → ONNX
+- ⚠️ Tras wake word sigue en push-to-talk (sin VAD) — modo conversación pendiente para Desktop
 
 **PWA (JavaScript):** Web Speech API opt-in (botón 👂 en el header)
-- `SpeechRecognition` continua en Chrome/Edge — detecta "bako" y variantes fonéticas
+- Wake word: `SpeechRecognition(continuous:true)` en Chrome/Edge — detecta "bako" y variantes fonéticas
+- **Modo conversación (09/06/2026):** tras el wake word entra en `SpeechRecognition(continuous:false)`
+  - El browser detecta el fin de frase automáticamente (VAD nativa del SO)
+  - Transcripción enviada directa a BAKO sin review panel (bypass intencional en conversación)
+  - Tras respuesta de BAKO, `resumeWakeWord` reanuda la escucha → conversación continua
+  - Timeout 20s sin hablar → sale de conversación y vuelve a escuchar "bako"
+- **Móvil desactivado (09/06/2026):** `SpeechRecognition(continuous:true)` genera clics constantes de micro en Chrome móvil → detección UA + `wakeBtn.style.display='none'`
 - Toggle persistido en `localStorage` · Pulso visual verde cuando activo
-- Se reinicia automáticamente tras cada respuesta de BAKO
 - Limitación inherente del navegador: requiere tab en primer plano
+
+**Sesión 09/06/2026 — Fix conversación PWA**
+- Problema: wake word llamaba `startRecording()` (MediaRecorder push-to-talk) → grabación infinita en PC; en móvil el reconocedor continuo generaba clics constantes
+- Solución: modo conversación con `SpeechRecognition(continuous:false)` post-wake-word + detección mobile
+- ⏳ Pendiente Desktop: añadir VAD por amplitud en `_record_loop` (Python) para auto-stop tras silencio
 
 ---
 
