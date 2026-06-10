@@ -31,6 +31,6 @@ services:
       - key: TTS_VOICE
         value: es-ES-AlvaroNeural
       - key: GROQ_MODEL
-        value: gemma2-9b-it
+        value: llama-3.3-70b-versatile
       - key: OPENROUTER_MODEL
         value: deepseek/deepseek-chat-v3-0324:free

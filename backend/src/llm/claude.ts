@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const OLLAMA_URL   = process.env.OLLAMA_URL   ?? 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? 'llama3.2:3b';
-const GROQ_MODEL   = process.env.GROQ_MODEL   ?? 'gemma2-9b-it';
+const GROQ_MODEL   = process.env.GROQ_MODEL   ?? 'llama-3.3-70b-versatile';
 
 export interface AskClaudeOptions {
   systemPrompt?: string;
