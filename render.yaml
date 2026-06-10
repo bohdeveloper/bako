@@ -31,4 +31,4 @@ services:
       - key: TTS_VOICE
         value: es-ES-AlvaroNeural
       - key: OPENROUTER_MODEL
-        value: google/gemma-3-27b-it:free
+        value: mistralai/mistral-7b-instruct:free

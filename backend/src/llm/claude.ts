@@ -69,7 +69,7 @@ async function askOpenRouter(messages: Message[], maxTokens?: number, temperatur
   const { data } = await axios.post(
     'https://openrouter.ai/api/v1/chat/completions',
     {
-      model: process.env.OPENROUTER_MODEL ?? 'google/gemma-3-27b-it:free',
+      model: process.env.OPENROUTER_MODEL ?? 'mistralai/mistral-7b-instruct:free',
       messages,
       ...(maxTokens ? { max_tokens: maxTokens } : {}),
       temperature: temperature ?? 0.4,
