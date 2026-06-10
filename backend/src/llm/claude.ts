@@ -62,29 +62,58 @@ async function askGroq(messages: Message[], maxTokens?: number, temperature?: nu
   return data.choices[0]?.message?.content ?? 'Sin respuesta';
 }
 
+// Cadena de modelos free de OpenRouter — se prueba en orden hasta que uno responda
+const OPENROUTER_FALLBACK_MODELS = [
+  process.env.OPENROUTER_MODEL ?? 'google/gemma-4-31b-it:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'moonshotai/kimi-k2.6:free',
+  'google/gemma-4-26b-a4b-it:free',
+  'nvidia/nemotron-3-ultra-550b-a55b:free',
+];
+
+function isOpenRouterModelUnavailable(err: unknown): boolean {
+  const status = (err as any)?.response?.status;
+  const msg    = String((err as any)?.response?.data?.error?.message ?? '');
+  return status === 404 || msg.includes('unavailable') || msg.includes('No endpoints found');
+}
+
 async function askOpenRouter(messages: Message[], maxTokens?: number, temperature?: number): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY no definido');
 
-  const { data } = await axios.post(
-    'https://openrouter.ai/api/v1/chat/completions',
-    {
-      model: process.env.OPENROUTER_MODEL ?? 'deepseek/deepseek-chat-v3-0324:free',
-      messages,
-      ...(maxTokens ? { max_tokens: maxTokens } : {}),
-      temperature: temperature ?? 0.4,
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://ai-personal-os.onrender.com',
-        'X-Title': 'BAKO Personal OS',
-      },
-      timeout: 20_000,
+  let lastErr: unknown;
+  for (const model of OPENROUTER_FALLBACK_MODELS) {
+    try {
+      const { data } = await axios.post(
+        'https://openrouter.ai/api/v1/chat/completions',
+        {
+          model,
+          messages,
+          ...(maxTokens ? { max_tokens: maxTokens } : {}),
+          temperature: temperature ?? 0.4,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://ai-personal-os.onrender.com',
+            'X-Title': 'BAKO Personal OS',
+          },
+          timeout: 20_000,
+        }
+      );
+      console.log(`⚡ BAKO: OpenRouter respondió con ${model}`);
+      return data.choices[0]?.message?.content ?? 'Sin respuesta';
+    } catch (err) {
+      if (isOpenRouterModelUnavailable(err)) {
+        console.warn(`⚡ BAKO: OpenRouter ${model} no disponible → probando siguiente...`);
+        lastErr = err;
+        continue;
+      }
+      throw err; // error distinto a 404 (rate limit, auth, etc.) — propagar
     }
-  );
-  return data.choices[0]?.message?.content ?? 'Sin respuesta';
+  }
+  throw lastErr;
 }
 
 function isGroqRateLimit(err: unknown): boolean {
