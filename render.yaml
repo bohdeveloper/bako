@@ -30,3 +30,5 @@ services:
         sync: false
       - key: TTS_VOICE
         value: es-ES-AlvaroNeural
+      - key: OPENROUTER_MODEL
+        value: google/gemma-3-27b-it:free
