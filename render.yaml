@@ -34,3 +34,9 @@ services:
         value: llama-3.3-70b-versatile
       - key: OPENROUTER_MODEL
         value: google/gemma-4-31b-it:free
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: https://ai-personal-os.onrender.com

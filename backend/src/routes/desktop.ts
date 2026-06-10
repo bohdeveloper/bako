@@ -17,6 +17,7 @@ import { getCurrentLocation } from '../tools/memory';
 import { tryExecuteAction } from '../tools/actions';
 import { requireAuth } from '../middleware/authMiddleware';
 import { getUnreadEmails, formatEmailsForText } from '../tools/gmail';
+import { llmLimiter, validateMessage } from '../middleware/security';
 
 // Detecta cualquier mención a emails/correo — basta con que aparezca la palabra
 const EMAIL_REGEX = /\b(emails?|correos?(\s+electr[oó]nicos?)?|mails?|bandeja|gmail)\b/i;
@@ -151,7 +152,7 @@ router.post('/transcribe', upload.single('audio'), async (req: Request, res: Res
 });
 
 // POST /api/desktop/voice
-router.post('/voice', upload.single('audio'), async (req: Request, res: Response) => {
+router.post('/voice', llmLimiter, upload.single('audio'), async (req: Request, res: Response) => {
   // auth handled by router.use(requireAuth)
   if (!req.file) { res.status(400).json({ error: 'Se requiere campo "audio"' }); return; }
 
@@ -190,10 +191,9 @@ router.post('/voice', upload.single('audio'), async (req: Request, res: Response
 });
 
 // POST /api/desktop/text
-router.post('/text', async (req: Request, res: Response) => {
+router.post('/text', llmLimiter, validateMessage, async (req: Request, res: Response) => {
   // auth handled by router.use(requireAuth)
   const { message, useCloud: clientUseCloud, location: clientLocation } = req.body;
-  if (!message) { res.status(400).json({ error: 'Se requiere campo "message"' }); return; }
 
   // Safety timer: si todo lo demás cuelga, responder antes de que Render corte el TCP (~30s)
   const safety = setTimeout(() => {
@@ -252,9 +252,8 @@ router.post('/text', async (req: Request, res: Response) => {
 });
 
 // POST /api/desktop/stream — SSE: texto aparece letra a letra en el cliente
-router.post('/stream', async (req: Request, res: Response) => {
+router.post('/stream', llmLimiter, validateMessage, async (req: Request, res: Response) => {
   const { message } = req.body;
-  if (!message) { res.status(400).json({ error: 'Se requiere campo "message"' }); return; }
 
   try {
     // Todo el trabajo previo antes de abrir el stream (permite devolver errores HTTP reales)

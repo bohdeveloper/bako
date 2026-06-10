@@ -95,6 +95,11 @@ Un mayordomo de verdad — Alfred, Jarvis — tiene cinco características que l
 | Badge LLM en navbar — Ollama (teal) o Groq (amarillo), refresco cada 60s | ✅ |
 | Desktop optimizado — llama3.2:3b, prompt compacto para Ollama (sin Knowledge, budget reducido), num_ctx 2048, timeout 45s | ✅ |
 | Embeddings semánticos — nomic-embed-text (Ollama) + bge-small-en-v1.5 (Cloudflare Workers AI fallback), cosine similarity en Node.js | ✅ |
+| **Sesión 10/06/2026** | |
+| Groq model: `llama-3.3-70b-versatile` (12K TPM) — `gemma2-9b-it` decommissioned por Groq | ✅ |
+| OpenRouter fallback chain v2 — 5 modelos en orden: `gemma-4-31b → nemotron-3-super-120b → kimi-k2.6 → gemma-4-26b → nemotron-3-ultra-550b`; skip en 404/unavailable, re-throw 429 al cliente | ✅ |
+| REVIEW_TIMEOUT 10s — aumentado desde 5s en PWA y Desktop (más margen para revisar la transcripción) | ✅ |
+| Geolocalización por IP (`ip-api.com`, caché 30 min) — BAKO conoce la ciudad actual; tiempo y previsión adaptados a la ubicación real del usuario | ✅ |
 | **Sesión 07/06/2026** | |
 | Fix crítico "Sin conexión" — `llmMode` con `let` dentro de IIFE `initAuth` causaba ReferenceError; `sendMessage` en scope exterior nunca ejecutaba el fetch | ✅ |
 | Contexto BAKO mejorado — sort People/Projects por `orden` (manual), budgets calibrados (compact: people=5k/projects=6k/knowledge=4k · full: 6k/6k/5.5k), secciones reordenadas: Proyectos→Personas→Conocimiento→Memorias | ✅ |

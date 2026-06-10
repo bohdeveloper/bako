@@ -2,13 +2,13 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { User } from '../memory/User';
 import { requireSuperAdmin, signToken } from '../middleware/authMiddleware';
+import { loginLimiter, validateCredentials, sanitizeString } from '../middleware/security';
 
 const router = Router();
 
 // ── POST /api/auth/login ──────────────────────────────────────────────────────
-router.post('/login', async (req: Request, res: Response) => {
+router.post('/login', loginLimiter, validateCredentials, async (req: Request, res: Response) => {
   const { username, password } = req.body;
-  if (!username || !password) { res.status(400).json({ error: 'Usuario y contraseña requeridos' }); return; }
 
   const user = await User.findOne({ username: username.toLowerCase(), active: true });
   if (!user) { res.status(401).json({ error: 'Credenciales incorrectas' }); return; }
@@ -27,9 +27,8 @@ router.get('/users', requireSuperAdmin, async (_req: Request, res: Response) => 
 });
 
 // ── POST /api/auth/users (superadmin) ────────────────────────────────────────
-router.post('/users', requireSuperAdmin, async (req: Request, res: Response) => {
+router.post('/users', requireSuperAdmin, validateCredentials, async (req: Request, res: Response) => {
   const { username, password, role = 'user' } = req.body;
-  if (!username || !password) { res.status(400).json({ error: 'Usuario y contraseña requeridos' }); return; }
   if (!['superadmin', 'user'].includes(role)) { res.status(400).json({ error: 'Rol inválido' }); return; }
 
   const exists = await User.findOne({ username: username.toLowerCase() });
@@ -59,9 +58,15 @@ router.patch('/users/:id', requireSuperAdmin, async (req: Request, res: Response
   if (!user) { res.status(404).json({ error: 'Usuario no encontrado' }); return; }
 
   if (username) {
+    if (typeof username !== 'string' || username.length > 50) {
+      res.status(400).json({ error: 'Nombre de usuario inválido' }); return;
+    }
     const taken = await User.findOne({ username: username.toLowerCase(), _id: { $ne: user._id } });
     if (taken) { res.status(409).json({ error: 'Ese nombre de usuario ya existe' }); return; }
     user.username = username.toLowerCase().trim();
+  }
+  if (password && (typeof password !== 'string' || password.length > 200)) {
+    res.status(400).json({ error: 'Contraseña inválida' }); return;
   }
   if (password) {
     user.passwordHash = await bcrypt.hash(password, 10);

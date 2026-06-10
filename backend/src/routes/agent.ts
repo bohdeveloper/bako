@@ -3,18 +3,14 @@ import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
 import { Task } from '../memory/Task';
 import { runMorningBriefing } from '../agents/MorningBriefingAgent';
 import { BAKO_PROFILE } from '../knowledge/profile';
+import { validatePrompt, buildSafeSearchRegex, sanitizeString, sanitizeTags } from '../middleware/security';
 
 const router = Router();
 
 // POST /api/agent/ask
 // Body: { "prompt": "tu pregunta o tarea" }
-router.post('/ask', async (req: Request, res: Response) => {
+router.post('/ask', validatePrompt, async (req: Request, res: Response) => {
   const { prompt, private: isPrivate = false } = req.body;
-
-  if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
-    res.status(400).json({ error: 'El campo prompt es obligatorio y no puede estar vacío' });
-    return;
-  }
 
   const task = await Task.create({ prompt, status: 'pending', isPrivate });
   console.log(`📨 Tarea ${isPrivate ? '🔒 privada' : 'normal'} [${task._id}]: ${prompt}`);
@@ -92,7 +88,14 @@ router.post('/morning-briefing', async (req: Request, res: Response) => {
 router.get('/memories', async (req: Request, res: Response) => {
   const { Memory } = await import('../memory/Memory');
   const q = req.query.q as string | undefined;
-  const filter = q ? { content: new RegExp(q.split(' ').filter(w => w.length > 2).join('|'), 'i') } : {};
+  let filter = {};
+  if (q && typeof q === 'string' && q.trim().length > 0) {
+    try {
+      filter = { content: buildSafeSearchRegex(q.slice(0, 200)) };
+    } catch {
+      filter = {};
+    }
+  }
   const memories = await Memory.find(filter).sort({ importance: -1, createdAt: -1 });
   res.json({ ok: true, total: memories.length, memories });
 });
@@ -103,10 +106,15 @@ router.put('/memories/:id', async (req: Request, res: Response) => {
   const { content, importance, type, tags } = req.body;
   const memory = await Memory.findById(req.params.id);
   if (!memory) { res.status(404).json({ error: 'Memoria no encontrada' }); return; }
-  if (content    !== undefined) memory.content    = content;
+  if (content    !== undefined) {
+    if (typeof content !== 'string' || content.length > 2000) {
+      res.status(400).json({ error: 'El contenido debe ser una cadena de máximo 2000 caracteres' }); return;
+    }
+    memory.content = sanitizeString(content, 2000);
+  }
   if (importance !== undefined) memory.importance = importance;
   if (type       !== undefined) memory.type       = type;
-  if (tags       !== undefined) memory.tags       = Array.isArray(tags) ? tags : String(tags).split(',').map((t: string) => t.trim()).filter(Boolean);
+  if (tags       !== undefined) memory.tags       = sanitizeTags(tags);
   await memory.save();
   res.json({ ok: true, memory });
 });
@@ -679,17 +687,23 @@ router.post('/memories/import', async (req: Request, res: Response) => {
     res.status(400).json({ error: 'memories debe ser un array no vacío' });
     return;
   }
+  if (memories.length > 200) {
+    res.status(400).json({ error: 'Máximo 200 memorias por importación' });
+    return;
+  }
   const { saveMemory } = await import('../tools/memory');
   const results = [];
   for (const m of memories) {
-    if (!m.content) continue;
-    const saved = await saveMemory(m.content, {
+    if (!m.content || typeof m.content !== 'string') continue;
+    const content = sanitizeString(m.content, 2000);
+    if (!content) continue;
+    const saved = await saveMemory(content, {
       type:       m.type,
       importance: m.importance,
       source:     'manual',
-      tags:       m.tags ?? [],
+      tags:       sanitizeTags(m.tags),
     });
-    results.push({ id: String(saved._id), content: m.content.slice(0, 60) });
+    results.push({ id: String(saved._id), content: content.slice(0, 60) });
   }
   res.json({ ok: true, saved: results.length, memories: results });
 });
