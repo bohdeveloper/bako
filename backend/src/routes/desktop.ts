@@ -104,9 +104,9 @@ async function getEmailContext(message: string): Promise<string> {
 // Prompt mínimo para preguntas simples (saludo, hora, rutina) → Ollama puede responder en <5s
 const TRACKER_REGEX = /tracker|kronoshin|biziki|meditaci[oó]n|gym|shaolin|rutina|actividad|completad|perdid/i;
 
-async function getMinimalSystemPrompt(message = ''): Promise<string> {
+async function getMinimalSystemPrompt(message = '', clientLocation?: string): Promise<string> {
   if (TRACKER_REGEX.test(message)) invalidateTrackerCache();
-  const location = await getCurrentLocation();
+  const location = clientLocation || await getCurrentLocation();
   const [dynProfile, ambientCtx, emailCtx] = await Promise.all([
     getDynamicProfileSection(),
     getAmbientContext(location),
@@ -117,9 +117,9 @@ async function getMinimalSystemPrompt(message = ''): Promise<string> {
   return prompt;
 }
 
-async function getFullSystemPrompt(message = '', compact = false): Promise<string> {
+async function getFullSystemPrompt(message = '', compact = false, clientLocation?: string): Promise<string> {
   if (TRACKER_REGEX.test(message)) invalidateTrackerCache();
-  const location = await getCurrentLocation();
+  const location = clientLocation || await getCurrentLocation();
   const [memories, dynProfile, ambientCtx, emailCtx, people, projects, knowledge] = await Promise.all([
     getMemoriesSection(compact ? 2 : 5, 44, compact ? 700 : 1800, message),
     getDynamicProfileSection(),
@@ -171,7 +171,8 @@ router.post('/voice', upload.single('audio'), async (req: Request, res: Response
     }
 
     const ollamaOk     = await getCachedOllamaStatus();
-    const systemPrompt = await getFullSystemPrompt(transcription, true); // always compact — full exceeds Groq 6000 TPM
+    const clientLocation = req.body?.location;
+    const systemPrompt = await getFullSystemPrompt(transcription, true, clientLocation); // always compact — full exceeds Groq 6000 TPM
     const useCloud     = !ollamaOk;
     const response     = await askClaude(transcription, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
     const audioBuffer  = await safeVoiceBuffer(response);
@@ -191,7 +192,7 @@ router.post('/voice', upload.single('audio'), async (req: Request, res: Response
 // POST /api/desktop/text
 router.post('/text', async (req: Request, res: Response) => {
   // auth handled by router.use(requireAuth)
-  const { message, useCloud: clientUseCloud } = req.body;
+  const { message, useCloud: clientUseCloud, location: clientLocation } = req.body;
   if (!message) { res.status(400).json({ error: 'Se requiere campo "message"' }); return; }
 
   // Safety timer: si todo lo demás cuelga, responder antes de que Render corte el TCP (~30s)
@@ -230,8 +231,8 @@ router.post('/text', async (req: Request, res: Response) => {
       console.log(`🔵 Desktop /text: '${complexity}' → ${useCloud ? 'Groq ☁️' : 'Ollama 🏠 (minimal)'}`);
     }
     const systemPrompt = useMinimalPrompt
-      ? await getMinimalSystemPrompt(message)
-      : await getFullSystemPrompt(message, true); // always compact — full (18104 chars) always exceeds Groq 6000 TPM
+      ? await getMinimalSystemPrompt(message, clientLocation)
+      : await getFullSystemPrompt(message, true, clientLocation); // always compact — full (18104 chars) always exceeds Groq 6000 TPM
     console.log(`🔵 Desktop /text: prompt listo (${systemPrompt.length} chars, ${useCloud ? 'Groq' : 'Ollama'})`);
     const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
     console.log(`🔵 Desktop /text: respuesta LLM OK (${response.length} chars)`);

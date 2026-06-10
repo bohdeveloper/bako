@@ -1268,7 +1268,7 @@
 <div class="review-panel" id="reviewPanel">
   <div class="review-label">
     <span>📝 Revisa tu mensaje</span>
-    <span class="review-countdown" id="reviewCountdown">5s</span>
+    <span class="review-countdown" id="reviewCountdown">10s</span>
   </div>
   <div class="review-progress"><div class="review-progress-bar" id="progressBar"></div></div>
   <textarea class="review-text" id="reviewText" rows="2"></textarea>
@@ -1337,8 +1337,29 @@
 
   // ─────────────────────────────────────────────────────────────────────────
   const BAKO_URL    = window.location.origin;
-  const REVIEW_SECS = 5;
+  const REVIEW_SECS = 10;
   const MIN_GAP_MS  = 500;
+
+  // ── Geolocalización por IP ────────────────────────────────────────────────
+  let _cachedLocation = '';
+  let _locationTs     = 0;
+  const LOCATION_TTL  = 30 * 60 * 1000; // 30 min
+
+  async function getCurrentLocation() {
+    if (_cachedLocation && Date.now() - _locationTs < LOCATION_TTL) return _cachedLocation;
+    try {
+      const r = await fetch('https://ip-api.com/json/?fields=city,regionName', { cache: 'no-store' });
+      if (r.ok) {
+        const d = await r.json();
+        const loc = d.city && d.regionName ? `${d.city}, ${d.regionName}` : (d.city || '');
+        if (loc) { _cachedLocation = loc; _locationTs = Date.now(); }
+      }
+    } catch {}
+    return _cachedLocation;
+  }
+
+  // Precalentar en segundo plano al cargar la página
+  getCurrentLocation();
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   const loginScreen  = document.getElementById('loginScreen');
@@ -3016,12 +3037,14 @@
     currentController = new AbortController();
 
     try {
+      const loc = await getCurrentLocation();
       const res = await fetch(`${BAKO_URL}/api/desktop/text`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({
           message: text,
           ...(llmMode === 'ollama' ? { useCloud: false } : {}),
+          ...(loc ? { location: loc } : {}),
         }),
         signal: currentController.signal,
       });

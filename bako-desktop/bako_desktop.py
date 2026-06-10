@@ -71,6 +71,36 @@ THEME_FILE      = os.path.join(os.path.expanduser('~'), '.bako_theme')
 TOKEN_FILE      = os.path.join(os.path.expanduser('~'), '.bako_token')
 USER_FILE       = os.path.join(os.path.expanduser('~'), '.bako_user')
 
+# ── Geolocalización por IP ────────────────────────────────────────────────────
+_ip_location: dict = {}           # {'city': str, 'region': str, 'country': str, 'ts': float}
+_IP_LOCATION_TTL = 30 * 60       # refrescar cada 30 min
+
+def _fetch_ip_location() -> dict:
+    try:
+        r = requests.get('http://ip-api.com/json/?fields=city,regionName,country,lat,lon', timeout=5)
+        if r.ok:
+            d = r.json()
+            return {'city': d.get('city', ''), 'region': d.get('regionName', ''),
+                    'country': d.get('country', ''), 'lat': d.get('lat'), 'lon': d.get('lon')}
+    except Exception:
+        pass
+    return {}
+
+def get_current_location() -> str:
+    global _ip_location
+    if not _ip_location or time.time() - _ip_location.get('ts', 0) > _IP_LOCATION_TTL:
+        data = _fetch_ip_location()
+        if data:
+            _ip_location = {**data, 'ts': time.time()}
+    if _ip_location.get('city'):
+        city = _ip_location['city']
+        region = _ip_location.get('region', '')
+        return f'{city}, {region}' if region else city
+    return ''
+
+# Detectar ubicación al arrancar en background para no ralentizar el inicio
+threading.Thread(target=get_current_location, daemon=True).start()
+
 # ── Presets (sincronizados con PWA) ───────────────────────────────────────────
 PRESETS = [
     ('📅 Agenda', [
@@ -2078,9 +2108,13 @@ class BakoDesktopApp:
         self._set_status('📡 Enviando a BAKO…', self.t['accent'])
 
         try:
+            loc  = get_current_location()
+            body = {'message': text}
+            if loc:
+                body['location'] = loc
             resp = requests.post(
                 f'{BAKO_URL}/api/desktop/text',
-                json={'message': text},
+                json=body,
                 headers=self._get_headers(),
                 timeout=60,
             )
