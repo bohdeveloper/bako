@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const OLLAMA_URL   = process.env.OLLAMA_URL   ?? 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? 'llama3.2:3b';
-const GROQ_MODEL   = process.env.GROQ_MODEL   ?? 'llama-3.1-8b-instant';
+const GROQ_MODEL   = process.env.GROQ_MODEL   ?? 'gemma2-9b-it';
 
 export interface AskClaudeOptions {
   systemPrompt?: string;
@@ -69,7 +69,7 @@ async function askOpenRouter(messages: Message[], maxTokens?: number, temperatur
   const { data } = await axios.post(
     'https://openrouter.ai/api/v1/chat/completions',
     {
-      model: process.env.OPENROUTER_MODEL ?? 'mistralai/mistral-7b-instruct:free',
+      model: process.env.OPENROUTER_MODEL ?? 'deepseek/deepseek-chat-v3-0324:free',
       messages,
       ...(maxTokens ? { max_tokens: maxTokens } : {}),
       temperature: temperature ?? 0.4,

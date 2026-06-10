@@ -30,5 +30,7 @@ services:
         sync: false
       - key: TTS_VOICE
         value: es-ES-AlvaroNeural
+      - key: GROQ_MODEL
+        value: gemma2-9b-it
       - key: OPENROUTER_MODEL
-        value: mistralai/mistral-7b-instruct:free
+        value: deepseek/deepseek-chat-v3-0324:free
