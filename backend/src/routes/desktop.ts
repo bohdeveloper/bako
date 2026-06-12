@@ -193,7 +193,9 @@ router.post('/voice', llmLimiter, upload.single('audio'), async (req: Request, r
 // POST /api/desktop/text
 router.post('/text', llmLimiter, validateMessage, async (req: Request, res: Response) => {
   // auth handled by router.use(requireAuth)
-  const { message, useCloud: clientUseCloud, location: clientLocation } = req.body;
+  const { message, useCloud: clientUseCloud, location: clientLocation, history: clientHistory } = req.body;
+  const conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> =
+    Array.isArray(clientHistory) ? clientHistory.slice(-6) : [];
 
   // Safety timer: si todo lo demás cuelga, responder antes de que Render corte el TCP (~30s)
   const safety = setTimeout(() => {
@@ -212,29 +214,26 @@ router.post('/text', llmLimiter, validateMessage, async (req: Request, res: Resp
       return;
     }
 
-    const ollamaOk = await getCachedOllamaStatus();
-    console.log(`🔵 Desktop /text: ollamaOk=${ollamaOk}`);
-
-    // Routing: badge del cliente tiene prioridad; si no, clasificar por complejidad
-    // Simple (saludo, hora, rutina) → Ollama local con prompt mínimo (~1500 chars, <5s)
-    // Compleja (personas, proyectos, memoria) → Groq con prompt completo
+    // Routing: Ollama solo si el usuario lo fuerza explícitamente con el badge Ollama✦
+    // Auto → siempre Groq; llama3.2:3b no sigue bien el system prompt con contexto ambiental
+    // Queries simples (hora, clima, saludo) → Groq + prompt mínimo (~5k chars, rápido)
+    // Queries complejas (personas, proyectos) → Groq + prompt compacto (~18k chars)
     let useCloud: boolean;
     let useMinimalPrompt = false;
-    if (clientUseCloud !== undefined) {
-      useCloud = Boolean(clientUseCloud);
-    } else if (!ollamaOk) {
-      useCloud = true;
+    if (clientUseCloud === false) {
+      // Badge Ollama✦ forzado por el usuario
+      useCloud = false;
     } else {
+      useCloud = true;
       const complexity = classifyQueryComplexity(message);
-      useCloud = complexity === 'complex';
-      useMinimalPrompt = !useCloud;
-      console.log(`🔵 Desktop /text: '${complexity}' → ${useCloud ? 'Groq ☁️' : 'Ollama 🏠 (minimal)'}`);
+      useMinimalPrompt = complexity === 'simple';
+      console.log(`🔵 Desktop /text: '${complexity}' → Groq ☁️ + prompt ${useMinimalPrompt ? 'minimal' : 'full'}`);
     }
     const systemPrompt = useMinimalPrompt
       ? await getMinimalSystemPrompt(message, clientLocation)
       : await getFullSystemPrompt(message, true, clientLocation); // always compact — full (18104 chars) always exceeds Groq 6000 TPM
     console.log(`🔵 Desktop /text: prompt listo (${systemPrompt.length} chars, ${useCloud ? 'Groq' : 'Ollama'})`);
-    const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
+    const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud, conversationHistory });
     console.log(`🔵 Desktop /text: respuesta LLM OK (${response.length} chars)`);
     const audioBuffer  = await safeVoiceBuffer(response);
     res.json({ response, audio: audioBuffer?.toString('base64') });

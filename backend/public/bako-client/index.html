@@ -2673,6 +2673,7 @@
   let lastRequestMs    = 0;
   let llmMode          = 'auto'; // 'auto' | 'groq' — inicializado en initAuth
   let cooldownUntil    = 0;
+  let convHistory      = []; // rolling history: [{role:'user'|'assistant', content}] — últimos 6 mensajes
   let countdownTimer   = null;
   let countdownVal     = REVIEW_SECS;
   let userEditing      = false;
@@ -3038,6 +3039,7 @@
 
     try {
       const loc = await getCurrentLocation();
+      const historySnapshot = convHistory.slice(-6); // enviar hasta 3 turnos
       const res = await fetch(`${BAKO_URL}/api/desktop/text`, {
         method: 'POST',
         headers: authHeaders(),
@@ -3045,6 +3047,7 @@
           message: text,
           ...(llmMode === 'ollama' ? { useCloud: false } : {}),
           ...(loc ? { location: loc } : {}),
+          ...(historySnapshot.length ? { history: historySnapshot } : {}),
         }),
         signal: currentController.signal,
       });
@@ -3082,6 +3085,11 @@
         const final = stripMd(data.response);
         reuseBtn.onclick = () => { textInput.value = final; textInput.focus(); };
       }
+
+      // Guardar turno en historial (user ya añadido al enviar; aquí guardamos ambos)
+      convHistory.push({ role: 'user', content: text });
+      convHistory.push({ role: 'assistant', content: data.response ?? '' });
+      if (convHistory.length > 12) convHistory = convHistory.slice(-12); // max 6 turnos
 
       if (data.audio) {
         await playBase64Audio(data.audio);
@@ -3318,6 +3326,7 @@
     document.getElementById('bakoTitle').addEventListener('click', () => {
       if (!confirm('¿Limpiar el chat?')) return;
       document.getElementById('chatHistory').innerHTML = '';
+      convHistory = [];
       addMessage('bako', '¿En qué puedo ayudarle, señor?');
     });
 
