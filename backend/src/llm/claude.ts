@@ -281,16 +281,17 @@ export async function askClaude(prompt: string, options: AskClaudeOptions = {}):
 // Clasificador por regex — determinista, 0ms, sin Ollama.
 // Conservador: solo marca simple lo que claramente no necesita contexto de Atlas.
 // Todo lo demás va a Groq con prompt completo.
+// NOTA: no usar \b final con vocales acentuadas — en JS \b falla con chars no-ASCII (á,é,í,ó,ú)
 export function classifyQueryComplexity(message: string): 'simple' | 'complex' {
   const msg = message.trim();
   const simple = [
     // saludos puros
     /^(hola|buenas?|buenos\s+d[íi]as?|buenas?\s+(tardes?|noches?))[\s.!?]*$/i,
     /^(c[óo]mo\s+est[áa]s|qu[ée]\s+tal)[\s.!?]*$/i,
-    // tiempo / clima
-    /\b(llover[áa]|llueve|la\s+lluvia|(?:el\s+)?tiempo\s+(?:ahora|hoy|esta?\s+tarde?|esta?\s+ma[ñn]ana?)|clima|temperatura)\b/i,
+    // tiempo / clima — sin \b final por vocales acentuadas
+    /\b(va\s+a\s+llover|llover[áa]|llueve|la\s+lluvia|(?:el\s+)?tiempo\s+(?:ahora|hoy|esta?\s+tarde?|esta?\s+ma[ñn]ana?|de\s+ma[ñn]ana?)|qu[ée]\s+tiempo|pron[oó]stico|clima|temperatura|hace\s+(?:fr[íi]o|calor|sol|viento))/i,
     // hora y fecha
-    /\b(qu[ée]\s+hora\s+es|qu[ée]\s+d[íi]a\s+(?:es|estamos?)|la\s+fecha\s+(?:de\s+)?hoy|fecha\s+actual)\b/i,
+    /\b(qu[ée]\s+hora\s+es|qu[ée]\s+d[íi]a\s+(?:es|estamos?)|la\s+fecha\s+(?:de\s+)?hoy|fecha\s+actual)/i,
   ];
   return simple.some(p => p.test(msg)) ? 'simple' : 'complex';
 }
