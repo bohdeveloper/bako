@@ -11,8 +11,8 @@ import axios from 'axios';
 import FormData from 'form-data';
 import { askClaude, askClaudeStream, isOllamaAvailable, classifyQueryComplexity } from '../llm/claude';
 import { generateVoiceBuffer, cleanForVoice } from '../tools/tts';
-import { getMemoriesSection, getDynamicProfileSection, getPeopleSection, getProjectsSection, getKnowledgeSection, buildSystemPrompt } from '../tools/telegram';
-import { getAmbientContext, invalidateTrackerCache } from '../tools/context';
+import { getMemoriesSection, getDynamicProfileSection, getPeopleSection, getProjectsSection, getKnowledgeSection, getTasksSection, buildSystemPrompt } from '../tools/telegram';
+import { getAmbientContext } from '../tools/context';
 import { getCurrentLocation } from '../tools/memory';
 import { tryExecuteAction } from '../tools/actions';
 import { requireAuth } from '../middleware/authMiddleware';
@@ -102,11 +102,8 @@ async function getEmailContext(message: string): Promise<string> {
   }
 }
 
-// Prompt mínimo para preguntas simples (saludo, hora, rutina) → Ollama puede responder en <5s
-const TRACKER_REGEX = /tracker|kronoshin|biziki|meditaci[oó]n|gym|shaolin|rutina|actividad|completad|perdid/i;
-
+// Prompt mínimo para preguntas simples (saludo, hora) → Ollama puede responder en <5s
 async function getMinimalSystemPrompt(message = '', clientLocation?: string): Promise<string> {
-  if (TRACKER_REGEX.test(message)) invalidateTrackerCache();
   const location = clientLocation || await getCurrentLocation();
   const [dynProfile, ambientCtx, emailCtx] = await Promise.all([
     getDynamicProfileSection(),
@@ -119,9 +116,8 @@ async function getMinimalSystemPrompt(message = '', clientLocation?: string): Pr
 }
 
 async function getFullSystemPrompt(message = '', compact = false, clientLocation?: string): Promise<string> {
-  if (TRACKER_REGEX.test(message)) invalidateTrackerCache();
   const location = clientLocation || await getCurrentLocation();
-  const [memories, dynProfile, ambientCtx, emailCtx, people, projects, knowledge] = await Promise.all([
+  const [memories, dynProfile, ambientCtx, emailCtx, people, projects, knowledge, tasks] = await Promise.all([
     getMemoriesSection(compact ? 2 : 5, 44, compact ? 700 : 1800, message),
     getDynamicProfileSection(),
     getAmbientContext(location),
@@ -129,10 +125,11 @@ async function getFullSystemPrompt(message = '', compact = false, clientLocation
     getPeopleSection(compact ? 5000 : 6000),
     getProjectsSection(compact ? 6000 : 6000),
     getKnowledgeSection(compact ? 4000 : 5500),
+    getTasksSection(compact ? 900 : 1200),
   ]);
   const fullAmbient = ambientCtx + emailCtx;
-  const prompt = buildSystemPrompt(fullAmbient, memories, dynProfile, people, projects, knowledge);
-  console.log(`📊 Desktop prompt (${compact ? 'compact' : 'full'}): ${prompt.length} chars | people: ${people.length} | projects: ${projects.length} | knowledge: ${knowledge.length} | memories: ${memories.length}`);
+  const prompt = buildSystemPrompt(fullAmbient, memories, dynProfile, people, projects, knowledge, tasks);
+  console.log(`📊 Desktop prompt (${compact ? 'compact' : 'full'}): ${prompt.length} chars | people: ${people.length} | projects: ${projects.length} | knowledge: ${knowledge.length} | memories: ${memories.length} | tasks: ${tasks.length}`);
   return prompt;
 }
 

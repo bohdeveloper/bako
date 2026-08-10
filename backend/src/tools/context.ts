@@ -1,12 +1,12 @@
 /**
  * Contexto ambiental siempre activo de BAKO.
- * Tiempo (ciudad actual), ubicación, agenda y Tracker están disponibles en CADA respuesta.
+ * Tiempo (ciudad actual), ubicación y agenda están disponibles en CADA respuesta.
  * Los datos se cachean para no llamar APIs en cada mensaje.
  */
 
 import { getWeather, getWeatherForCity, WeatherData } from './weather';
 import { getCalendarEvents, CalendarEvent } from './calendar';
-import { getTrackerSummary, TrackerDaySummary, todayStringSpain, nowInSpain } from './cloudflare';
+import { nowInSpain } from './cloudflare';
 
 // ─── Caches ──────────────────────────────────────────────────────────────────
 
@@ -16,10 +16,6 @@ const WEATHER_TTL  = 10 * 60 * 1000; // 10 min — reducido para mayor precisió
 
 let calendarCache: { data: CalendarEvent[]; ts: number } | null = null;
 const CALENDAR_TTL = 60 * 1000; // 1 min — eventos reflejan cambios rápidamente
-
-let trackerCache: { data: TrackerDaySummary; ts: number; date: string } | null = null;
-let trackerFetchError: string | null = null;
-const TRACKER_TTL  =  5 * 60 * 1000; // 5 min — cambia cuando Borja registra actividades
 
 async function cachedWeatherForCity(city: string): Promise<WeatherData | null> {
   const key = city.toLowerCase().trim();
@@ -48,30 +44,6 @@ async function cachedCalendar(): Promise<CalendarEvent[]> {
   }
 }
 
-async function cachedTracker(): Promise<TrackerDaySummary | null> {
-  const today = todayStringSpain();
-  const now = Date.now();
-  if (trackerCache && now - trackerCache.ts < TRACKER_TTL && trackerCache.date === today) {
-    return trackerCache.data;
-  }
-  try {
-    const data = await getTrackerSummary();
-    trackerCache = { data, ts: now, date: today };
-    trackerFetchError = null;
-    return data;
-  } catch (err) {
-    const status = (err as any)?.response?.status;
-    if (status === 401) {
-      trackerFetchError = 'token Cloudflare caducado (401) — hay que renovar CLOUDFLARE_API_TOKEN en Render';
-    } else if (status) {
-      trackerFetchError = `error ${status} al conectar con Cloudflare D1`;
-    } else {
-      trackerFetchError = 'Cloudflare D1 no disponible';
-    }
-    return (trackerCache?.date === today) ? trackerCache!.data : null;
-  }
-}
-
 // Invalida el cache de una ciudad (llamar cuando cambia la ubicación)
 export function invalidateCityWeatherCache(city: string): void {
   weatherByCity.delete(city.toLowerCase().trim());
@@ -80,11 +52,6 @@ export function invalidateCityWeatherCache(city: string): void {
 // Invalida el cache del calendario (llamar tras crear/modificar eventos)
 export function invalidateCalendarCache(): void {
   calendarCache = null;
-}
-
-// Invalida el cache del tracker (llamar cuando el estado puede haber cambiado externamente)
-export function invalidateTrackerCache(): void {
-  trackerCache = null;
 }
 
 // ─── Contexto principal ───────────────────────────────────────────────────────
@@ -152,21 +119,6 @@ export async function getAmbientContext(
       return `${e.title} (${d}${h})`;
     }).join(' · ');
     parts.push(`   Próximos días: ${list}`);
-  }
-
-  // Tracker Personal — cacheado 5 min, siempre presente
-  const tracker = await cachedTracker();
-  if (tracker && tracker.tasks.length > 0) {
-    const taskStr = tracker.tasks.map(t => {
-      const icon = t.done === true ? '✅' : t.done === false ? '❌' : '⏳';
-      return `${icon} ${t.name}`;
-    }).join(', ');
-    parts.push(`📊 Tracker Personal hoy (${tracker.completedCount}/${tracker.tasks.length} completadas): ${taskStr}`);
-    if (tracker.note) parts.push(`   Nota del día: ${tracker.note}`);
-  } else if (tracker) {
-    parts.push(`📊 Tracker Personal: sin actividades programadas para hoy`);
-  } else if (trackerFetchError) {
-    parts.push(`📊 Tracker Personal: no disponible (${trackerFetchError})`);
   }
 
   return `CONTEXTO AMBIENTAL:\n${parts.join('\n')}`;

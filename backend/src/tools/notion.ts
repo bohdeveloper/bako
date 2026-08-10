@@ -24,6 +24,8 @@ export interface NotionProject {
   estado: string;
   descripcion: string;
   siguiente_accion: string;
+  stack: string[];
+  urls: string[];
 }
 
 function extractText(prop: any): string {
@@ -40,6 +42,28 @@ function extractSelect(prop: any): string {
 
 function extractDate(prop: any): string | null {
   return prop?.date?.start ?? null;
+}
+
+function extractUrl(prop: any): string {
+  return prop?.url ?? '';
+}
+
+// Stack se guarda como texto libre separado por comas ("Angular, Spring Boot, PostgreSQL")
+function splitList(raw: string): string[] {
+  return raw.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function mapProject(p: any): NotionProject {
+  const url = extractUrl(p.properties.URL);
+  return {
+    id:               p.id,
+    nombre:           extractTitle(p.properties.Nombre),
+    estado:           extractSelect(p.properties.Estado),
+    descripcion:      extractText(p.properties.Descripción),
+    siguiente_accion: extractText(p.properties['Siguiente acción'] ?? p.properties['Siguiente paso'] ?? {}),
+    stack:            splitList(extractText(p.properties.Stack)),
+    urls:             url ? [url] : [],
+  };
 }
 
 export async function getNotionTasks(): Promise<NotionTask[]> {
@@ -81,13 +105,33 @@ export async function getNotionProjects(): Promise<NotionProject[]> {
     sorts: [{ property: 'Estado', direction: 'ascending' }],
   });
 
-  return data.results.map((p: any) => ({
-    id:               p.id,
-    nombre:           extractTitle(p.properties.Nombre),
-    estado:           extractSelect(p.properties.Estado),
-    descripcion:      extractText(p.properties.Descripción),
-    siguiente_accion: extractText(p.properties['Siguiente acción'] ?? p.properties['Siguiente paso'] ?? {}),
-  }));
+  return data.results.map(mapProject);
+}
+
+// Todos los proyectos sin filtrar por estado — para el espejo en Mongo,
+// que debe reflejar también los completados y abandonados.
+export async function getAllNotionProjects(): Promise<NotionProject[]> {
+  const dbId = process.env.NOTION_PROJECTS_DB_ID;
+  if (!dbId) throw new Error('NOTION_PROJECTS_DB_ID no definido en .env');
+
+  const { data } = await api.post(`/databases/${dbId}/query`, {
+    sorts: [{ property: 'Estado', direction: 'ascending' }],
+  });
+
+  return data.results.map(mapProject);
+}
+
+// Mismo formato en prosa que formatProjectForContext, para que el prompt no
+// cambie de estilo según venga de Notion o del espejo en Mongo.
+export function formatNotionProjectForContext(p: NotionProject): string {
+  let frase = `${p.nombre} es un proyecto actualmente ${(p.estado || 'activo').toLowerCase()}`;
+  if (p.descripcion) frase += `. ${p.descripcion}`;
+  const detalles: string[] = [];
+  if (p.siguiente_accion) detalles.push(`la siguiente acción es ${p.siguiente_accion}`);
+  if (p.stack.length)     detalles.push(`stack: ${p.stack.join(', ')}`);
+  if (p.urls.length)      detalles.push(`url: ${p.urls.join(', ')}`);
+  if (detalles.length) frase += '. ' + detalles.join('; ') + '.';
+  return frase;
 }
 
 export async function updateNotionProjectSiguienteAccion(

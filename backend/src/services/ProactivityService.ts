@@ -6,7 +6,7 @@ import cron from 'node-cron';
 import { runMorningBriefing } from '../agents/MorningBriefingAgent';
 import { fetchGitHubData, getUserRepos, getPRFiles, getPRDetails } from '../tools/github';
 import { getCalendarEvents } from '../tools/calendar';
-import { getTrackerSummary, nowInSpain } from '../tools/cloudflare';
+import { nowInSpain } from '../tools/cloudflare';
 import { getNotionTasks } from '../tools/notion';
 import { sendSystemMessage } from '../tools/telegram';
 import { Rule } from '../memory/Rule';
@@ -28,7 +28,6 @@ export const DEFAULT_SCHEDULES: Record<string, string> = {
   perfil:          '0 9 * * 1',
   techradar:       '30 9 * * 1',
   resumen_semanal: '0 18 * * 5',
-  tracker_vacio:   '0 22 * * 1-5',
 };
 
 // ─── Registro dinámico de tareas ──────────────────────────────────────────────
@@ -423,20 +422,6 @@ async function runResumenSemanalJob(): Promise<void> {
   } catch (err) { console.error('❌ CRON Resumen semanal:', (err as Error).message); }
 }
 
-async function runTrackerVacioJob(): Promise<void> {
-  if (!await isJobEnabled('tracker_vacio')) return;
-  console.log('⏰ CRON: Verificando Tracker');
-  try {
-    const tracker = await getTrackerSummary();
-    if (tracker.tasks.length === 0) {
-      await sendSystemMessage(
-        '📊 Señor, el Tracker de hoy está vacío. ¿Quiere registrar las actividades del día?',
-        'Señor, el Tracker de hoy está vacío. ¿Quiere registrar las actividades del día?'
-      );
-    }
-  } catch (err) { console.error('❌ CRON Tracker check:', (err as Error).message); }
-}
-
 // ─── Servicio principal ───────────────────────────────────────────────────────
 
 export async function startProactivityService(): Promise<void> {
@@ -457,5 +442,4 @@ export async function startProactivityService(): Promise<void> {
   registerTask('perfil',          s('perfil'),          runPerfilJob);
   registerTask('techradar',       s('techradar'),       runTechRadarJob);
   registerTask('resumen_semanal', s('resumen_semanal'), runResumenSemanalJob);
-  registerTask('tracker_vacio',   s('tracker_vacio'),   runTrackerVacioJob);
 }

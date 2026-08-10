@@ -11,7 +11,6 @@
 import { createNotionTask, updateNotionTaskStatus, findNotionTaskByName, updateNotionProjectSiguienteAccion } from './notion';
 import { createCalendarEvent } from './calendar';
 import { createIssueSync, closeIssueSync } from './issueSync';
-import { markTrackerRecord, getTrackerSummary, formatTrackerForSpeech } from './cloudflare';
 import { askClaude } from '../llm/claude';
 import { invalidateCalendarCache } from './context';
 import { nowInSpain } from './cloudflare';
@@ -188,82 +187,6 @@ Responde SOLO con JSON válido:
   return `✅ Issue *"${p.titulo}"* cerrado:\n${parts.join('\n')}`;
 }
 
-// ─── TRACKER: Consultar estado de actividad ──────────────────────────────────
-
-async function executeQueryTracker(text: string): Promise<string> {
-  const raw = await askClaude(text, {
-    systemPrompt: `Extrae el nombre de la actividad sobre la que se pregunta.
-El Tracker registra: Kronoshin, BIZIKI, meditación, gym, lectura, etc.
-
-Responde SOLO con JSON válido:
-{"actividad":"nombre de la actividad, o null si se pregunta por todo el tracker"}
-
-Ejemplos:
-- "¿He hecho el Kronoshin hoy?" → {"actividad":"Kronoshin"}
-- "¿Hice la meditación?" → {"actividad":"meditación"}
-- "¿Cómo va el tracker hoy?" → {"actividad":null}`,
-    maxTokens: 100,
-    useCloud: true,
-  });
-
-  const match = raw.match(/\{[\s\S]*?\}/);
-  if (!match) throw new Error('No pude interpretar la consulta del Tracker.');
-
-  const p = JSON.parse(match[0]);
-  const summary = await getTrackerSummary();
-
-  if (!p.actividad) {
-    return formatTrackerForSpeech(summary);
-  }
-
-  const task = summary.tasks.find(t =>
-    t.name.toLowerCase().includes((p.actividad as string).toLowerCase()) ||
-    (p.actividad as string).toLowerCase().includes(t.name.toLowerCase())
-  );
-
-  if (!task) {
-    const names = summary.tasks.map(t => t.name).join(', ');
-    return `⚠️ No encontré ninguna actividad llamada *"${p.actividad}"* para hoy. Actividades: ${names}.`;
-  }
-
-  if (task.done === true)  return `✅ *${task.name}* completada hoy.`;
-  if (task.done === false) return `❌ *${task.name}* marcada como no completada${task.reason ? `: ${task.reason}` : '.'}`;
-  return `⏳ *${task.name}* aún no registrada hoy (pendiente).`;
-}
-
-// ─── TRACKER: Marcar actividad ───────────────────────────────────────────────
-
-async function executeMarkTracker(text: string): Promise<string> {
-  const raw = await askClaude(text, {
-    systemPrompt: `Extrae los datos de esta petición de marcar una actividad del Tracker diario.
-El Tracker registra actividades de la rutina diaria (Kronoshin, BIZIKI, meditación, gym, lectura, etc.).
-
-Responde SOLO con JSON válido:
-{"actividad":"nombre aproximado de la actividad","hecho":true|false,"motivo":"razón si no se hizo o null"}
-
-Ejemplos de interpretación:
-- "completé el Kronoshin" → {"actividad":"Kronoshin","hecho":true,"motivo":null}
-- "no pude ir a BIZIKI porque llovía" → {"actividad":"BIZIKI","hecho":false,"motivo":"llovía"}
-- "hice la meditación" → {"actividad":"meditación","hecho":true,"motivo":null}`,
-    maxTokens: 150,
-    useCloud: true,
-  });
-
-  const match = raw.match(/\{[\s\S]*?\}/);
-  if (!match) throw new Error('No pude interpretar la actividad a registrar.');
-
-  const p = JSON.parse(match[0]);
-  if (!p.actividad) throw new Error('No se especificó qué actividad registrar.');
-
-  const result = await markTrackerRecord(p.actividad, p.hecho, p.motivo ?? undefined);
-
-  if (!result.success) return `⚠️ ${result.message}`;
-
-  const estado = p.hecho ? 'completada' : 'marcada como no completada';
-  const icon   = p.hecho ? '✅' : '❌';
-  return `${icon} *${result.taskName}* ${estado} en el Tracker.${p.motivo ? `\n📝 Motivo: ${p.motivo}` : ''}`;
-}
-
 // ─── SIGUIENTE ACCIÓN DE PROYECTO ────────────────────────────────────────────
 
 async function executeUpdateSiguienteAccion(text: string): Promise<string> {
@@ -297,13 +220,7 @@ const GITHUB_ISSUE_CREATE   = /crea[r]?\s+(un[ao]?\s+)?issue|abre?\s+(un[ao]?\s+
 const ISSUE_CLOSE           = /cierra?\s+(el\s+)?issue|completa?\s+(el\s+)?issue|marca[r]?\s+(el\s+)?issue\s+como\s+(completad[ao]|cerrad[ao])|cerrar\s+issue|issue\s+completad[ao]/i;
 const SIGUIENTE_ACCION_UPD  = /actualiza\s+(el\s+)?siguiente\s+(paso|acci[oó]n)|siguiente\s+(paso|acci[oó]n)\s+(de|en|para)\s+\w+\s+(es|ser[aá]|va\s+a\s+ser)/i;
 
-// Marcar actividad del Tracker: "completé X", "hice X", "no pude hacer X", "X no completada"
-const TRACKER_MARK = /(?:complet[eé]|hice|he?\s+hecho|hiciste?\s+el|ya\s+hice?|ya\s+complet[eé]|registra[r]?\s+que|marca[r]?\s+como|no\s+(?:pude?|hice?|fui?)\s+(?:a\s+)?|no\s+(?:he?\s+)?(?:hecho|completado))\s+.+/i;
-
 const NOTION_TASK_UPDATE = /marca[r]?\s+.+\s+(?:como\s+)?(?:completada?|hecha?|lista?|done|terminada?|en\s+progreso|empezada?)/i;
-const TRACKER_KEYWORDS   = /tracker|kronoshin|biziki|meditaci[oó]n|gym|shaolin|rutina\s+del\s+d[ií]a/i;
-// Pregunta sobre el estado del tracker (consulta, no acción) — contiene ¿ o ?
-const IS_QUESTION        = /[¿?]/;
 
 export interface ExecutionResult {
   text:  string;
@@ -337,19 +254,7 @@ export async function tryExecuteAction(userText: string): Promise<ExecutionResul
       return { text, voice: stripMarkdown(text) };
     }
 
-    // Tracker: consultar estado (¿he hecho X?) — antes que el mark para evitar falsos positivos
-    if (IS_QUESTION.test(userText) && TRACKER_KEYWORDS.test(userText)) {
-      const text = await executeQueryTracker(userText);
-      return { text, voice: stripMarkdown(text) };
-    }
-
-    // Tracker: marcar actividad (antes que Notion para evitar falsos positivos)
-    if (TRACKER_MARK.test(userText) && TRACKER_KEYWORDS.test(userText) && !IS_QUESTION.test(userText)) {
-      const text = await executeMarkTracker(userText);
-      return { text, voice: stripMarkdown(text) };
-    }
-
-    if (NOTION_TASK_UPDATE.test(userText) && !TRACKER_KEYWORDS.test(userText)) {
+    if (NOTION_TASK_UPDATE.test(userText)) {
       const text = await executeUpdateNotionTask(userText);
       return { text, voice: stripMarkdown(text) };
     }

@@ -54,8 +54,8 @@ export const BAKO_PROFILE = {
       tracker_diario: {
         descripcion: "Herramienta de seguimiento de rutina diaria. Borja marca si las completó o no, y opcionalmente anota el motivo si no las hizo.",
         datos: "Cloudflare D1",
-        integracion_bako: "BAKO puede consultar las tareas del día, su estado, y marcar actividades como completadas o no completadas vía comandos de voz o texto.",
-        estado: "En producción — uso diario",
+        integracion_bako: "NINGUNA. BAKO no consulta ni escribe en el Tracker. Si el señor pregunta por su rutina diaria, Kronoshin o el Tracker, responde que no tienes acceso y que lo consulte en bohdeveloper.com/admin. Nunca inventes el estado de una actividad.",
+        estado: "En producción — uso diario, gestionado solo desde el panel admin",
       },
     },
     diamadmin: {

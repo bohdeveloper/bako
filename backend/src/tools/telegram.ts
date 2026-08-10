@@ -6,10 +6,11 @@ import { buildTechRadar, buildPRReviews } from '../services/ProactivityService';
 import { isJobEnabled, toggleJob, JOB_DEFS, AutoConfig } from '../memory/AutoConfig';
 import { getWeather } from './weather';
 import { fetchGitHubData } from './github';
-import { getNotionTasks, createNotionTask } from './notion';
+import { getNotionTasks, createNotionTask, getAllNotionProjects, formatNotionProjectForContext } from './notion';
+import { syncNotionProjectsToMongo } from './projectSync';
 import { getCalendarEvents, formatEventsForSpeech } from './calendar';
 import { getUnreadEmails, getEmailBody, createDraft, sendEmail, sendDraft, formatEmailsForSpeech, formatEmailsForText } from './gmail';
-import { getTrackerSummary, formatTrackerForSpeech, markTrackerRecord, getBlogComments, formatCommentsForSpeech, nowInSpain } from './cloudflare';
+import { getBlogComments, formatCommentsForSpeech, nowInSpain } from './cloudflare';
 import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
 import { generateVoiceBuffer, setVoice, getCurrentVoiceKey, VOCES_DISPONIBLES, cleanForVoice } from './tts';
 import { BAKO_PROFILE } from '../knowledge/profile';
@@ -20,9 +21,9 @@ import { Person, formatPersonForContext } from '../memory/Person';
 import { Project, formatProjectForContext } from '../memory/Project';
 import { KnowledgeEntry, formatKnowledgeForContext } from '../memory/KnowledgeEntry';
 import { tryExecuteAction } from './actions';
-import { getAmbientContext, invalidateCityWeatherCache, invalidateCalendarCache, invalidateTrackerCache } from './context';
+import { getAmbientContext, invalidateCityWeatherCache, invalidateCalendarCache } from './context';
 
-export function buildSystemPrompt(extraContext = '', memoriesSection = '', dynamicProfileSection = '', peopleSection = '', projectsSection = '', knowledgeSection = ''): string {
+export function buildSystemPrompt(extraContext = '', memoriesSection = '', dynamicProfileSection = '', peopleSection = '', projectsSection = '', knowledgeSection = '', tasksSection = ''): string {
   const now   = nowInSpain();
   const hora  = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
   const fecha = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -62,7 +63,7 @@ REGLAS DE CONVERSACIÓN:
 - Nunca inventes datos. Si no sabes algo, dilo sin rodeos.
 - Si hay dos datos contradictorios en memoria, usa el más reciente sin mencionar el conflicto.
 - Detecta si el señor usa ironía o humor: si es así, y tus parámetros lo permiten, entra al juego.
-- PROHIBIDO inventar acciones físicas no ejecutadas: no digas que has preparado el desayuno, encendido luces, hecho la cama, puesto el café, ni ninguna acción del mundo físico. BAKO es digital — solo actúa en Calendar, Notion, GitHub, Tracker y Gmail. Si el señor pregunta si estás listo, responde con energía basándote en datos reales del contexto (agenda, tracker, clima), no inventando servicios físicos.
+- PROHIBIDO inventar acciones físicas no ejecutadas: no digas que has preparado el desayuno, encendido luces, hecho la cama, puesto el café, ni ninguna acción del mundo físico. BAKO es digital — solo actúa en Calendar, Notion, GitHub y Gmail. Si el señor pregunta si estás listo, responde con energía basándote en datos reales del contexto (agenda, tareas, clima), no inventando servicios físicos.
 - CALENDARIO — fuente de verdad ABSOLUTA: los únicos eventos válidos son los que aparecen en "Eventos restantes hoy" y "Próximos días" del CONTEXTO AMBIENTAL. Si un evento NO está listado ahí, NO EXISTE. NUNCA deduzcas ni inventes citas a partir de rutinas habituales (psicólogo, entrenamiento, BIZIKI, gym, etc.) — esas son rutinas del CONOCIMIENTO PERSONAL, no son eventos del calendario. NUNCA combines datos de personas (People) con datos de rutinas para inventar citas. Si el señor pregunta qué tiene hoy y no hay eventos en el contexto, responde exactamente: "No tienes ningún evento en el calendario hoy." Nunca menciones eventos de memoria o conversaciones pasadas como si fueran actuales.
 - EMAIL — fuente de verdad: los únicos correos válidos son los que aparecen bajo "EMAILS SIN LEER" en el CONTEXTO AMBIENTAL. Si esa sección no existe en el contexto, responde literalmente: "No tengo acceso al correo en este cliente — usa /email en Telegram para ver tus emails." NUNCA inventes, recuerdes ni menciones emails de conversaciones anteriores como si fueran actuales.
 
@@ -72,6 +73,7 @@ CONTEXTO ACTUAL:
 ${extraContext}
 ${dynamicProfileSection ? `\n${dynamicProfileSection}\n` : ''}
 ${projectsSection ? `PROYECTOS DE BORJA (estado actual y siguiente acción — úsalos como contexto, no los listes a menos que se pidan):\n${projectsSection}\n` : ''}
+${tasksSection ? `TAREAS PENDIENTES DE BORJA (fuente de verdad: Notion. Si el señor pregunta qué tiene pendiente, responde SOLO con esto. Si esta sección no aparece, di que no tienes acceso a las tareas — nunca las inventes):\n${tasksSection}\n` : ''}
 ${peopleSection ? `PERSONAS QUE BAKO CONOCE (úsalas con naturalidad al hablar, no las enumeres a menos que se pidan explícitamente):\n${peopleSection}\n` : ''}
 ${knowledgeSection ? `CONOCIMIENTO PERSONAL DE BORJA (salud, valores, finanzas, historia, rutina — úsalo como contexto natural):\n${knowledgeSection}\n` : ''}
 ${memoriesSection ? `RECUERDOS DINÁMICOS (hechos, observaciones, estados — complementan el perfil estructurado):\n${memoriesSection}\n` : ''}
@@ -91,15 +93,55 @@ export async function getPeopleSection(charBudget = Infinity): Promise<string> {
   }
 }
 
+function truncateAtLine(full: string, charBudget: number): string {
+  if (full.length <= charBudget) return full;
+  const cut = full.lastIndexOf('\n', charBudget);
+  return cut > 0 ? full.slice(0, cut) : full.slice(0, charBudget);
+}
+
+// Notion es la fuente de verdad de los proyectos. Cada lectura correcta refresca
+// el espejo en Mongo, que solo se usa para responder si Notion no contesta.
 export async function getProjectsSection(charBudget = 3000): Promise<string> {
+  try {
+    const notionProjects = await getAllNotionProjects();
+
+    syncNotionProjectsToMongo(notionProjects).catch(err =>
+      console.error('⚠️ Espejo Notion→Mongo de proyectos:', (err as Error).message)
+    );
+
+    const activos = notionProjects.filter(p => !/completado|abandonado/i.test(p.estado));
+    if (activos.length) {
+      const full = activos.map(formatNotionProjectForContext).join('\n');
+      return truncateAtLine(full, charBudget);
+    }
+  } catch (err) {
+    console.error('⚠️ Notion no disponible, uso el espejo en Mongo:', (err as Error).message);
+  }
+
   try {
     const projects = await Project.find({ activo: { $ne: false } }).sort({ orden: 1, nombre: 1 });
     if (!projects.length) return '';
-    const full = projects.map(formatProjectForContext).join('\n');
-    if (full.length <= charBudget) return full;
-    const cut = full.lastIndexOf('\n', charBudget);
-    return cut > 0 ? full.slice(0, cut) : full.slice(0, charBudget);
+    return truncateAtLine(projects.map(formatProjectForContext).join('\n'), charBudget);
   } catch {
+    return '';
+  }
+}
+
+// Tareas pendientes de Notion — antes solo se veían con /tareas, ahora entran en
+// el contexto de cada respuesta.
+export async function getTasksSection(charBudget = 1200): Promise<string> {
+  try {
+    const tasks = await getNotionTasks();
+    if (!tasks.length) return '';
+    const full = tasks.map(t => {
+      const partes = [`${t.nombre} (${t.estado || 'Pendiente'}, prioridad ${t.prioridad || 'Media'}`];
+      if (t.proyecto)    partes.push(`proyecto ${t.proyecto}`);
+      if (t.fechaLimite) partes.push(`fecha límite ${t.fechaLimite}`);
+      return partes.join(', ') + ')';
+    }).join('\n');
+    return truncateAtLine(full, charBudget);
+  } catch (err) {
+    console.error('⚠️ No pude leer las tareas de Notion:', (err as Error).message);
     return '';
   }
 }
@@ -508,19 +550,15 @@ async function transcribeAudio(buffer: Buffer): Promise<string> {
 //
 // MAPEO SEMÁNTICO:
 //  "eventos" / "reuniones" / "citas" / "calendario"  → Google Calendar (/agenda)
-//  "tareas" / "horario" / "actividades" / "rutina"   → Tracker diario (/tracker)
-//  "proyectos" / "Notion" / "tareas de [proyecto]"   → Notion (/tareas)
+//  "tareas" / "pendientes" / "proyectos" / "Notion"  → Notion (/tareas)
 function detectDataIntent(text: string): string | null {
   const t = text.toLowerCase();
 
   // Google Calendar — eventos, reuniones, citas
   if (/\b(eventos?\s+(de\s+)?(hoy|ma[nñ]ana|esta\s+semana)|reuniones?\s+(de\s+)?(hoy|ma[nñ]ana)|citas?\s+(de\s+)?(hoy|ma[nñ]ana)|qu[eé]\s+tengo\s+en\s+el\s+calendario|calendario\s+(de\s+)?hoy|tengo\s+(algo|alguna?\s+reuni[oó]n)\s+(hoy|ma[nñ]ana))\b/.test(t)) return '/agenda';
 
-  // Tracker diario — tareas del día, horario, actividades, rutina
-  if (/\b(mis?\s+tareas?\s+(de\s+)?hoy|c[oó]mo\s+va\s+mi\s+(d[ií]a|rutina)|mi\s+horario\s+(de\s+)?hoy|qu[eé]\s+(tareas?|actividades?|cosas?)\s+tengo\s+(para\s+)?hoy|actividades?\s+(de\s+)?hoy|qu[eé]\s+he?\s+(hecho|completado)\s+hoy|mi\s+tracker|kronoshin|c[oó]mo\s+(va|est[aá])\s+(el\s+)?tracker|rutina\s+(de\s+)?hoy)\b/.test(t)) return '/tracker';
-
-  // Notion — proyectos, issues pendientes de trabajo
-  if (/\b(mis?\s+proyectos?\s+pendientes?|issues?\s+(en|de)\s+notion|tareas?\s+de\s+(diamadmin|unyona|bohdeveloper)|pendientes?\s+(en\s+)?notion|qu[eé]\s+proyecto[s]?\s+tengo\s+pendientes?)\b/.test(t)) return '/tareas';
+  // Notion — tareas pendientes, issues y proyectos
+  if (/\b(mis?\s+tareas?(\s+(de\s+)?(hoy|pendientes?))?|qu[eé]\s+(tareas?|cosas?)\s+tengo\s+(para\s+)?(hoy|pendientes?)|mis?\s+proyectos?\s+pendientes?|issues?\s+(en|de)\s+notion|tareas?\s+de\s+(diamadmin|unyona|bohdeveloper)|pendientes?\s+(en\s+)?notion|qu[eé]\s+proyecto[s]?\s+tengo\s+pendientes?|qu[eé]\s+tengo\s+pendiente)\b/.test(t)) return '/tareas';
 
   // Crear issue (Notion + GitHub)
   if (/\b(crea\s+(un\s+)?issue|a[nñ]ade\s+(un\s+)?issue|nuevo\s+issue|crear\s+issue)\b/.test(t)) return '/crear-issue';
@@ -627,30 +665,6 @@ async function handleCommand(chatId: number, command: string, originalText = '')
     }
     if (!text) text = '✅ No tiene issues pendientes.';
     await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
-    return;
-  }
-
-  if (command === '/tracker') {
-    await bot.sendMessage(chatId, '📊 Consultando el Tracker...');
-    const summary = await getTrackerSummary();
-    const speech  = formatTrackerForSpeech(summary);
-
-    let text = `📊 *Tracker — ${summary.date}* (${summary.timeInSpain})\n\n`;
-    if (summary.tasks.length === 0) {
-      text += 'No hay actividades trackeadas para hoy.';
-    } else {
-      summary.tasks.forEach(t => {
-        const icon = t.done === true ? '✅' : t.done === false ? '❌' : '⏳';
-        text += `${icon} *${t.name}* — ${t.time}`;
-        if (t.done === false && t.reason) text += `\n   _↳ ${t.reason}_`;
-        text += '\n';
-      });
-      text += `\n✅ ${summary.completedCount}  ❌ ${summary.notDoneCount}  ⏳ ${summary.pendingCount}`;
-    }
-    if (summary.note) text += `\n\n📝 _${summary.note}_`;
-
-    await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
-    if (summary.tasks.length > 0) await sendVoiceReply(chatId, speech);
     return;
   }
 
@@ -1202,7 +1216,7 @@ export function startTelegramBot(): void {
     catch (err) { await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`); }
   });
 
-  bot.onText(/^\/(briefing|tiempo|proyectos|tareas|agenda|tracker|comentarios|servicio|limites|recordatorios|reglas|techradar|prreview|automaticos)$/, async (msg, match) => {
+  bot.onText(/^\/(briefing|tiempo|proyectos|tareas|agenda|comentarios|servicio|limites|recordatorios|reglas|techradar|prreview|automaticos)$/, async (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return;
     try {
@@ -1305,17 +1319,18 @@ export function startTelegramBot(): void {
       }
 
       const voiceLocation = await getCurrentLocation();
-      const [memoriesSection, ambientCtx, dynProfile, peopleSection, projectsSection, knowledgeSection] = await Promise.all([
+      const [memoriesSection, ambientCtx, dynProfile, peopleSection, projectsSection, knowledgeSection, tasksSection] = await Promise.all([
         getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, transcription),
         getAmbientContext(voiceLocation),
         getDynamicProfileSection(),
         getPeopleSection(),
         getProjectsSection(),
         getKnowledgeSection(),
+        getTasksSection(),
       ]);
       const voiceHistory = getSessionHistory(chatId);
       const response = await askClaude(transcription, await resolveLlmOptions({
-        systemPrompt: buildSystemPrompt(ambientCtx, memoriesSection, dynProfile, peopleSection, projectsSection, knowledgeSection),
+        systemPrompt: buildSystemPrompt(ambientCtx, memoriesSection, dynProfile, peopleSection, projectsSection, knowledgeSection, tasksSection),
         conversationHistory: voiceHistory,
       }));
       await sendVoiceReply(chatId, response);
@@ -1545,19 +1560,17 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
       if (/calendario|agenda|cita|reuni[oó]n|evento|gmail|correo|email|mail/i.test(text)) {
         invalidateCalendarCache();
       }
-      if (/tracker|kronoshin|biziki|meditaci[oó]n|gym|shaolin|rutina|actividad|completad|perdid/i.test(text)) {
-        invalidateTrackerCache();
-      }
 
-      // Contexto ambiental siempre activo: tiempo (ciudad actual), ubicación, agenda, tracker
+      // Contexto ambiental siempre activo: tiempo (ciudad actual), ubicación, agenda
       const currentLocation = await getCurrentLocation();
-      const [memoriesSection, ambientCtx, dynProfile, peopleSection, projectsSection, knowledgeSection] = await Promise.all([
+      const [memoriesSection, ambientCtx, dynProfile, peopleSection, projectsSection, knowledgeSection, tasksSection] = await Promise.all([
         getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, text),
         getAmbientContext(currentLocation),
         getDynamicProfileSection(),
         getPeopleSection(),
         getProjectsSection(),
         getKnowledgeSection(),
+        getTasksSection(),
       ]);
 
       // Contexto adicional según keywords específicos
@@ -1568,40 +1581,6 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
         const repos = gh.repos.slice(0, 3).map(r => r.name).join(', ');
         additionalParts.push(`Proyectos activos: ${repos}`);
         if (gh.recentCommits.length > 0) additionalParts.push(`Commits recientes: ${gh.recentCommits.length}`);
-      }
-
-      if (/tracker|actividad|kronoshin|biziki|tarea.*hoy|hoy.*tarea|completad|completar|marcar|registrar|hice|no hice/i.test(text)) {
-        const writeMatch   = text.match(/(?:marca|pon|registra|completa|da por completad[ao]|marca como hecha?)\s+(?:la tarea\s+)?(.+?)(?:\s+como\s+(?:completad[ao]|hech[ao]|done|lista?|realizada?))?(?:\s+en tracker)?\.?$/i);
-        const notDoneMatch = text.match(/(?:marca|pon|registra)\s+(?:la tarea\s+)?(.+?)\s+como\s+(?:no completad[ao]|no hech[ao]|pendiente|fallid[ao])(?:\s+(?:porque|por|motivo[:]?)\s+(.+))?\.?$/i);
-
-        if (notDoneMatch) {
-          const taskName = notDoneMatch[1].trim();
-          const reason   = notDoneMatch[2]?.trim();
-          const result   = await markTrackerRecord(taskName, false, reason);
-          const reply    = result.success ? `✅ ${result.message}` : `⚠️ ${result.message}`;
-          await bot.sendMessage(chatId, reply);
-          if (result.success) await sendVoiceReply(chatId, result.message);
-          appendToSession(chatId, text, result.message);
-          return;
-        }
-
-        if (writeMatch) {
-          const taskName = writeMatch[1].trim();
-          const result   = await markTrackerRecord(taskName, true);
-          const reply    = result.success ? `✅ ${result.message}` : `⚠️ ${result.message}`;
-          await bot.sendMessage(chatId, reply);
-          if (result.success) await sendVoiceReply(chatId, result.message);
-          appendToSession(chatId, text, result.message);
-          return;
-        }
-
-        const summary    = await getTrackerSummary();
-        const trackerCtx = summary.tasks.map(t => {
-          const estado = t.done === true ? 'completada' : t.done === false ? `no completada${t.reason ? ` (${t.reason})` : ''}` : 'pendiente';
-          return `${t.name} [${t.time}]: ${estado}`;
-        }).join('\n');
-        additionalParts.push(`Tracker detallado de hoy (${summary.date}):\n${trackerCtx}`);
-        additionalParts.push(`Resumen: ${summary.completedCount} completadas, ${summary.notDoneCount} no hechas, ${summary.pendingCount} pendientes`);
       }
 
       if (/comentario|blog|post/i.test(text)) {
@@ -1616,7 +1595,7 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
       const conversationHistory = getSessionHistory(chatId);
 
       const response = await askClaude(text, await resolveLlmOptions({
-        systemPrompt: buildSystemPrompt(extraContext, memoriesSection, dynProfile, peopleSection, projectsSection, knowledgeSection),
+        systemPrompt: buildSystemPrompt(extraContext, memoriesSection, dynProfile, peopleSection, projectsSection, knowledgeSection, tasksSection),
         conversationHistory,
       }));
       await sendVoiceReply(chatId, response);

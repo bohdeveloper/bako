@@ -70,13 +70,6 @@ export const JOB_DEFS: JobDef[] = [
     descripcion: 'Resumen de la semana: repos, tareas, próximos eventos',
     icon:        '📊',
   },
-  {
-    key:         'tracker_vacio',
-    nombre:      'Alerta Tracker vacío',
-    horario:     'L-V 22:00',
-    descripcion: 'Recuerda registrar las actividades del día si el Tracker está vacío',
-    icon:        '📋',
-  },
 ];
 
 export async function isJobEnabled(key: string): Promise<boolean> {
