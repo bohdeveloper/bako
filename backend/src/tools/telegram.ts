@@ -6,7 +6,7 @@ import { buildTechRadar, buildPRReviews } from '../services/ProactivityService';
 import { isJobEnabled, toggleJob, JOB_DEFS, AutoConfig } from '../memory/AutoConfig';
 import { getWeather } from './weather';
 import { fetchGitHubData } from './github';
-import { getNotionTasks, createNotionTask, getAllNotionProjects, formatNotionProjectForContext } from './notion';
+import { getNotionTasks, createNotionTask, getAllNotionProjects, formatNotionProjectForContext, iconoPrioridad } from './notion';
 import { syncNotionProjectsToMongo } from './projectSync';
 import { getCalendarEvents, formatEventsForSpeech } from './calendar';
 import { getUnreadEmails, getEmailBody, createDraft, sendEmail, sendDraft, formatEmailsForSpeech, formatEmailsForText } from './gmail';
@@ -109,7 +109,7 @@ export async function getProjectsSection(charBudget = 3000): Promise<string> {
       console.error('⚠️ Espejo Notion→Mongo de proyectos:', (err as Error).message)
     );
 
-    const activos = notionProjects.filter(p => !/completado|abandonado/i.test(p.estado));
+    const activos = notionProjects.filter(p => !/terminado|archivado/i.test(p.estado));
     if (activos.length) {
       const full = activos.map(formatNotionProjectForContext).join('\n');
       return truncateAtLine(full, charBudget);
@@ -133,13 +133,23 @@ export async function getTasksSection(charBudget = 1200): Promise<string> {
   try {
     const tasks = await getNotionTasks();
     if (!tasks.length) return '';
-    const full = tasks.map(t => {
-      const partes = [`${t.nombre} (${t.estado || 'Pendiente'}, prioridad ${t.prioridad || 'Media'}`];
+
+    const lineas = tasks.map(t => {
+      const partes = [`${t.nombre} (${t.estado || 'Por hacer'}, prioridad ${t.prioridad || 'sin definir'}`];
       if (t.proyecto)    partes.push(`proyecto ${t.proyecto}`);
-      if (t.fechaLimite) partes.push(`fecha límite ${t.fechaLimite}`);
+      if (t.fechaLimite) partes.push(`fecha objetivo ${t.fechaLimite}`);
       return partes.join(', ') + ')';
-    }).join('\n');
-    return truncateAtLine(full, charBudget);
+    });
+
+    // Vienen ordenadas por prioridad, así que al recortar sobreviven las críticas.
+    // La cabecera lleva el total real para que BAKO no confunda lo que ve con lo que hay.
+    const mostradas = truncateAtLine(lineas.join('\n'), charBudget);
+    const cuantas   = mostradas.split('\n').length;
+    const cabecera  = cuantas < tasks.length
+      ? `${tasks.length} tareas pendientes en total. Las ${cuantas} más prioritarias:`
+      : `${tasks.length} tareas pendientes:`;
+
+    return `${cabecera}\n${mostradas}`;
   } catch (err) {
     console.error('⚠️ No pude leer las tareas de Notion:', (err as Error).message);
     return '';
@@ -652,8 +662,7 @@ async function handleCommand(chatId: number, command: string, originalText = '')
     if (notionTasks.length > 0) {
       text += '📋 *Issues Notion:*\n';
       notionTasks.forEach(t => {
-        const prio = t.prioridad === 'Alta' ? '🔴' : t.prioridad === 'Media' ? '🟡' : '⚪';
-        text += `${prio} ${t.nombre}${t.proyecto ? ` _[${t.proyecto}]_` : ''}\n`;
+        text += `${iconoPrioridad(t.prioridad)} ${t.nombre}${t.proyecto ? ` _[${t.proyecto}]_` : ''}\n`;
       });
     }
     if (gh.issues.length > 0) {

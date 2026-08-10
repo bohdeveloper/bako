@@ -1,7 +1,7 @@
 import { fetchGitHubData, GitHubData } from '../tools/github';
 import { getWeather, WeatherData } from '../tools/weather';
 import { getNews, NewsItem } from '../tools/news';
-import { getNotionTasks, getNotionProjects, NotionTask, NotionProject } from '../tools/notion';
+import { getNotionTasks, getNotionProjects, esPrioridadCritica, NotionTask, NotionProject } from '../tools/notion';
 import { getCalendarEvents, formatEventsForSpeech, CalendarEvent } from '../tools/calendar';
 import { nowInSpain } from '../tools/time';
 import { getUnreadEmails, formatEmailsForSpeech } from '../tools/gmail';
@@ -94,9 +94,9 @@ function buildTasksText(notionTasks: NotionTask[], notionProjects: NotionProject
     const resumen = Object.entries(byProject)
       .slice(0, 4)
       .map(([proj, tasks]) => {
-        const alta = tasks.filter(t => t.prioridad === 'Alta');
-        const primero = alta[0] ?? tasks[0];
-        const tag = alta.length > 0 ? ' [Alta]' : '';
+        const criticas = tasks.filter(t => esPrioridadCritica(t.prioridad));
+        const primero  = criticas[0] ?? tasks[0];
+        const tag = criticas.length > 0 ? ' [Crítico]' : '';
         return `${proj} (${tasks.length}): ${primero.nombre}${tag}`;
       })
       .join(' · ');

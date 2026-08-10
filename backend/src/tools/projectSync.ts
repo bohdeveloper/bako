@@ -7,15 +7,16 @@
  * Mongo aunque desaparezca de Notion.
  */
 
-import { Project, ProjectState, IProject } from '../memory/Project';
+import { Project, ProjectState, ProjectPriority, IProject } from '../memory/Project';
 import { NotionProject } from './notion';
 
+// Estados de Centro de Mando → enum de la colección Project en Mongo
 const ESTADO_MAP: Record<string, ProjectState> = {
-  activo:     'activo',
-  pausado:    'pausado',
-  completado: 'completado',
-  diferido:   'diferido',
-  abandonado: 'abandonado',
+  'sin empezar': 'diferido',
+  'en curso':    'activo',
+  'en pausa':    'pausado',
+  'terminado':   'completado',
+  'archivado':   'abandonado',
 };
 
 // NFD separa la tilde de la letra y el filtro final descarta todo lo que no sea
@@ -31,12 +32,22 @@ function mapEstado(estado: string): ProjectState {
   return ESTADO_MAP[estado.toLowerCase().trim()] ?? 'activo';
 }
 
+// P1..P4 de Notion → enum alta/media/baja de Mongo
+function mapPrioridad(prioridad: string): ProjectPriority {
+  const p = prioridad.toLowerCase();
+  if (p.startsWith('p1')) return 'alta';
+  if (p.startsWith('p2')) return 'media';
+  return 'baja';
+}
+
 // Notion manda en lo que Notion conoce. Los campos que solo existen en Mongo
 // (notas, decisiones, bloqueantes, orden, tipo, horizonte) se respetan, y los
 // vacíos de Notion no pisan datos ya guardados.
 function applyNotionFields(doc: IProject, np: NotionProject): void {
   doc.nombre = np.nombre;
   doc.estado = mapEstado(np.estado);
+  if (np.prioridad)        doc.prioridad        = mapPrioridad(np.prioridad);
+  if (np.area)             doc.tipo             = np.area;
   if (np.descripcion)      doc.descripcion      = np.descripcion;
   if (np.siguiente_accion) doc.siguiente_accion = np.siguiente_accion;
   if (np.stack.length)     doc.stack            = np.stack;
@@ -103,6 +114,8 @@ export async function syncNotionProjectsToMongo(
         nombre:           np.nombre,
         slug:             slugify(np.nombre),
         estado:           mapEstado(np.estado),
+        prioridad:        mapPrioridad(np.prioridad),
+        tipo:             np.area,
         descripcion:      np.descripcion,
         siguiente_accion: np.siguiente_accion,
         stack:            np.stack,

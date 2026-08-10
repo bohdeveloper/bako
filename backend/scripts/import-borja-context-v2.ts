@@ -6,9 +6,13 @@ import { Memory } from '../src/memory/Memory';
 
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-// Usar Atlas en lugar de localhost
-const ATLAS_URI = '***REMOVED-MONGODB-URI***';
-process.env.MONGODB_URI = ATLAS_URI;
+// La URI sale del .env (que está fuera de git). Nunca escribir credenciales aquí:
+// este repositorio es público y una URI hardcodeada se filtra en el primer push.
+// Para apuntar a Atlas en vez de a la Mongo local, define MONGODB_URI en tu .env.
+if (!process.env.MONGODB_URI) {
+  console.error('❌ MONGODB_URI no definida en backend/.env');
+  process.exit(1);
+}
 
 const MEMORIES = [
   // ─── HIGH ────────────────────────────────────────────────────────────────

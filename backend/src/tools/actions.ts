@@ -8,7 +8,7 @@
  *  - Crear evento en Google Calendar
  */
 
-import { createNotionTask, updateNotionTaskStatus, findNotionTaskByName, updateNotionProjectSiguienteAccion } from './notion';
+import { createNotionTask, updateNotionTaskStatus, findNotionTaskByName, updateNotionProjectSiguienteAccion, normalizeEstadoTarea } from './notion';
 import { createCalendarEvent } from './calendar';
 import { createIssueSync, closeIssueSync } from './issueSync';
 import { askClaude } from '../llm/claude';
@@ -57,7 +57,7 @@ Para fechas relativas (mañana, el viernes, la próxima semana) usa la fecha act
   const lines = [`✅ Tarea creada en Notion: *${task.nombre}*`];
   if (task.prioridad)   lines.push(`📌 Prioridad: ${task.prioridad}`);
   if (task.proyecto)    lines.push(`📂 Proyecto: ${task.proyecto}`);
-  if (task.fechaLimite) lines.push(`📅 Fecha límite: ${task.fechaLimite}`);
+  if (task.fechaLimite) lines.push(`📅 Fecha objetivo: ${task.fechaLimite}`);
   return lines.join('\n');
 }
 
@@ -68,7 +68,7 @@ async function executeUpdateNotionTask(text: string): Promise<string> {
     systemPrompt: `Extrae los datos de esta petición de actualización de estado de tarea en Notion.
 
 Responde SOLO con JSON válido:
-{"nombreTarea":"nombre aproximado de la tarea","nuevoEstado":"Completada|En progreso|Pendiente"}`,
+{"nombreTarea":"nombre aproximado de la tarea","nuevoEstado":"Hecho|En curso|Bloqueado|Por hacer"}`,
     maxTokens: 100,
     useCloud:  true,
   });
@@ -80,9 +80,10 @@ Responde SOLO con JSON válido:
   const task = await findNotionTaskByName(p.nombreTarea);
   if (!task) return `⚠️ No encontré ninguna tarea con ese nombre en Notion.\n_Intenta con: "qué tareas tengo" para ver la lista exacta._`;
 
-  await updateNotionTaskStatus(task.id, p.nuevoEstado);
-  const icon = p.nuevoEstado === 'Completada' ? '✅' : p.nuevoEstado === 'En progreso' ? '🔄' : '⏳';
-  return `${icon} Tarea *"${task.nombre}"* → *${p.nuevoEstado}* en Notion.`;
+  const estado = normalizeEstadoTarea(p.nuevoEstado);
+  await updateNotionTaskStatus(task.id, estado);
+  const icon = estado === 'Hecho' ? '✅' : estado === 'En curso' ? '🔄' : estado === 'Bloqueado' ? '🚧' : '⏳';
+  return `${icon} Tarea *"${task.nombre}"* → *${estado}* en Notion.`;
 }
 
 // ─── CALENDAR: Crear evento ──────────────────────────────────────────────────
@@ -179,7 +180,7 @@ Responde SOLO con JSON válido:
   const result = await closeIssueSync(p.titulo, p.proyecto !== 'null' ? p.proyecto : undefined);
 
   const parts: string[] = [];
-  if (result.notionClosed) parts.push('📋 Notion: marcado como Completada');
+  if (result.notionClosed) parts.push('📋 Notion: marcado como Hecho');
   else parts.push('⚠️ Notion: issue no encontrado');
   if (result.ghClosed) parts.push(`🐙 GitHub (${result.repo}): cerrado`);
   else if (result.repo) parts.push(`⚠️ GitHub (${result.repo}): issue no encontrado`);

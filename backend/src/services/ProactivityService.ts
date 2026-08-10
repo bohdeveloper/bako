@@ -7,7 +7,7 @@ import { runMorningBriefing } from '../agents/MorningBriefingAgent';
 import { fetchGitHubData, getUserRepos, getPRFiles, getPRDetails } from '../tools/github';
 import { getCalendarEvents } from '../tools/calendar';
 import { nowInSpain } from '../tools/time';
-import { getNotionTasks, getAllNotionProjects } from '../tools/notion';
+import { getNotionTasks, getAllNotionProjects, esPrioridadCritica } from '../tools/notion';
 import { sendSystemMessage } from '../tools/telegram';
 import { Rule } from '../memory/Rule';
 import { askClaude } from '../llm/claude';
@@ -85,8 +85,8 @@ async function buildWeeklySummary(): Promise<string> {
   if (tasks.status === 'fulfilled') {
     const pending = tasks.value;
     if (pending.length > 0) {
-      const altas = pending.filter(t => t.prioridad === 'Alta');
-      const extra = altas.length > 0 ? `, ${altas.length} de alta prioridad` : '';
+      const criticas = pending.filter(t => esPrioridadCritica(t.prioridad));
+      const extra = criticas.length > 0 ? `, ${criticas.length} de prioridad crítica` : '';
       parts.push(`Tiene ${pending.length} issue${pending.length > 1 ? 's' : ''} pendiente${pending.length > 1 ? 's' : ''} en Notion${extra}.`);
     } else {
       parts.push('No tiene issues pendientes en Notion. Excelente semana, señor.');

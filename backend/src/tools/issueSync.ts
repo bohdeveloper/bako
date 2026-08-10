@@ -1,5 +1,5 @@
 import { createGitHubIssue, closeGitHubIssue, findGitHubIssueByTitle } from './github';
-import { createNotionTask, findNotionTaskByName, updateNotionTaskStatus } from './notion';
+import { createNotionTask, findNotionTaskByName, updateNotionTaskStatus, normalizePrioridad, TAREA_HECHA } from './notion';
 
 export const PROJECT_REPO_MAP: Record<string, string> = {
   bako:      'ai-personal-os',
@@ -29,10 +29,12 @@ export async function createIssueSync(
   const repo        = projectKey ? PROJECT_REPO_MAP[projectKey] : null;
   const projectName = projectKey ? projectDisplayName(projectKey) : project;
 
+  const prioridad = normalizePrioridad(opts.priority);
+
   const [notionResult, ghResult] = await Promise.allSettled([
-    createNotionTask(title, { prioridad: opts.priority ?? 'Media', proyecto: projectName }),
+    createNotionTask(title, { prioridad, proyecto: projectName }),
     repo
-      ? createGitHubIssue(repo, title, opts.notes ?? `Issue creado desde BAKO.\n\n**Proyecto:** ${projectName}\n**Prioridad:** ${opts.priority ?? 'Media'}`)
+      ? createGitHubIssue(repo, title, opts.notes ?? `Issue creado desde BAKO.\n\n**Proyecto:** ${projectName}\n**Prioridad:** ${prioridad}`)
       : Promise.resolve(null),
   ]);
 
@@ -54,7 +56,7 @@ export async function closeIssueSync(
   const notionTask = await findNotionTaskByName(titleOrId).catch(() => null);
   const notionClosed = !!(notionTask);
   if (notionTask) {
-    await updateNotionTaskStatus(notionTask.id, 'Completada').catch(() => {});
+    await updateNotionTaskStatus(notionTask.id, TAREA_HECHA).catch(() => {});
   }
 
   let ghClosed = false;
