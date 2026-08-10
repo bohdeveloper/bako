@@ -3,7 +3,7 @@ import { getWeather, WeatherData } from '../tools/weather';
 import { getNews, NewsItem } from '../tools/news';
 import { getNotionTasks, getNotionProjects, NotionTask, NotionProject } from '../tools/notion';
 import { getCalendarEvents, formatEventsForSpeech, CalendarEvent } from '../tools/calendar';
-import { getBlogComments, formatCommentsForSpeech, nowInSpain } from '../tools/cloudflare';
+import { nowInSpain } from '../tools/time';
 import { getUnreadEmails, formatEmailsForSpeech } from '../tools/gmail';
 import { speak } from '../tools/tts';
 import { askClaude } from '../llm/claude';
@@ -112,14 +112,13 @@ export async function runMorningBriefing(options: { speak?: boolean } = {}): Pro
   const hora = now.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
   const fecha = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
 
-  const [github, weather, news, notionTasks, notionProjects, calendarEvents, blogComments, unreadEmails] = await Promise.allSettled([
+  const [github, weather, news, notionTasks, notionProjects, calendarEvents, unreadEmails] = await Promise.allSettled([
     fetchGitHubData(),
     getWeather(),
     getNews(),
     getNotionTasks(),
     getNotionProjects(),
     getCalendarEvents(2),
-    getBlogComments(true),
     getUnreadEmails(10),
   ]);
 
@@ -129,7 +128,6 @@ export async function runMorningBriefing(options: { speak?: boolean } = {}): Pro
   const tasks        = notionTasks.status    === 'fulfilled' ? notionTasks.value    : [];
   const projects     = notionProjects.status === 'fulfilled' ? notionProjects.value : [];
   const events       = calendarEvents.status === 'fulfilled' ? calendarEvents.value : [];
-  const comments     = blogComments.status   === 'fulfilled' ? blogComments.value   : [];
   const emails       = unreadEmails.status   === 'fulfilled' ? unreadEmails.value   : [];
 
   const sections: string[] = [
@@ -147,7 +145,6 @@ export async function runMorningBriefing(options: { speak?: boolean } = {}): Pro
     sections.push(buildTasksText(tasks, projects, { repos: [], recentCommits: [], openPRs: [], issues: [], fetchedAt: '' }));
   }
   if (emails.length > 0) sections.push(formatEmailsForSpeech(emails));
-  if (comments.length > 0) sections.push(formatCommentsForSpeech(comments));
 
   const briefing = sections.join(' ');
 

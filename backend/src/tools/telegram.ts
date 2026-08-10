@@ -10,7 +10,7 @@ import { getNotionTasks, createNotionTask, getAllNotionProjects, formatNotionPro
 import { syncNotionProjectsToMongo } from './projectSync';
 import { getCalendarEvents, formatEventsForSpeech } from './calendar';
 import { getUnreadEmails, getEmailBody, createDraft, sendEmail, sendDraft, formatEmailsForSpeech, formatEmailsForText } from './gmail';
-import { getBlogComments, formatCommentsForSpeech, nowInSpain } from './cloudflare';
+import { nowInSpain } from './time';
 import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
 import { generateVoiceBuffer, setVoice, getCurrentVoiceKey, VOCES_DISPONIBLES, cleanForVoice } from './tts';
 import { BAKO_PROFILE } from '../knowledge/profile';
@@ -578,9 +578,6 @@ function detectDataIntent(text: string): string | null {
   // Gmail — correos sin leer, bandeja de entrada
   if (/\b(correos?\s+(sin\s+leer|pendientes?|nuevos?)|qu[eé]\s+(correos?|emails?|mails?)\s+tengo|tengo\s+(correos?|emails?)|bandeja\s+(de\s+entrada)?|mis?\s+(correos?|emails?|mails?)\s+(de\s+)?(hoy|nuevos?|sin\s+leer)|revisa\s+(el\s+)?(correo|email|gmail))\b/.test(t)) return '/email';
 
-  // Comentarios blog
-  if (/\b(comentarios?\s+(del\s+)?blog|qu[eé]\s+comentarios?\s+(hay|tengo)|alguien\s+ha\s+comentado)\b/.test(t)) return '/comentarios';
-
   return null;
 }
 
@@ -972,36 +969,6 @@ async function handleCommand(chatId: number, command: string, originalText = '')
     return;
   }
 
-  if (command === '/comentarios') {
-    await bot.sendMessage(chatId, '💬 Revisando el blog...');
-    const comments = await getBlogComments(false);
-    const speech   = formatCommentsForSpeech(comments);
-
-    if (comments.length === 0) {
-      await bot.sendMessage(chatId, '💬 No hay comentarios en el blog todavía.');
-      return;
-    }
-
-    let text = `💬 *Comentarios del blog* (${comments.length} total)\n\n`;
-    const byPost = new Map<string, typeof comments>();
-    for (const c of comments) {
-      if (!byPost.has(c.post_slug)) byPost.set(c.post_slug, []);
-      byPost.get(c.post_slug)!.push(c);
-    }
-    for (const [, cms] of byPost.entries()) {
-      const shortTitle = cms[0].post_title.length > 45 ? cms[0].post_title.slice(0, 42) + '...' : cms[0].post_title;
-      text += `📝 *${shortTitle}*\n`;
-      cms.forEach(c => {
-        const fecha = c.created_at.slice(0, 10);
-        text += `  👤 ${c.alias} _(${fecha})_\n  "${c.body}"\n\n`;
-      });
-    }
-
-    await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
-    await sendVoiceReply(chatId, speech);
-    return;
-  }
-
   if (command === '/automaticos') {
     const states = await Promise.all(JOB_DEFS.map(j => isJobEnabled(j.key)));
     const lines = JOB_DEFS.map((j, i) => {
@@ -1216,7 +1183,7 @@ export function startTelegramBot(): void {
     catch (err) { await bot.sendMessage(chatId, `❌ Error: ${(err as Error).message}`); }
   });
 
-  bot.onText(/^\/(briefing|tiempo|proyectos|tareas|agenda|comentarios|servicio|limites|recordatorios|reglas|techradar|prreview|automaticos)$/, async (msg, match) => {
+  bot.onText(/^\/(briefing|tiempo|proyectos|tareas|agenda|servicio|limites|recordatorios|reglas|techradar|prreview|automaticos)$/, async (msg, match) => {
     const chatId = msg.chat.id;
     if (!isAuthorized(chatId)) return;
     try {
@@ -1581,14 +1548,6 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
         const repos = gh.repos.slice(0, 3).map(r => r.name).join(', ');
         additionalParts.push(`Proyectos activos: ${repos}`);
         if (gh.recentCommits.length > 0) additionalParts.push(`Commits recientes: ${gh.recentCommits.length}`);
-      }
-
-      if (/comentario|blog|post/i.test(text)) {
-        const comments = await getBlogComments(false);
-        const ctx = comments.length > 0
-          ? comments.map(c => `"${c.body}" — ${c.alias} en "${c.post_title}"`).join('\n')
-          : 'Sin comentarios todavía.';
-        additionalParts.push(`Comentarios del blog:\n${ctx}`);
       }
 
       const extraContext = ambientCtx + (additionalParts.length > 0 ? `\n\nCONTEXTO ADICIONAL:\n${additionalParts.join('\n')}` : '');

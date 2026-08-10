@@ -13,7 +13,7 @@ import { createCalendarEvent } from './calendar';
 import { createIssueSync, closeIssueSync } from './issueSync';
 import { askClaude } from '../llm/claude';
 import { invalidateCalendarCache } from './context';
-import { nowInSpain } from './cloudflare';
+import { nowInSpain } from './time';
 
 function fechaContexto(): string {
   return nowInSpain().toLocaleString('es-ES', {

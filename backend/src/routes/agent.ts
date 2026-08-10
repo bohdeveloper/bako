@@ -4,6 +4,8 @@ import { Task } from '../memory/Task';
 import { runMorningBriefing } from '../agents/MorningBriefingAgent';
 import { BAKO_PROFILE } from '../knowledge/profile';
 import { validatePrompt, buildSafeSearchRegex, sanitizeString, sanitizeTags } from '../middleware/security';
+import { getAllNotionProjects } from '../tools/notion';
+import { syncNotionProjectsToMongo } from '../tools/projectSync';
 
 const router = Router();
 
@@ -143,14 +145,12 @@ router.post('/migrate-memories', async (_req: Request, res: Response) => {
   }
 
   if (!memories.length) {
-    res.json({ ok: true, message: 'No hay memorias', people: 0, projects: 0, knowledge: 0 });
+    res.json({ ok: true, message: 'No hay memorias', people: 0, knowledge: 0 });
     return;
   }
 
   // Valores válidos de enum por colección
   const RELACIONES   = ['pareja','familiar','amigo','compañero','conocido','otro'];
-  const ESTADOS      = ['activo','diferido','completado','pausado','abandonado'];
-  const PRIORIDADES  = ['alta','media','baja'];
   const CATEGORIAS   = ['salud','valores','caracter','finanzas','historia','rutina','objetivos','legal','hobbies','otro'];
   const IMPORTANCIAS = ['alta','media','baja'];
 
@@ -159,10 +159,11 @@ router.post('/migrate-memories', async (_req: Request, res: Response) => {
     return valid.includes(s) ? s : fb;
   };
 
-  const SCHEMA = `{"people":[{"nombre":"","relacion":"pareja|familiar|amigo|compañero|conocido|otro","descripcion":"","cumpleaños":"DD-MM","ubicacion":"","trabajo":"","notas":[],"conexiones":[]}],"projects":[{"nombre":"","slug":"kebab","tipo":"","estado":"activo|diferido|completado|pausado|abandonado","prioridad":"alta|media|baja","descripcion":"","siguiente_accion":"","stack":[],"horizonte":"","notas":[]}],"knowledge":[{"categoria":"salud|valores|caracter|finanzas|historia|rutina|objetivos|legal|hobbies|otro","clave":"snake_case","valor":"","detalles":[],"importancia":"alta|media|baja"}]}`;
+  // Sin proyectos: la fuente de verdad de los proyectos es Notion, no las memorias.
+  const SCHEMA = `{"people":[{"nombre":"","relacion":"pareja|familiar|amigo|compañero|conocido|otro","descripcion":"","cumpleaños":"DD-MM","ubicacion":"","trabajo":"","notas":[],"conexiones":[]}],"knowledge":[{"categoria":"salud|valores|caracter|finanzas|historia|rutina|objetivos|legal|hobbies|otro","clave":"snake_case","valor":"","detalles":[],"importancia":"alta|media|baja"}]}`;
 
   const BATCH = 50;
-  const col = { people: [] as any[], projects: [] as any[], knowledge: [] as any[] };
+  const col = { people: [] as any[], knowledge: [] as any[] };
   let batchesOk = 0;
 
   // Helper de merge sin genéricos TypeScript
@@ -208,7 +209,6 @@ ${memList}`;
     try { ext = JSON.parse(m[0]); } catch { console.warn(`Lote ${batchNum}: JSON parse error`); continue; }
 
     merge(col.people,    ext.people,    (x: any) => x.nombre);
-    merge(col.projects,  ext.projects,  (x: any) => x.slug || String(x.nombre || '').toLowerCase().replace(/\s+/g, '-'));
     merge(col.knowledge, ext.knowledge, (x: any) => x.clave);
     batchesOk++;
   }
@@ -251,123 +251,6 @@ ${memList}`;
     const idx = col.people.findIndex((x: any) => (x.nombre || '').trim().toLowerCase() === k);
     if (idx === -1) col.people.push(pp);
     else Object.assign(col.people[idx], pp); // profile sobrescribe al LLM
-  }
-
-  // Complementar con proyectos de profile.ts — fuente autoritativa (sin LLM)
-  const profileProjects: any[] = [
-    {
-      nombre: "BAKO (Borja's Autonomous Knowledge Operator)",
-      slug: 'bako',
-      tipo: 'Asistente personal IA',
-      estado: 'activo',
-      prioridad: 'alta',
-      descripcion: 'Sistema operativo personal con IA — asistente autónomo, voz, Telegram, GitHub. Visión final: mayordomo digital con presencia física robótica (JARVIS).',
-      stack: ['Node.js', 'TypeScript', 'Express', 'MongoDB', 'Ollama', 'Groq', 'Render'],
-      urls: ['https://ai-personal-os.onrender.com'],
-      horizonte: 'En producción — evolución continua hacia robótica',
-    },
-    {
-      nombre: 'bohdeveloper.com',
-      slug: 'bohdeveloper',
-      tipo: 'Portfolio personal',
-      estado: 'activo',
-      prioridad: 'alta',
-      descripcion: 'Portfolio personal y hub de herramientas privadas. Incluye Tracker diario y blog. Objetivo: conseguir clientes freelance.',
-      stack: ['Next.js', 'Cloudflare Pages', 'Cloudflare D1'],
-      urls: ['bohdeveloper.com'],
-      horizonte: 'Desarrollo continuo',
-    },
-    {
-      nombre: 'Diamadmin',
-      slug: 'diamadmin',
-      tipo: 'SaaS propio',
-      estado: 'activo',
-      prioridad: 'alta',
-      descripcion: 'SaaS propio con roadmap definido.',
-      stack: ['Angular', 'Spring Boot', 'PostgreSQL'],
-      urls: ['app.diamadmin.com', 'diamadmin.com'],
-      siguiente_accion: 'Llegar a producción con usuarios reales de pago',
-    },
-    {
-      nombre: 'Unyona',
-      slug: 'unyona',
-      tipo: 'SaaS en validación',
-      estado: 'activo',
-      prioridad: 'media',
-      descripcion: 'Landing para capturar leads antes de construir el producto.',
-      urls: ['unyona.com'],
-      siguiente_accion: 'Validar demanda real antes de invertir en desarrollo',
-    },
-    {
-      nombre: 'Nitflex',
-      slug: 'nitflex',
-      tipo: 'App streaming — proyecto portfolio',
-      estado: 'pausado',
-      prioridad: 'baja',
-      descripcion: 'Plataforma de streaming personal. Home screen funcionando — no prioritario.',
-      stack: ['React', 'TypeScript', 'Express', 'MongoDB', 'TMDB API'],
-    },
-    {
-      nombre: 'Drones FPV y cinematografía aérea',
-      slug: 'drones-fpv',
-      tipo: 'Hobby personal',
-      estado: 'diferido',
-      prioridad: 'baja',
-      descripcion: 'Aprender a pilotar drones FPV y hacer cinematografía aérea 4K en entornos naturales de Galicia.',
-      horizonte: 'Post-mudanza a Galicia (finales 2026 o posterior)',
-      notas: ['Ruta: Simulador Liftoff → licencia A2 AESA → primer drone 5"', 'Presupuesto fase 1: ~2.000-2.500€ escalonado'],
-    },
-    {
-      nombre: 'Matrix Game',
-      slug: 'matrix-game',
-      tipo: 'Videojuego open-world',
-      estado: 'diferido',
-      prioridad: 'baja',
-      descripcion: 'GTA V + Cyberpunk + Matrix lore. Mundo 5km², 200+ NPCs, economía funcional, facciones. Engine: Unreal Engine 5.',
-      stack: ['Unreal Engine 5', 'C++', 'Blender', 'FMOD'],
-      horizonte: '4-6 años, post-Galicia',
-    },
-    {
-      nombre: 'Proyecto Kefir Artesanal',
-      slug: 'kefir-artesanal',
-      tipo: 'Negocio artesanal + e-commerce',
-      estado: 'diferido',
-      prioridad: 'media',
-      descripcion: 'Productor y vendedor de kefir artesanal en Galicia. Venta directa + suscripción recurrente semanal/quincenal.',
-      stack: ['Next.js', 'PostgreSQL', 'Stripe'],
-      horizonte: 'Post-mudanza a Galicia (finales 2026 o posterior)',
-      notas: ['Objetivo: 1.500-2.500€/mes complementarios en 6-12 meses desde lanzamiento', 'Tiene hongo kéfir activo creciendo en casa'],
-    },
-    {
-      nombre: 'Operación Galego',
-      slug: 'operacion-galego',
-      tipo: 'Relocalización residencial',
-      estado: 'activo',
-      prioridad: 'alta',
-      descripcion: 'Mudanza estratégica de Borja y Yaimy desde Errentería (Gipuzkoa) a Galicia en horizonte 6-12 meses. Vivienda rural con terreno en el eje Vigo-Pontevedra, pet-friendly, <600€/mes. Yaimy anclada a Vigo (única sede LAE en Galicia, Avda. García Barbón 22). Inetum con sede en Pontevedra.',
-      siguiente_accion: 'Semana del 6 de julio 2026 — viaje de exploración presencial a Vilaboa, Soutomaior y Barro. Contactar agencias locales antes del viaje para que tengan el perfil activo.',
-      horizonte: '6-12 meses (julio 2026 - julio 2027)',
-      notas: [
-        'FASES: F1 Exploración (meses 1-2): identificar zonas, 2 viajes mínimo, analizar mercado. F2 Planificación (meses 2-4): plan financiero, opciones teletrabajo, fondo emergencia. F3 Preparación (meses 4-6): cerrar vivienda, preaviso alquiler actual. F4 Ejecución (meses 6-12): mudanza efectiva, trámites, adaptación 3 meses.',
-        'ZONAS CANDIDATAS: Vilaboa ⭐⭐ (15min Vigo, 10min Pontevedra — top opción), Soutomaior ⭐⭐ (20min Vigo, 15min Pontevedra, bosque interior), Barro/Portas ⭐ (30min Vigo, 15min Pontevedra, Rías Baixas), Cotobade/Cerdedo (35min Vigo, montaña interior), Moaña/Cangas (costa ría de Vigo, 25min Pontevedra).',
-        'VIVIENDA BUSCADA: casa individual con terreno + alpendre/bodega acondicionable para visita suegros. Mínimo 2 hab + 2 baños. Lista para entrar. Admite perro IMPRESCINDIBLE. Presupuesto 600-800€/mes (objetivo <600€).',
-        'AGENCIAS REDONDELA: Inmobiliaria Molinos — Patricia Molinos, +34 986 401 061, inmobiliaria.molinos@gmail.com, especializada en fincas rústicas. Arines — Rua Alfonso XII 16, 986 40 42 10. Segurdela — 663 97 66 20, segurdela.es. San José — Praza Ribadavia 2, 986 40 06 50.',
-        'AGENCIAS SOUTOMAIOR/VILABOA: Local Arcade — Rúa Cochón 7 Soutomaior. Inmoponte — C/ Peregrina 63 Pontevedra. Javier Tovar — jtovar.com (cubre toda la zona). Inmogalaica — inmogalaica.es (área metro Vigo+Vilaboa). Redtel — nº1 en Redondela según Idealista.',
-        'FACEBOOK SIN COMISIÓN: "Alquiler Vigo y comarca", "Alquiler Pontevedra", "Alquiler casas Redondela", "Alquiler Rías Baixas", "Compra venta alquiler Vilaboa".',
-        'PERFIL A COMUNICAR: pareja desde País Vasco, casa individual con terreno + alpendre, 2hab+2baños, lista para entrar, 600-800€/mes, disponibilidad julio/agosto 2026, trabajo estable en Vigo (ella) e Inetum Pontevedra (él), tendrán perro.',
-        'CRITERIOS ÉXITO: alquiler <600€/mes, aparcamiento incluido, zona tranquila baja densidad, ahorro 200-300€/mes post-traslado, acceso naturaleza y servicios básicos.',
-        'CONFIDENCIAL — no comunicado en empresa aún. Julio-agosto: temporada alta, menos oferta alquiler permanente. Muchas casas rurales no se publican en portales — solo agencias locales y contactos directos.',
-      ],
-    },
-  ];
-
-  // Fusionar profile > LLM: profile.ts es autoritativo para proyectos conocidos
-  for (const pp of profileProjects) {
-    const k = (pp.slug || '').trim().toLowerCase();
-    if (!k) continue;
-    const idx = col.projects.findIndex((x: any) => (x.slug || '').trim().toLowerCase() === k);
-    if (idx === -1) col.projects.push(pp);
-    else Object.assign(col.projects[idx], pp);
   }
 
   // Complementar con conocimiento de profile.ts — fuente autoritativa (sin LLM)
@@ -463,7 +346,6 @@ ${memList}`;
 
   // Insertar en Atlas — idempotente + sanitización de enums + try/catch individual
   let pC = 0, pS = 0, pE = 0;
-  let rC = 0, rS = 0, rE = 0;
   let kC = 0, kS = 0, kE = 0;
 
   for (const p of col.people) {
@@ -476,16 +358,6 @@ ${memList}`;
     } catch (e) { console.error(`Person.create(${p.nombre}):`, (e as Error).message); pE++; }
   }
 
-  for (const p of col.projects) {
-    if (!p.nombre?.trim()) continue;
-    try {
-      const slug = (p.slug?.trim() || p.nombre.trim().toLowerCase().replace(/\s+/g, '-'));
-      const safe = { ...p, slug, estado: fixEnum(p.estado, ESTADOS, 'activo'), prioridad: fixEnum(p.prioridad, PRIORIDADES, 'media') };
-      const ok   = await Project.findOne({ slug });
-      if (ok) { rS++; } else { await Project.create(safe); rC++; }
-    } catch (e) { console.error(`Project.create(${p.nombre}):`, (e as Error).message); rE++; }
-  }
-
   for (const k of col.knowledge) {
     if (!k.clave?.trim()) continue;
     try {
@@ -495,13 +367,12 @@ ${memList}`;
     } catch (e) { console.error(`Knowledge.create(${k.clave}):`, (e as Error).message); kE++; }
   }
 
-  console.log(`🧠 migrate-memories: ${batchesOk}/${Math.ceil(memories.length / BATCH)} lotes ok · p+${pC}(e${pE}) r+${rC}(e${rE}) k+${kC}(e${kE})`);
+  console.log(`🧠 migrate-memories: ${batchesOk}/${Math.ceil(memories.length / BATCH)} lotes ok · p+${pC}(e${pE}) k+${kC}(e${kE})`);
   res.json({
     ok: true,
     memorias_leidas: memories.length,
     lotes: `${batchesOk}/${Math.ceil(memories.length / BATCH)}`,
     people:    { created: pC, skipped: pS, errors: pE, total: col.people.length },
-    projects:  { created: rC, skipped: rS, errors: rE, total: col.projects.length },
     knowledge: { created: kC, skipped: kS, errors: kE, total: col.knowledge.length },
   });
 });
@@ -708,63 +579,17 @@ router.post('/memories/import', async (req: Request, res: Response) => {
   res.json({ ok: true, saved: results.length, memories: results });
 });
 
-// POST /api/agent/ensure-profile-projects — crea proyectos faltantes del perfil sin LLM
-// Idempotente: si ya existe por slug lo reporta como "skipped", no lo modifica.
-router.post('/ensure-profile-projects', async (_req: Request, res: Response) => {
-  const { Project } = await import('../memory/Project');
-  const ESTADOS    = ['activo','diferido','completado','pausado','abandonado'] as const;
-  const PRIORIDADES = ['alta','media','baja'] as const;
-  const fixE = (v: string, valid: readonly string[], def: string) => valid.includes(v as any) ? v : def;
-
-  const profileProjects = [
-    { nombre: "BAKO (Borja's Autonomous Knowledge Operator)", slug: 'bako', tipo: 'Asistente personal IA', estado: 'activo', prioridad: 'alta',
-      descripcion: 'Sistema operativo personal con IA — asistente autónomo, voz, Telegram, GitHub. Visión final: mayordomo digital con presencia física robótica (JARVIS).',
-      stack: ['Node.js','TypeScript','Express','MongoDB','Ollama','Groq','Render'], urls: ['https://ai-personal-os.onrender.com'], horizonte: 'En producción — evolución continua' },
-    { nombre: 'bohdeveloper.com', slug: 'bohdeveloper', tipo: 'Portfolio personal', estado: 'activo', prioridad: 'alta',
-      descripcion: 'Portfolio personal y hub de herramientas privadas. Tracker diario y blog. Objetivo: conseguir clientes freelance.',
-      stack: ['Next.js','Cloudflare Pages','Cloudflare D1'], urls: ['bohdeveloper.com'], horizonte: 'Desarrollo continuo' },
-    { nombre: 'Diamadmin', slug: 'diamadmin', tipo: 'SaaS propio', estado: 'activo', prioridad: 'alta',
-      descripcion: 'SaaS propio con roadmap definido.',
-      stack: ['Angular','Spring Boot','PostgreSQL'], urls: ['app.diamadmin.com','diamadmin.com'],
-      siguiente_accion: 'Llegar a producción con usuarios reales de pago' },
-    { nombre: 'Unyona', slug: 'unyona', tipo: 'SaaS en validación', estado: 'activo', prioridad: 'media',
-      descripcion: 'Landing para capturar leads antes de construir el producto.', urls: ['unyona.com'],
-      siguiente_accion: 'Validar demanda real antes de invertir en desarrollo' },
-    { nombre: 'Nitflex', slug: 'nitflex', tipo: 'App streaming — proyecto portfolio', estado: 'pausado', prioridad: 'baja',
-      descripcion: 'Plataforma de streaming personal. Home screen funcionando — no prioritario.',
-      stack: ['React','TypeScript','Express','MongoDB','TMDB API'] },
-    { nombre: 'Drones FPV y cinematografía aérea', slug: 'drones-fpv', tipo: 'Hobby personal', estado: 'diferido', prioridad: 'baja',
-      descripcion: 'Aprender a pilotar drones FPV y hacer cinematografía aérea 4K en entornos naturales de Galicia.',
-      horizonte: 'Post-mudanza a Galicia', notas: ['Ruta: Simulador Liftoff → licencia A2 AESA → primer drone 5"'] },
-    { nombre: 'Matrix Game', slug: 'matrix-game', tipo: 'Videojuego open-world', estado: 'diferido', prioridad: 'baja',
-      descripcion: 'GTA V + Cyberpunk + Matrix lore. Mundo 5km², 200+ NPCs, economía funcional, facciones. Engine: Unreal Engine 5.',
-      stack: ['Unreal Engine 5','C++','Blender','FMOD'], horizonte: '4-6 años, post-Galicia' },
-    { nombre: 'Proyecto Kefir Artesanal', slug: 'kefir-artesanal', tipo: 'Negocio artesanal + e-commerce', estado: 'diferido', prioridad: 'media',
-      descripcion: 'Productor y vendedor de kefir artesanal en Galicia. Venta directa + suscripción recurrente.',
-      stack: ['Next.js','PostgreSQL','Stripe'], horizonte: 'Post-mudanza a Galicia' },
-    { nombre: 'Operación Galego', slug: 'operacion-galego', tipo: 'Relocalización residencial', estado: 'activo', prioridad: 'alta',
-      descripcion: 'Mudanza estratégica de Borja y Yaimy desde Errentería a Galicia en horizonte 6-12 meses. Vivienda rural con terreno eje Vigo-Pontevedra, pet-friendly, <600€/mes.',
-      siguiente_accion: 'Semana del 6 de julio 2026 — viaje de exploración presencial a Vilaboa, Soutomaior y Barro.',
-      horizonte: '6-12 meses (julio 2026 - julio 2027)' },
-  ];
-
-  let created = 0, skipped = 0, errors = 0;
-  const report: string[] = [];
-
-  for (const pp of profileProjects) {
-    if (!pp.slug) continue;
-    try {
-      const exists = await Project.findOne({ slug: pp.slug });
-      if (exists) { skipped++; report.push(`SKIP ${pp.slug}`); }
-      else {
-        await Project.create({ ...pp, estado: fixE(pp.estado, ESTADOS, 'activo') as any, prioridad: fixE(pp.prioridad, PRIORIDADES, 'media') as any });
-        created++; report.push(`CREATE ${pp.slug}`);
-      }
-    } catch (e) { errors++; report.push(`ERROR ${pp.slug}: ${(e as Error).message}`); }
+// POST /api/agent/sync-notion-projects — refresca el espejo de proyectos desde Notion
+// Notion es la fuente de verdad. Solo añade y actualiza: nunca borra de Mongo.
+router.post('/sync-notion-projects', async (_req: Request, res: Response) => {
+  try {
+    const projects = await getAllNotionProjects();
+    const result   = await syncNotionProjectsToMongo(projects);
+    console.log(`🔧 sync-notion-projects: +${result.created} creados, ${result.updated} actualizados`);
+    res.json({ ok: true, total: projects.length, ...result });
+  } catch (err) {
+    res.status(502).json({ error: 'No pude leer los proyectos de Notion', detail: (err as Error).message });
   }
-
-  console.log(`🔧 ensure-profile-projects: +${created} created, ${skipped} skipped, ${errors} errors`);
-  res.json({ ok: true, created, skipped, errors, total: profileProjects.length, report });
 });
 
 export default router;

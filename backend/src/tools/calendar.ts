@@ -1,7 +1,7 @@
 import { google } from 'googleapis';
 import * as fs from 'fs';
 import * as path from 'path';
-import { nowInSpain } from './cloudflare';
+import { nowInSpain } from './time';
 
 export interface CalendarEvent {
   id: string;

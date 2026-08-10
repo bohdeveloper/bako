@@ -6,7 +6,7 @@
 
 import { getWeather, getWeatherForCity, WeatherData } from './weather';
 import { getCalendarEvents, CalendarEvent } from './calendar';
-import { nowInSpain } from './cloudflare';
+import { nowInSpain } from './time';
 
 // ─── Caches ──────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,9 @@
 /**
- * seedBrain.ts — migra los datos de profile.ts a las colecciones estructuradas de Atlas.
- * Idempotente: usa slug/clave como clave única para no duplicar.
+ * seedBrain.ts — migra el conocimiento personal de profile.ts a Atlas.
+ * Idempotente: usa la clave como identificador único para no duplicar.
+ *
+ * No siembra proyectos: la fuente de verdad de los proyectos es Notion, y el
+ * espejo en Mongo lo mantiene POST /api/agent/sync-notion-projects.
  *
  * Ejecutar UNA SOLA VEZ:
  *   npx ts-node src/scripts/seedBrain.ts
@@ -10,109 +13,9 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 dotenv.config();
 
-import { Project, IProject } from '../memory/Project';
 import { KnowledgeEntry, IKnowledgeEntry } from '../memory/KnowledgeEntry';
 
-type ProjectSeed  = Pick<IProject, 'nombre'> & Partial<Pick<IProject, 'slug'|'tipo'|'estado'|'prioridad'|'descripcion'|'siguiente_accion'|'stack'|'urls'|'horizonte'|'notas'|'bloqueantes'|'decisiones'>>;
 type KnowledgeSeed = Pick<IKnowledgeEntry, 'categoria'|'clave'|'valor'|'importancia'> & { detalles?: string[] };
-
-// ─── Proyectos ────────────────────────────────────────────────────────────────
-
-const PROJECTS: ProjectSeed[] = [
-  {
-    nombre: 'BAKO',
-    slug: 'bako',
-    tipo: 'Sistema operativo personal con IA',
-    estado: 'activo',
-    prioridad: 'alta',
-    descripcion: 'Mayordomo digital omnisciente. Evoluciona hacia JARVIS: cuerpo robótico, presencia física, voz, Telegram, GitHub.',
-    siguiente_accion: 'Fase 7b-B desplegada — continuar con embeddings Ollama',
-    stack: ['Node.js', 'TypeScript', 'Express', 'MongoDB Atlas', 'Groq', 'Ollama', 'Render', 'Telegram Bot'],
-    urls: ['https://ai-personal-os.onrender.com'],
-    horizonte: '3-5 años (robótico)',
-    notas: ['MVP en producción en Render', 'Visión final: Jarvis de Iron Man en la vida real'],
-  },
-  {
-    nombre: 'bohdeveloper.com',
-    slug: 'bohdeveloper',
-    tipo: 'Portfolio personal',
-    estado: 'activo',
-    prioridad: 'media',
-    descripcion: 'Portfolio personal con Tracker diario y gestor de blog. Panel admin en /admin.',
-    siguiente_accion: 'Continuar desarrollo — integración BAKO para marcar actividades',
-    stack: ['Next.js', 'TypeScript', 'Cloudflare Pages', 'Cloudflare D1'],
-    urls: ['https://bohdeveloper.com', 'https://bohdeveloper.com/admin'],
-    horizonte: '2026',
-    notas: ['Tracker diario: uso diario, integrado con BAKO', 'Blog con gestor en panel admin'],
-  },
-  {
-    nombre: 'Diamadmin',
-    slug: 'diamadmin',
-    tipo: 'SaaS propio',
-    estado: 'activo',
-    prioridad: 'alta',
-    descripcion: 'SaaS de gestión con roadmap definido.',
-    stack: ['Angular', 'Spring Boot', 'PostgreSQL'],
-    urls: ['https://app.diamadmin.com', 'https://diamadmin.com'],
-    horizonte: '2026',
-    notas: [],
-  },
-  {
-    nombre: 'Unyona',
-    slug: 'unyona',
-    tipo: 'SaaS en validación',
-    estado: 'activo',
-    prioridad: 'media',
-    descripcion: 'Landing para capturar leads antes de construir el producto.',
-    urls: ['https://unyona.com'],
-    horizonte: '2026',
-    notas: [],
-  },
-  {
-    nombre: 'Nitflex',
-    slug: 'nitflex',
-    tipo: 'App streaming — proyecto portfolio',
-    estado: 'pausado',
-    prioridad: 'baja',
-    descripcion: 'Clon de Netflix con TMDB API. Home screen funcionando.',
-    stack: ['React', 'TypeScript', 'Express', 'MongoDB', 'TMDB API'],
-    horizonte: 'indefinido',
-    notas: ['Proyecto portfolio — no prioritario'],
-  },
-  {
-    nombre: 'Drones FPV',
-    slug: 'drones-fpv',
-    tipo: 'Hobby — cinematografía aérea',
-    estado: 'diferido',
-    prioridad: 'baja',
-    descripcion: 'Aprender a pilotar drones FPV y hacer cinematografía aérea 4K en Galicia.',
-    siguiente_accion: 'Arrancar tras mudanza a Galicia: simulador Liftoff → licencia A2 AESA',
-    horizonte: 'post-Galicia (finales 2026+)',
-    notas: ['~1.000€ primer drone 5"', 'Ruta: Liftoff → A2 AESA → drone → cinematografía'],
-  },
-  {
-    nombre: 'Matrix Game',
-    slug: 'matrix-game',
-    tipo: 'Videojuego open-world',
-    estado: 'diferido',
-    prioridad: 'baja',
-    descripcion: 'GTA V + Cyberpunk + Matrix lore. Mundo 5km², 200+ NPCs, economía funcional, hacking, combate parkour/gun-fu.',
-    stack: ['Unreal Engine 5', 'C++', 'Blueprints', 'Blender', 'FMOD', 'Megascans'],
-    horizonte: '4-6 años post-Galicia, 10-15h/semana',
-    notas: ['Proyecto personal confidencial', 'Requiere aprender C++, 3D math y Blender antes de arrancar'],
-  },
-  {
-    nombre: 'Proyecto Kefir Artesanal',
-    slug: 'kefir',
-    tipo: 'Negocio artesanal + e-commerce',
-    estado: 'diferido',
-    prioridad: 'baja',
-    descripcion: 'Productor y vendedor de kefir artesanal en Galicia. Venta directa con suscripción recurrente.',
-    stack: ['Next.js', 'PostgreSQL', 'Stripe'],
-    horizonte: 'post-Galicia (finales 2026+)',
-    notas: ['Objetivo: 1.500-2.500€/mes complementarios en 6-12 meses', 'Borja es productor + desarrollador — coste tech cero'],
-  },
-];
 
 // ─── Conocimiento personal ────────────────────────────────────────────────────
 
@@ -152,16 +55,6 @@ const KNOWLEDGE: KnowledgeSeed[] = [
 async function seed() {
   await mongoose.connect(process.env.MONGODB_URI!);
   console.log('✅ MongoDB conectado');
-
-  let projCreated = 0, projSkipped = 0;
-  for (const p of PROJECTS) {
-    const exists = await Project.findOne({ slug: p.slug });
-    if (exists) { projSkipped++; continue; }
-    await Project.create(p);
-    projCreated++;
-    console.log(`  🚀 Proyecto creado: ${p.nombre}`);
-  }
-  console.log(`\nProyectos: ${projCreated} creados, ${projSkipped} ya existían`);
 
   let knowCreated = 0, knowSkipped = 0;
   for (const k of KNOWLEDGE) {

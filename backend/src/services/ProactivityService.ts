@@ -6,8 +6,8 @@ import cron from 'node-cron';
 import { runMorningBriefing } from '../agents/MorningBriefingAgent';
 import { fetchGitHubData, getUserRepos, getPRFiles, getPRDetails } from '../tools/github';
 import { getCalendarEvents } from '../tools/calendar';
-import { nowInSpain } from '../tools/cloudflare';
-import { getNotionTasks } from '../tools/notion';
+import { nowInSpain } from '../tools/time';
+import { getNotionTasks, getAllNotionProjects } from '../tools/notion';
 import { sendSystemMessage } from '../tools/telegram';
 import { Rule } from '../memory/Rule';
 import { askClaude } from '../llm/claude';
@@ -261,8 +261,16 @@ export async function buildTechRadar(): Promise<string | null> {
     items.map(i => ({ titulo: i.title, fuente: i.source, url: i.link }))
   );
 
+  // Los proyectos salen de Notion — sin lista fija que se quede obsoleta
+  const proyectos = await getAllNotionProjects()
+    .then(ps => ps
+      .filter(p => !/completado|abandonado/i.test(p.estado))
+      .map(p => `${p.nombre}${p.descripcion ? ` (${p.descripcion})` : ''}`)
+      .join(', '))
+    .catch(() => '');
+
   const raw = await askClaude(listJson, {
-    systemPrompt: `Eres el Tech Radar semanal de BAKO. El stack de Borja: React, TypeScript, Node.js, Express, Next.js, MongoDB, Cloudflare Workers/D1, AI/ML (aprendiendo). Sus proyectos: Diamadmin (SaaS facturación), Unyona (red profesional), BAKO (asistente IA personal), kéfir artesanal (futuro).
+    systemPrompt: `Eres el Tech Radar semanal de BAKO. El stack de Borja: React, TypeScript, Node.js, Express, Next.js, MongoDB, AI/ML (aprendiendo).${proyectos ? ` Sus proyectos: ${proyectos}.` : ''}
 
 Filtra las 5 noticias o artículos más relevantes para su stack y proyectos. Descarta noticias genéricas de negocios, política o ajenas al desarrollo.
 
