@@ -1,6 +1,5 @@
 node_modules/
 dist/
-.env
 *.log
 .claude/
 graphify-out/cache/
@@ -9,3 +8,17 @@ graphify-out/cache/
 __pycache__/
 *.pyc
 *.pyo
+
+# ─── Secretos ────────────────────────────────────────────────────────────────
+# Este repositorio es PÚBLICO. Nada de lo de abajo puede entrar en git.
+# Ampliado tras filtrarse una URI de MongoDB Atlas y un client secret de Google.
+.env
+.env.*
+!.env.example
+credentials.json
+token.json
+*.pem
+*.key
+*.p12
+*.pfx
+service-account*.json
