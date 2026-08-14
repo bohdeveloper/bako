@@ -1,322 +1,143 @@
 # BAKO — Borja's Autonomous Knowledge Operator
 
-> Un mayordomo digital omnisciente. No un chatbot — un Alfred.
-> Conoce quién eres, dónde estás, qué tienes pendiente, cómo va tu trabajo.
-> Disponible 24/7, voice-first, privacidad real, coste $0/mes.
+> Un mayordomo digital personal. No un chatbot — un Alfred.
+> Conoce quién eres, dónde estás, qué tienes pendiente y cómo van tus proyectos.
+> Habla por voz, actúa sobre sistemas reales y toma la iniciativa. Coste: **$0/mes**.
+
+**Estado:** MVP en producción 24/7 · Horizonte 0 cerrado · Horizonte 1 casi completo
+· [plan.md](plan.md) tiene el detalle.
 
 ---
 
 ## La filosofía
 
-BAKO no es un asistente que responde preguntas. Es un **mayordomo** que tiene cinco cualidades que lo definen:
+Un mayordomo de verdad tiene cinco cualidades. Cada feature se evalúa contra esta lista antes de
+entrar en el plan:
 
 | Cualidad | Qué significa | Estado |
 |---|---|---|
-| **Memoria** | Recuerda todo lo que le has dicho. Conoce tu historia, tus bloqueos, tus decisiones | ⚠️ Perfil estático (en desarrollo) |
-| **Ejecución** | No solo informa — actúa. Crea, modifica, cierra, agenda | ⚠️ Solo lectura (en desarrollo) |
-| **Proactividad** | Anticipa necesidades. Habla sin que le preguntes cuando hay algo relevante | ❌ Pendiente |
-| **Acceso sin fricción** | Está ahí. Dices su nombre, ya está | ⚠️ Vía Telegram (mejorando) |
-| **Conocimiento vivo** | Tu vida evoluciona, él también | ❌ Pendiente |
-
-Cada decisión de arquitectura, cada feature nueva, se evalúa contra esta lista.
+| **Memoria** | Recuerda tu historia, tus bloqueos, tus decisiones | ✅ Memoria cognitiva con embeddings |
+| **Ejecución** | No solo informa — actúa: crea, cierra, agenda | ✅ Notion, Calendar, GitHub, Tracker |
+| **Proactividad** | Habla sin que le preguntes cuando hay algo relevante | ✅ 7 crons + motor de reglas |
+| **Acceso sin fricción** | Dices su nombre y está ahí | ⚠️ Wake word en PWA de escritorio |
+| **Conocimiento vivo** | Tu vida evoluciona, él también | ✅ Perfil dinámico + colecciones estructuradas |
 
 ---
 
-## Arquitectura del sistema
+## Qué hace hoy
 
-```
-╔══════════════════════════════════════════════════════════════════════╗
-║                         TÚ (Borja)                                   ║
-║          Telegram móvil / Telegram desktop / API REST                ║
-╚═══════════════════════╦══════════════════════════════════════════════╝
-                        │ mensaje texto o voz
-                        ▼
-╔══════════════════════════════════════════════════════════════════════╗
-║              TELEGRAM BOT (@bako_bot)                                ║
-║              Servidor: api.telegram.org                              ║
-║         Token: TELEGRAM_BOT_TOKEN (de @BotFather)                   ║
-╚═══════════════════════╦══════════════════════════════════════════════╝
-                        │ polling cada 1s
-                        ▼
-╔══════════════════════════════════════════════════════════════════════╗
-║            BAKO BACKEND — Express + TypeScript                       ║
-║            Render.com — cloud 24/7, HTTPS automático                 ║
-║                                                                      ║
-║  ┌──────────────────────────────────────────────────────────────┐   ║
-║  │ TELEGRAM HANDLER (src/tools/telegram.ts)                     │   ║
-║  │  1. Recibe mensaje                                            │   ║
-║  │  2. Si voz → Groq Whisper (speech-to-text)                   │   ║
-║  │  3. Detecta contenido sensible (regex privacidad)             │   ║
-║  │  4. Detecta comando o intención                               │   ║
-║  │  5. Obtiene contexto relevante (weather, calendar, etc.)      │   ║
-║  │  6. Llama a askClaude()                                       │   ║
-║  │  7. Genera voz (msedge-tts WebM/Opus)                         │   ║
-║  │  8. Responde con nota de voz                                  │   ║
-║  └──────────────────────────────────────────────────────────────┘   ║
-║                                                                      ║
-║  ┌──────────────────────────────────────────────────────────────┐   ║
-║  │ LLM ORCHESTRATOR (src/llm/claude.ts)                         │   ║
-║  │                                                               │   ║
-║  │   BAKO_PROFILE + contexto real + hora española                │   ║
-║  │              │                                                │   ║
-║  │    ¿isOllamaAvailable()?                                      │   ║
-║  │        SÍ ◄──┤──► NO                                         │   ║
-║  │        ▼             ▼                                        │   ║
-║  │    OLLAMA          GROQ                                       │   ║
-║  │    LOCAL           CLOUD                                      │   ║
-║  └──────────────────────────────────────────────────────────────┘   ║
-╚══════════════════════════════════════════════════════════════════════╝
-         │                              │
-         │ PC encendido                 │ Siempre disponible
-         ▼                              ▼
-╔══════════════════╗        ╔═══════════════════════════╗
-║  TU PC (Windows) ║        ║  GROQ CLOUD               ║
-║                  ║        ║  api.groq.com              ║
-║  Ollama          ║        ║  Llama 3.3 70B             ║
-║  localhost:11434 ║        ║  + Whisper (STT)           ║
-║  qwen2.5-coder   ║        ║  Gratis ~14.400 req/día    ║
-║  :7b (4.7GB)     ║        ║                            ║
-║  Privado         ║        ║  Token: GROQ_API_KEY        ║
-╚══════════════════╝        ╚═══════════════════════════╝
+**Conversación.** Voz o texto, en lenguaje natural y sin comandos, desde Telegram, la PWA o el
+escritorio. Entiende la intención y enruta al sistema correcto: "¿qué tengo hoy?" va al Tracker,
+"¿lloverá mañana?" al servicio de clima, "crea un issue en Unyona" a Notion y GitHub a la vez.
 
+**Memoria cognitiva.** Personas, proyectos y conocimiento viven en colecciones estructuradas; los
+hechos sueltos se extraen de las conversaciones, se buscan por similitud semántica y se **actualizan
+en lugar de duplicarse** — decir "ya no voy a BIZIKI" corrige la memoria anterior.
 
-━━━━━━━━━━━ TOOLS DE CONTEXTO ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**Ejecución real.** Crea tareas en Notion, eventos en Google Calendar, issues sincronizados entre
+GitHub y Notion, marca el tracker diario por voz, programa recordatorios y redacta y envía emails
+(siempre con confirmación explícita).
 
-┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐
-│  WEATHER     │  │  GITHUB      │  │  GOOGLE CALENDAR         │
-│  Open-Meteo  │  │  API GitHub  │  │  googleapis.com          │
-│  Sin token   │  │  GITHUB_TOKEN│  │  OAuth2 (3 vars)         │
-│  Errentería  │  │  repos,PRs   │  │  Agenda hoy/mañana       │
-│  3 días      │  │  commits     │  │                          │
-└──────────────┘  └──────────────┘  └──────────────────────────┘
+**Proactividad.** Briefing matutino a las 05:45, alertas inteligentes a las 08:30, Tech Radar los
+lunes, PR Review automático, resumen semanal los viernes y reglas propias definidas por voz. Todo
+conmutable desde `/automaticos`.
 
-┌──────────────┐  ┌──────────────┐  ┌──────────────────────────┐
-│  NOTION      │  │  CLOUDFLARE  │  │  NEWS (RSS)              │
-│  api.notion  │  │  D1 SQLite   │  │  Sin token               │
-│  NOTION_TOKEN│  │  CF_API_TOKEN│  │  El País                 │
-│  Tareas y    │  │  Tracker     │  │  Hacker News             │
-│  proyectos   │  │  Blog        │  │  Top 5 titulares         │
-└──────────────┘  └──────────────┘  └──────────────────────────┘
+**Privacidad de verdad.** Los mensajes sensibles se procesan solo en el Ollama local; si el PC está
+apagado, BAKO rechaza el mensaje en vez de mandarlo a la nube.
 
-
-━━━━━━━━━━━ BASES DE DATOS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-┌──────────────────────────────┐  ┌──────────────────────────────┐
-│  MONGODB ATLAS (cloud)       │  │  CLOUDFLARE D1 (edge)        │
-│  Historial de conversaciones │  │  tracker_tasks               │
-│  Colección: tasks            │  │  tracker_records             │
-│  prompt + respuesta + fecha  │  │  tracker_notes               │
-│                              │  │  blog_comments               │
-│  Futuro: Memory collection   │  │  blog_posts                  │
-└──────────────────────────────┘  └──────────────────────────────┘
-```
+**Nunca se queda sin LLM.** Cadena de fallback Ollama → Groq → OpenRouter, con clasificación previa
+de la consulta para gastar el mínimo de tokens posible.
 
 ---
 
-## Flujo completo de una conversación
+## Stack
 
-**Ejemplo: nota de voz "Buenos días Bako, ¿cómo está el tiempo?"**
-
-```
-1. Nota de voz en Telegram
-2. Groq Whisper transcribe el audio
-3. Detección de sensibilidad → no hay palabras sensibles
-4. Keyword "tiempo" → llama a getWeather()
-5. Open-Meteo devuelve datos de Errentería
-6. Construye prompt: [BAKO_PROFILE] + [hora: 08:32 lunes] + [weather] + [pregunta]
-7. isOllamaAvailable()? → SÍ: Ollama qwen2.5 / NO: Groq llama-3.3
-8. LLM genera respuesta contextualizada con hora y datos reales
-9. msedge-tts genera nota de voz WebM (AlvaroNeural)
-10. Telegram envía nota de voz de vuelta
-11. MongoDB guarda [prompt → respuesta]
-```
+| Capa | Tecnología |
+|---|---|
+| Backend | Node 20 · Express 5 · TypeScript |
+| BD principal | MongoDB Atlas M0 (Mongoose) |
+| BD portfolio | Cloudflare D1 (Tracker, blog) |
+| LLM local | Ollama `llama3.2:3b` vía Cloudflare Tunnel |
+| LLM cloud | Groq `llama-3.3-70b-versatile` |
+| LLM fallback | OpenRouter (modelos free) |
+| Embeddings | Ollama `nomic-embed-text` · Cloudflare Workers AI |
+| Voz | `msedge-tts` (salida) · Groq Whisper (entrada) |
+| Clientes | Telegram Bot · PWA vanilla JS · Python tkinter |
+| Seguridad | helmet · CORS allowlist · rate limiting · JWT · bcrypt |
+| Hosting | Render (free) |
 
 ---
 
-## Estructura del proyecto
+## Estructura
 
 ```
-ai-personal-os/
+bako/
 ├── backend/
 │   ├── src/
-│   │   ├── index.ts                  # Entrada Express + MongoDB + Telegram
-│   │   ├── agents/
-│   │   │   └── MorningBriefingAgent.ts  # Briefing paralelo de todos los tools
-│   │   ├── routes/
-│   │   │   └── agent.ts              # REST API: /ask, /morning-briefing, /tasks
-│   │   ├── knowledge/
-│   │   │   └── profile.ts            # BAKO_PROFILE — quién es Borja
-│   │   ├── memory/
-│   │   │   └── Task.ts               # Schema MongoDB para historial
-│   │   ├── llm/
-│   │   │   └── claude.ts             # Orquestador Ollama/Groq + privacidad
-│   │   └── tools/
-│   │       ├── telegram.ts           # Bot, comandos, voz, contexto
-│   │       ├── github.ts             # Repos, commits, PRs, issues
-│   │       ├── notion.ts             # Tareas y proyectos
-│   │       ├── calendar.ts           # Google Calendar OAuth2
-│   │       ├── weather.ts            # Open-Meteo
-│   │       ├── news.ts               # RSS feeds
-│   │       ├── tts.ts                # msedge-tts voz neural
-│   │       └── cloudflare.ts         # D1: Tracker + Blog
-│   ├── scripts/
-│   │   ├── auth-google.ts            # Setup OAuth Google Calendar
-│   │   └── setup-windows-autostart.ps1  # Ollama + PM2 como servicios Windows
-│   └── package.json
-├── ROADMAP.md                         # Visión completa y fases
-├── README.md                          # Este archivo
-└── render.yaml                        # Config despliegue Render.com
+│   │   ├── index.ts            # Express, seguridad, rutas, arranque de bot y crons
+│   │   ├── llm/claude.ts       # Orquestador LLM y cadena de fallback
+│   │   ├── knowledge/          # Perfil base
+│   │   ├── memory/             # Modelos Mongoose (Memory, Person, Project, Knowledge…)
+│   │   ├── middleware/         # Auth JWT · rate limiting · validación
+│   │   ├── routes/             # API REST
+│   │   ├── tools/              # Telegram, Notion, GitHub, Calendar, Gmail, clima, voz…
+│   │   ├── agents/             # MorningBriefingAgent
+│   │   └── services/           # Proactividad (crons) · Web Push
+│   ├── scripts/                # OAuth Google, seeds, autostart Windows
+│   └── public/bako-client/     # PWA instalable
+├── bako-desktop/               # Cliente de escritorio Python
+└── scripts/check-secrets.js    # Escáner de secretos pre-commit
 ```
 
 ---
 
-## Comandos de Telegram
+## Puesta en marcha
 
-| Comando | Qué hace |
-|---------|----------|
-| `texto libre` | Pregunta o pide cualquier cosa en lenguaje natural |
-| `nota de voz` | Habla directamente — Whisper transcribe y responde por voz |
-| `/briefing` | Briefing completo: weather + noticias + calendar + GitHub + Notion |
-| `/tiempo` | Tiempo actual + pronóstico 3 días, por voz |
-| `/proyectos` | Repos activos, commits recientes, PRs abiertas |
-| `/tareas` | Tareas Notion + issues GitHub asignados |
-| `/agenda` | Eventos de Google Calendar hoy y mañana |
-| `/tracker` | Estado del tracker diario (✅ ❌ ⏳) |
-| `/comentarios` | Comentarios del blog bohdeveloper.com |
-| `/privado <msg>` | Fuerza modo local Ollama — nunca sale a la nube |
-| `/servicio` | Muestra si BAKO está usando Ollama local o Groq cloud |
-| `/personalidad <preset>` | *(próximamente)* Ajusta el tono: `mayordomo`, `colega`, `jarvis` |
-
----
-
-## Variables de entorno
-
-Todas las variables van en `backend/.env` para local y en el dashboard de Render para producción.
-
-| Variable | Servicio | Cómo obtenerla |
-|----------|---------|----------------|
-| `GROQ_API_KEY` | groq.com | console.groq.com → API Keys |
-| `TELEGRAM_BOT_TOKEN` | Telegram | @BotFather → /newbot |
-| `TELEGRAM_CHAT_ID` | Telegram | Primer /start al bot |
-| `GITHUB_TOKEN` | GitHub | Settings → Developer Settings → PAT (classic) → scope: repo |
-| `GITHUB_USERNAME` | GitHub | Tu nombre de usuario |
-| `NOTION_TOKEN` | Notion | Settings → Integrations → New Integration |
-| `NOTION_TASKS_DB_ID` | Notion | URL de la base de datos de tareas |
-| `NOTION_PROJECTS_DB_ID` | Notion | URL de la base de datos de proyectos |
-| `GOOGLE_CLIENT_ID` | Google Cloud | Cloud Console → Credenciales OAuth2 |
-| `GOOGLE_CLIENT_SECRET` | Google Cloud | Cloud Console → Credenciales OAuth2 |
-| `GOOGLE_TOKEN_JSON` | Google (auto) | Generado por `npx ts-node scripts/auth-google.ts` |
-| `CLOUDFLARE_API_TOKEN` | Cloudflare | Dashboard → API Tokens → D1:Edit |
-| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare | Dashboard → Overview (barra lateral) |
-| `CLOUDFLARE_D1_DB_ID` | Cloudflare | Workers & Pages → D1 → tu base de datos |
-| `MONGODB_URI` | MongoDB Atlas | Atlas → Connect → Drivers |
-| `OLLAMA_URL` | Local | Fijo: `http://localhost:11434` |
-| `OLLAMA_MODEL` | Local | Fijo: `qwen2.5-coder:7b` |
-| `TTS_VOICE` | msedge-tts | `es-ES-AlvaroNeural` o `es-ES-ElviraNeural` |
-| `WEATHER_LAT` | Open-Meteo | `43.3108` (Errentería) |
-| `WEATHER_LON` | Open-Meteo | `-1.8997` (Errentería) |
-| `BAKO_OWNER_NAME` | — | `Borja` |
-
----
-
-## Sistema de privacidad
-
-BAKO tiene dos capas de privacidad:
-
-**Detección automática** — si el mensaje contiene palabras sensibles (`inetum`, `contrato`, `nómina`, `sueldo`, `password`, `token`, `credencial`, `dni`, `banco`) el sistema:
-- Si Ollama está disponible (PC encendido) → procesa SOLO en local, nunca toca Groq
-- Si Ollama no está disponible → rechaza el mensaje con error explicativo
-
-**Modo explícito** — `/privado <mensaje>` fuerza siempre el procesamiento local independientemente del contenido.
-
----
-
-## Instalación y puesta en marcha
-
-### Requisitos
-- Node.js 20+
-- MongoDB Atlas (cuenta gratuita)
-- Ollama instalado (`winget install Ollama.Ollama`)
-- Modelo descargado: `ollama pull qwen2.5-coder:7b`
-
-### Local
 ```bash
 cd backend
 npm install
-cp .env.example .env   # rellenar todas las variables
-npm run dev            # ts-node, hot reload
+cp .env.example .env     # rellenar — .env NUNCA entra en git
+npm run dev
 ```
 
-### Configurar Google Calendar (una sola vez)
-```bash
-cd backend
-npx ts-node scripts/auth-google.ts
-# Sigue el link que aparece, autoriza con tu cuenta Google
-# Se genera token.json automáticamente
+Arranque correcto:
+
+```
+✅ MongoDB conectado
+🤖 BAKO Telegram activo
+📡 BAKO Proactividad activa
 ```
 
-### Configurar autostart en Windows + Cloudflare Tunnel
+**Google Calendar y Gmail** (una sola vez): `npx ts-node scripts/auth-google.ts`.
 
-El script configura el túnel que permite a Render usar tu Ollama local cuando el PC está encendido.
+**Hook de secretos** (obligatorio en cada máquina): `node scripts/check-secrets.js --install`.
 
-**Prerrequisitos (una sola vez):**
-```powershell
-winget install Cloudflare.cloudflared
-cloudflared tunnel login                                      # abre navegador, autoriza
-cloudflared tunnel create bako-ollama                         # guarda el ID que devuelve
-cloudflared tunnel route dns bako-ollama ollama.bohdeveloper.com
-```
+**Producción:** Render despliega automáticamente al hacer push a `master`. Las variables se
+configuran en el dashboard; `render.yaml` declara cuáles.
 
-**Luego ejecuta el script (PowerShell normal, sin Admin):**
-```powershell
-.\backend\scripts\setup-windows-autostart.ps1
-```
+La guía completa de instalación en una máquina nueva, con la tabla de credenciales y los límites de
+cada servicio gratuito, está en [SETUP.md](SETUP.md).
 
-**Añade en Render Dashboard:**
-```
-OLLAMA_URL=https://ollama.bohdeveloper.com
-```
-
-**Resultado:**
-- PC encendido → Render usa Ollama local vía túnel (privado, sin rate limits)
-- PC apagado → túnel cae, Render vuelve a Groq automáticamente sin cortes
-- `/servicio` en Telegram → muestra qué LLM está usando BAKO ahora mismo
-- `/llm ollama|groq|auto` → cambia manualmente el LLM preferido
-
-### Producción (Render.com)
-El deploy es automático desde GitHub (rama `master`).
-- Configurar todas las variables de entorno en Render Dashboard
-- `GOOGLE_TOKEN_JSON` = contenido completo del `token.json` generado en local
+> ⚠️ Este repositorio es **público**. Ningún secreto puede entrar en git.
 
 ---
 
-## Lo que viene — próximos pasos
+## Documentación
 
-1. **Personalidad configurable** — parámetros de sinceridad, sarcasmo y simpatía (0-10) inyectados en el system prompt. Presets: `mayordomo clásico`, `colega directo`, `modo Jarvis`. Comando `/personalidad` + panel admin.
-2. **Texto libre sin comandos** — detección de intención pura sin necesidad de `/comando`
-3. **Wake word** — di "Bako" en casa y responde sin tocar el teclado (OpenWakeWord)
-4. **Gmail** — resumen de correos sin leer, borradores por voz
-5. **Panel admin** — dashboard Next.js para gestionar memorias, configurar BAKO y ver estadísticas
-
-Ver [ROADMAP.md](ROADMAP.md) para el plan completo de todos los horizontes.
+| Documento | Contenido |
+|---|---|
+| [spec.md](spec.md) | Especificación viva: arquitectura, decisiones invariantes, metodología |
+| [plan.md](plan.md) | Plan de trabajo: pendientes por fases e histórico de lo completado |
+| [GRAPH_REPORT.md](GRAPH_REPORT.md) | Grafo estructural del código: hotspots, clusters, cómo consultarlo |
+| [SETUP.md](SETUP.md) | Instalación en máquina nueva, credenciales, límites de servicios |
+| [CLIENTS.md](CLIENTS.md) | Telegram, PWA y Desktop: comandos y capacidades |
+| [KNOWLEDGE.md](KNOWLEDGE.md) | Base de conocimiento: fuentes, categorías, proceso |
 
 ---
 
-## Stack actual vs. objetivo
+## Metodología
 
-| Capa | Hoy | Objetivo |
-|------|-----|---------|
-| Backend | Express + TypeScript | Express + TypeScript |
-| BD conversacional | MongoDB Atlas (historial) | MongoDB + búsqueda semántica |
-| BD portfolio | Cloudflare D1 | Cloudflare D1 expandido |
-| LLM cloud | Groq Llama 3.3 70B | Groq + modelo fine-tuneado |
-| LLM local | Ollama qwen2.5-coder:7b | Llama 3.2 fine-tuneado |
-| Voz salida | msedge-tts AlvaroNeural | Modelo TTS entrenado |
-| Voz entrada | Groq Whisper (cloud) | Whisper local |
-| Wake word | — | OpenWakeWord |
-| Interfaz | Telegram Bot | App React Native |
-| Dashboard | — | Next.js |
-| Visión | — | OpenCV + YOLO |
-| Robótica | — | Raspberry Pi + ROS |
-| Hosting | Render free | Render + Raspberry Pi hub |
-| **Coste mensual** | **$0** | **$0** |
+Este repositorio usa **Spec-Driven Development**: `spec.md` y `plan.md` son la única fuente de
+verdad. Nada se implementa sin su punto en el plan, y toda decisión de arquitectura queda registrada
+en la spec en la misma sesión en que se toma. Las reglas operativas para Claude Code están en
+[CLAUDE.md](CLAUDE.md).

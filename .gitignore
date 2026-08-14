@@ -1,8 +1,12 @@
 node_modules/
 dist/
 *.log
-.claude/
-graphify-out/cache/
+
+# Config local de Claude Code. Los subagentes SÍ se versionan: viajan con el
+# repositorio para que las dos máquinas trabajen con los mismos especialistas.
+# (se excluye el contenido, no el directorio, para poder reincluir agents/)
+.claude/*
+!.claude/agents/
 
 # Python
 __pycache__/

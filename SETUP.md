@@ -20,8 +20,8 @@ ollama pull qwen2.5-coder:7b
 ## 1. Clonar y preparar el proyecto
 
 ```bash
-git clone https://github.com/bohdeveloper/ai-personal-os.git
-cd ai-personal-os/backend
+git clone https://github.com/bohdeveloper/bako.git
+cd bako/backend
 npm install
 ```
 
@@ -98,7 +98,7 @@ cloudflared tunnel route dns bako-ollama ollama.bohdeveloper.com
 **Setup autostart (ejecutar el script):**
 ```powershell
 # PowerShell normal (NO administrador)
-cd ai-personal-os/backend
+cd bako/backend
 .\scripts\setup-windows-autostart.ps1
 ```
 
