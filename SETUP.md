@@ -4,7 +4,7 @@
 
 ---
 
-## Requisitos base (ambas máquinas)
+## Requisitos base
 
 ```bash
 # Node.js 20+
@@ -75,17 +75,11 @@ npx ts-node scripts/auth-google.ts
 
 ---
 
-## 3. Configuración específica por máquina
+## 3. Ollama vía Cloudflare Tunnel
 
-### PC del trabajo (solo desarrollo, sin Ollama local)
-
-```bash
-# No necesitas OLLAMA_URL — deja la variable comentada
-# BAKO usará Groq como LLM automáticamente
-npm run dev
-```
-
-### PC de casa (con Ollama local vía Cloudflare Tunnel)
+> Única máquina activa (PC de casa). El PC del trabajo se dio de baja el 30/08/2026 — si en el
+> futuro se añade otra máquina sin Ollama local, deja `OLLAMA_URL` sin definir y BAKO usará Groq
+> automáticamente.
 
 **Prerrequisitos (solo la primera vez):**
 ```powershell
@@ -153,7 +147,7 @@ Las demás ya deben estar configuradas desde el setup inicial.
 
 ---
 
-## Estado configuración PC de casa
+## Estado configuración actual (PC de casa, única máquina)
 
 | Tarea | Estado |
 |---|---|

@@ -8,6 +8,7 @@ import { fetchGitHubData, getUserRepos, getPRFiles, getPRDetails } from '../tool
 import { getCalendarEvents } from '../tools/calendar';
 import { nowInSpain } from '../tools/time';
 import { getNotionTasks, getAllNotionProjects, esPrioridadCritica } from '../tools/notion';
+import { syncPlanWithNotion } from '../tools/planSync';
 import { sendSystemMessage } from '../tools/telegram';
 import { Rule } from '../memory/Rule';
 import { askClaude } from '../llm/claude';
@@ -28,6 +29,7 @@ export const DEFAULT_SCHEDULES: Record<string, string> = {
   perfil:          '0 9 * * 1',
   techradar:       '30 9 * * 1',
   resumen_semanal: '0 18 * * 5',
+  notion_sync:     '0 */6 * * *',
 };
 
 // ─── Registro dinámico de tareas ──────────────────────────────────────────────
@@ -430,6 +432,22 @@ async function runResumenSemanalJob(): Promise<void> {
   } catch (err) { console.error('❌ CRON Resumen semanal:', (err as Error).message); }
 }
 
+async function runNotionSyncJob(): Promise<void> {
+  if (!await isJobEnabled('notion_sync')) return;
+  console.log('⏰ CRON: Sincronización plan.md → Notion');
+  try {
+    const result = await syncPlanWithNotion();
+    if (result.updated.length > 0) {
+      const list = result.updated.map(u => `• ${u.nombre}`).join('\n');
+      const n = result.updated.length;
+      await sendSystemMessage(
+        `🔁 *Sincronización Notion:* marqué como Hecho ${n} tarea${n > 1 ? 's' : ''} de BAKO según plan.md:\n${list}`,
+        `Actualicé ${n} tarea${n > 1 ? 's' : ''} de BAKO en Notion según el plan.`
+      );
+    }
+  } catch (err) { console.error('❌ CRON Notion Sync:', (err as Error).message); }
+}
+
 // ─── Servicio principal ───────────────────────────────────────────────────────
 
 export async function startProactivityService(): Promise<void> {
@@ -450,4 +468,5 @@ export async function startProactivityService(): Promise<void> {
   registerTask('perfil',          s('perfil'),          runPerfilJob);
   registerTask('techradar',       s('techradar'),       runTechRadarJob);
   registerTask('resumen_semanal', s('resumen_semanal'), runResumenSemanalJob);
+  registerTask('notion_sync',     s('notion_sync'),     runNotionSyncJob);
 }

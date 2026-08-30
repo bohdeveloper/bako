@@ -31,7 +31,7 @@ services:
       - key: TTS_VOICE
         value: es-ES-AlvaroNeural
       - key: GROQ_MODEL
-        value: llama-3.3-70b-versatile
+        value: openai/gpt-oss-120b
       - key: OPENROUTER_MODEL
         value: google/gemma-4-31b-it:free
       - key: OPENROUTER_API_KEY

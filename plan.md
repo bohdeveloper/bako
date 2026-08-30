@@ -8,7 +8,10 @@
 
 ---
 
-## Estado actual (14/08/2026)
+## Estado actual (30/08/2026)
+
+Sin cambios de código desde el commit `095a3b2` (14/08/2026): **dos semanas paradas.** Nada de lo
+pendiente ha avanzado; el orden de abajo es el punto de partida para retomar.
 
 | Horizonte / fase | Estado |
 |---|---|
@@ -26,41 +29,44 @@
 | Horizonte 3 — Identidad propia (visión, dispositivos, casa) | ❌ No empezado |
 | Horizonte 4 — Presencia física (robótica) | ❌ No empezado |
 
-### Pendiente inmediato
-
-- [ ] **Rotar las credenciales filtradas** — la URI de MongoDB Atlas con contraseña y el
-  `GOOGLE_CLIENT_SECRET` estuvieron en el árbol de trabajo de un repositorio público y **siguen en el
-  historial de git**. Retirarlas del working tree (hecho el 10/08/2026) no basta.
-  - [ ] Rotar la contraseña del usuario de MongoDB Atlas y actualizar `MONGODB_URI` en Render y en las dos máquinas
-  - [ ] Regenerar el client secret de OAuth en Google Cloud Console y re-autorizar (`auth-google.ts`)
-  - [ ] Decidir con **git-master** si se purga el historial (`git filter-repo`) o se asume, dado que el repo es público y ya fue clonable
-- [ ] Verificar que el hook pre-commit de `scripts/check-secrets.js` está instalado en **las dos**
-  máquinas (`node scripts/check-secrets.js --install`)
-- [ ] Verificar en producción la capa de Notion adaptada a "Centro de Mando" (commit `fa05fb4`):
-  crear y cerrar una tarea de prueba desde Telegram y comprobar prioridad P1..P4 y "Fecha objetivo"
-
 ---
 
-## Fase 7c — Rate limits de Groq ⏳
+## Prioridades pendientes (de más a menos importante)
 
-- [x] Paso 1 — routing por complejidad con regex determinista (07/06/2026)
-- [x] Paso 2 — fallback multi-proveedor Groq → OpenRouter → re-throw del 429 (07/06/2026)
-- [x] Paso 3 — prompt siempre compact en los endpoints desktop + captura del 413 (08/06/2026)
-- [ ] Paso 4 — **cache de respuestas frecuentes** (opcional): briefing y agenda cacheados 5 min en
-  MongoDB, ~20 % menos tokens. Implementar solo si vuelven a aparecer 429 en uso normal
-- [ ] Revisar periódicamente la cadena de OpenRouter: los modelos gratuitos cambian y devuelven 404;
-  consultar `/api/v1/models` cuando ocurra
+Todo lo de Horizonte 1 hacia abajo estaba disperso en varias fases; se ordena aquí una sola vez por
+impacto real en tener un mayordomo potente y seguro. Las fases 7c/9/6 conservan su detalle técnico
+íntegro, solo cambian de posición.
 
-## Fase 9 — Wake word y modo conversación ⏳
+### 🔴 P1 · Crítico — seguridad (bloquea todo lo demás)
 
-- [x] PWA escritorio — botón 👂, `SpeechRecognition(continuous:true)` detecta "bako", modo
-  conversación con VAD nativa del navegador, timeout de 20 s (09/06/2026)
-- [x] Desktop — OpenWakeWord opt-in (`BAKO_WAKE_WORD=1`), modelo `hey_jarvis` como placeholder
-  fonético (08/06/2026)
-- [ ] **Desktop — VAD por amplitud** en `_record_loop` (Python) para auto-stop tras silencio; hoy
-  sigue en push-to-talk después de la palabra de activación
-- [ ] **Móvil — wake word sin clics (WebAudio VAD).** `SpeechRecognition(continuous:true)` provoca un
-  clic del sistema en cada reinicio (~5 s), así que está desactivado por detección de UA
+- [x] **Purgar el historial de git** (10/08/2026) — `git filter-repo` reescribió los 187 commits
+  afectados y se forzó el push a `origin/master`. Verificado por **git-master** el 30/08/2026 sobre
+  los 580 blobs del historial alcanzable: no queda ni rastro de la URI de Mongo ni del client secret
+  de Google, solo placeholders `***REMOVED-...***`.
+- [x] **Máquina única confirmada sincronizada** (30/08/2026) — el PC del trabajo se dio de baja, ya
+  no existe ningún dispositivo con la copia vieja del historial que pudiera resucitar la filtración
+  con un push. El PC de casa (`bohpc`) tiene `HEAD` = `origin/master` (`095a3b2`), sin divergencia.
+- [x] Hook pre-commit de `scripts/check-secrets.js` instalado — al ser máquina única, queda cerrado
+  con la comprobación en `bohpc` (30/08/2026)
+- [ ] **Rotar las credenciales** — el historial limpio no baja el riesgo real: estuvieron públicas
+  187 commits / ~10 semanas (02/06 → 10/08/2026) antes de redactarse, tiempo de sobra para que algún
+  scraper de secretos (GitGuardian, bots de GitHub) las indexara.
+  - [ ] Rotar la contraseña del usuario de MongoDB Atlas y actualizar `MONGODB_URI` en Render y en `backend/.env`
+  - [ ] Regenerar el client secret de OAuth en Google Cloud Console, actualizar `GOOGLE_CLIENT_SECRET`
+    en Render/`.env` y re-autorizar (`auth-google.ts`)
+
+### 🟠 P2 · Importante — cerrar Horizonte 1 (mayordomo funcional completo)
+
+- [ ] Verificar en producción la capa de Notion adaptada a "Centro de Mando" (commit `fa05fb4`):
+  crear y cerrar una tarea de prueba desde Telegram y comprobar prioridad P1..P4 y "Fecha objetivo"
+- [ ] Confirmación explícita antes de ejecutar acciones irreversibles distintas del email (hoy se
+  confía en la interpretación del LLM) — Gap 2
+- [ ] Perfil dinámico v2: hoy `ProfileOverride` solo cubre edad, ubicación, empleador, situación
+  laboral y oficina. Proyectos y rutina siguen en `profile.ts` — mover al panel admin — Gap 5
+- [ ] **Fase 9 — Desktop, VAD por amplitud** en `_record_loop` (Python) para auto-stop tras silencio;
+  hoy sigue en push-to-talk después de la palabra de activación
+- [ ] **Fase 9 — Móvil, wake word sin clics (WebAudio VAD).** `SpeechRecognition(continuous:true)`
+  provoca un clic del sistema en cada reinicio (~5 s), así que está desactivado por detección de UA
   1. `getUserMedia` abre el micro una sola vez (un único clic de activación)
   2. `AudioContext` + `AnalyserNode` monitorizan el volumen sin `SpeechRecognition`
   3. Al superar el umbral de amplitud, lanzar `SpeechRecognition` una vez para capturar la frase
@@ -68,23 +74,44 @@
   - Trade-off: falsos positivos en entornos ruidosos. La detección exacta exigiría un modelo ONNX en
     JS (TensorFlow.js + openwakeword), alta complejidad
   - Con la pantalla bloqueada es imposible en una PWA (el SO congela el JS): requeriría app nativa
-- [ ] Modelo de wake word propio: ~30 grabaciones de "Bako" → ONNX, sustituye a `hey_jarvis`
 
-## Fase 6 — Redes sociales ⛔ Diferida
+### 🟡 P3 · Deseable — pulido opcional
 
-- [ ] Twitter/X + LinkedIn — **bloqueada**: ambas APIs requieren plan de pago y el invariante es
-  $0/mes. Reevaluar solo si aparece una vía gratuita
-- [ ] Cola de posts en MongoDB, BAKO genera y publica con confirmación
-- [ ] Modo automático con calendario editorial
-
-## Pendientes sueltos de fases cerradas
-
-- [ ] Confirmación explícita antes de ejecutar acciones irreversibles distintas del email (hoy se
-  confía en la interpretación del LLM) — Gap 2
-- [ ] Perfil dinámico v2: hoy `ProfileOverride` solo cubre edad, ubicación, empleador, situación
-  laboral y oficina. Proyectos y rutina siguen en `profile.ts` — mover al panel admin — Gap 5
+- [ ] Fase 7c, paso 4 — **cache de respuestas frecuentes** (opcional): briefing y agenda cacheados
+  5 min en MongoDB, ~20 % menos tokens. Implementar solo si vuelven a aparecer 429 en uso normal
+- [x] **Incidente (30/08/2026): Groq retiró `llama-3.3-70b-versatile`** — descubierto al verificar la
+  rotación de credenciales (BAKO respondía 404 `model_not_found` en todo, sin relación con Google/Mongo).
+  Groq ya no ofrece ningún modelo Llama; el catálogo actual es `openai/gpt-oss-120b` (elegido, 131k
+  contexto), `gpt-oss-20b`, `qwen/qwen3.6-27b`/`qwen3.8-27b` y `groq/compound`(-mini). Corregido en
+  `render.yaml`, `llm/claude.ts` (default) y `.env.example`.
+- [ ] Revisar periódicamente el catálogo de Groq **y** la cadena de OpenRouter: los modelos gratuitos
+  cambian sin aviso y devuelven 404; consultar `GET /openai/v1/models` de Groq y
+  `/api/v1/models` de OpenRouter cuando ocurra
+- [ ] Fase 9 — modelo de wake word propio: ~30 grabaciones de "Bako" → ONNX, sustituye a `hey_jarvis`
 - [ ] Widget de chat público en bohdeveloper.com (diferido desde la Fase 7)
 - [ ] Edición de perfil ampliada en el panel admin (más campos que `ProfileOverride`)
+
+### ⚪ P4 · Diferido / bloqueado
+
+- [ ] Fase 6 — Twitter/X + LinkedIn: **bloqueada**, ambas APIs requieren plan de pago y el invariante
+  es $0/mes. Reevaluar solo si aparece una vía gratuita
+  - [ ] Cola de posts en MongoDB, BAKO genera y publica con confirmación
+  - [ ] Modo automático con calendario editorial
+
+---
+
+## Fase 7c — Rate limits de Groq ⏳ (pasos ya cerrados, pendiente en P3 arriba)
+
+- [x] Paso 1 — routing por complejidad con regex determinista (07/06/2026)
+- [x] Paso 2 — fallback multi-proveedor Groq → OpenRouter → re-throw del 429 (07/06/2026)
+- [x] Paso 3 — prompt siempre compact en los endpoints desktop + captura del 413 (08/06/2026)
+
+## Fase 9 — Wake word y modo conversación ⏳ (pasos ya cerrados, pendiente en P2/P3 arriba)
+
+- [x] PWA escritorio — botón 👂, `SpeechRecognition(continuous:true)` detecta "bako", modo
+  conversación con VAD nativa del navegador, timeout de 20 s (09/06/2026)
+- [x] Desktop — OpenWakeWord opt-in (`BAKO_WAKE_WORD=1`), modelo `hey_jarvis` como placeholder
+  fonético (08/06/2026)
 
 ---
 

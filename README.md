@@ -18,7 +18,7 @@ entrar en el plan:
 |---|---|---|
 | **Memoria** | Recuerda tu historia, tus bloqueos, tus decisiones | ✅ Memoria cognitiva con embeddings |
 | **Ejecución** | No solo informa — actúa: crea, cierra, agenda | ✅ Notion, Calendar, GitHub, Tracker |
-| **Proactividad** | Habla sin que le preguntes cuando hay algo relevante | ✅ 7 crons + motor de reglas |
+| **Proactividad** | Habla sin que le preguntes cuando hay algo relevante | ✅ 8 crons + motor de reglas |
 | **Acceso sin fricción** | Dices su nombre y está ahí | ⚠️ Wake word en PWA de escritorio |
 | **Conocimiento vivo** | Tu vida evoluciona, él también | ✅ Perfil dinámico + colecciones estructuradas |
 
@@ -58,7 +58,7 @@ de la consulta para gastar el mínimo de tokens posible.
 | BD principal | MongoDB Atlas M0 (Mongoose) |
 | BD portfolio | Cloudflare D1 (Tracker, blog) |
 | LLM local | Ollama `llama3.2:3b` vía Cloudflare Tunnel |
-| LLM cloud | Groq `llama-3.3-70b-versatile` |
+| LLM cloud | Groq `openai/gpt-oss-120b` |
 | LLM fallback | OpenRouter (modelos free) |
 | Embeddings | Ollama `nomic-embed-text` · Cloudflare Workers AI |
 | Voz | `msedge-tts` (salida) · Groq Whisper (entrada) |

@@ -9,13 +9,18 @@
 ## Spec-Driven Development (OBLIGATORIO)
 
 1. **Al empezar**, lee [spec.md](spec.md) §3 (invariantes) y §6 (metodología), y [plan.md](plan.md).
-2. **Nada se implementa sin su punto en `plan.md`.** Si la tarea no está, añádela antes de tocar
+2. **Antes de tocar nada**, revisa las tareas abiertas de BAKO en Notion (base "Tareas", Centro de
+   Mando — filtra por proyecto BAKO) y contrástalas con lo que vas a hacer: si la tarea no existe
+   ahí, créala; si ya existe, no la dupliques.
+3. **Nada se implementa sin su punto en `plan.md`.** Si la tarea no está, añádela antes de tocar
    código. Las tareas grandes se desglosan en fases primero.
-3. **Contrasta con los invariantes de §3** antes de proponer nada y avisa si la petición choca con
+4. **Contrasta con los invariantes de §3** antes de proponer nada y avisa si la petición choca con
    alguno (coste $0, repo público sin secretos, Notion como fuente de verdad, privacidad local…).
-4. **Al terminar**, registra: marca el punto en `plan.md` con la fecha · las decisiones nuevas de
-   producto o arquitectura van a `spec.md` §3 · los cambios de alcance o de stack, a `README.md`.
-5. Antes de cerrar cualquier feature: `npm run build` en `backend/`, **`/code-review` sobre el diff**
+5. **Al terminar**, registra: marca el punto en `plan.md` con la fecha · **actualiza el estado de la
+   tarea correspondiente en Notion** (Estado → "Hecho"/"En curso"/"Bloqueado", con una nota si aporta
+   contexto) · las decisiones nuevas de producto o arquitectura van a `spec.md` §3 · los cambios de
+   alcance o de stack, a `README.md`.
+6. Antes de cerrar cualquier feature: `npm run build` en `backend/`, **`/code-review` sobre el diff**
    y `/security-review` si se ha tocado auth, privacidad, secretos o endpoints.
 
 ---
@@ -63,5 +68,6 @@ La tabla completa está en [spec.md](spec.md) §6.
   Telegram duplican mensajes. Si arrancas algo para verificar, ciérralo al terminar.
 - **Commits solo cuando el usuario los pida** (él revisa el diff). Estilo del `git log`:
   `tipo: descripción en español`, con cuerpo que explique el porqué, no el qué.
-- Dos máquinas: el PC del trabajo va sin Ollama (usa Groq); el de casa lo expone por el túnel
-  Cloudflare. No asumas que Ollama está disponible.
+- **Una sola máquina** (el PC de casa; el del trabajo se dio de baja el 30/08/2026). Ollama está
+  disponible vía el túnel Cloudflare `bako-ollama`, pero no lo des por sentado si el túnel está caído
+  — `isOllamaAvailable()` hace fallback a Groq automáticamente.

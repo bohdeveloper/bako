@@ -38,7 +38,7 @@ Toda feature se evalúa contra esta lista antes de entrar en el plan:
 |---|---|
 | **Memoria** — recuerda tu historia, bloqueos y decisiones | ✅ Memoria cognitiva con embeddings |
 | **Ejecución** — no informa, actúa | ✅ Notion, Calendar, GitHub, Tracker, recordatorios |
-| **Proactividad** — habla sin que le preguntes | ✅ 7 crons configurables + motor de reglas |
+| **Proactividad** — habla sin que le preguntes | ✅ 8 crons configurables + motor de reglas |
 | **Acceso sin fricción** — dices su nombre y está | ⚠️ Wake word en PWA de escritorio; móvil pendiente |
 | **Conocimiento vivo** — evoluciona contigo | ✅ ProfileOverride + colecciones estructuradas |
 
@@ -55,7 +55,7 @@ uno de estos cinco gaps. Si no, espera.
 | BD principal | MongoDB Atlas M0 (512 MB) vía Mongoose — memoria, perfil, usuarios, config |
 | BD portfolio | Cloudflare D1 (SQLite edge) — Tracker personal y comentarios del blog |
 | LLM local | Ollama `llama3.2:3b` a través del túnel Cloudflare |
-| LLM cloud | Groq `llama-3.3-70b-versatile` |
+| LLM cloud | Groq `openai/gpt-oss-120b` (Groq retiró `llama-3.3-70b-versatile` en agosto 2026 — ya no ofrece modelos Llama, solo `gpt-oss`, Qwen y `compound`) |
 | LLM fallback | OpenRouter (cadena de 5 modelos free, `OPENROUTER_MODEL` configurable) |
 | Embeddings | Ollama `nomic-embed-text` (768d) · fallback Cloudflare Workers AI `bge-small-en-v1.5` (384d) |
 | Voz salida | `msedge-tts` (voces neurales ES/MX/AR) |
@@ -83,7 +83,7 @@ bako/
 │   │   │                           #   notifications, autoconfig, tts, push
 │   │   ├── tools/                  # telegram, notion, github, calendar, gmail, weather, news, tts,
 │   │   │                           #   time, context, memory, embeddings, actions, issueSync,
-│   │   │                           #   projectSync, profileDynamic
+│   │   │                           #   projectSync, planSync, profileDynamic
 │   │   ├── agents/MorningBriefingAgent.ts
 │   │   ├── services/               # ProactivityService (crons) · pushService (Web Push)
 │   │   └── scripts/seedBrain.ts
@@ -125,11 +125,15 @@ agenda. Cachés cortas (clima 10 min, calendar 1 min) con invalidación explíci
 menciona el recurso — el tracker y el calendario nunca se responden desde caché si se preguntan.
 
 **Ejecución de acciones.** `tools/actions.ts` detecta intención y ejecuta; `issueSync.ts` y
-`projectSync.ts` mantienen Notion y GitHub sincronizados en ambos sentidos.
+`projectSync.ts` mantienen Notion y GitHub sincronizados en ambos sentidos; `planSync.ts` mantiene
+las tareas de BAKO en Notion sincronizadas con `plan.md`.
 
 **Proactividad.** `ProactivityService` registra los crons y `AutoConfig` (MongoDB) guarda qué está
 activado; `/automaticos` los conmuta con botones inline. `isJobEnabled()` se consulta antes de cada
-ejecución.
+ejecución. Cron `notion_sync` (cada 6h): lee `plan.md` en crudo desde GitHub (raw.githubusercontent.com,
+sin auth), extrae las líneas `[x]`, y con una llamada a Groq empareja cada una contra las tareas de
+BAKO todavía abiertas en Notion — si hay coincidencia clara, las marca "Hecho" y avisa por Telegram.
+Evita el desfase que hubo hasta el 30/08/2026 entre lo cerrado en el plan y lo reflejado en Notion.
 
 **Seguridad transversal.** Rate limiters por familia de endpoint (`loginLimiter`, `llmLimiter`,
 `generalLimiter`, `ttsLimiter`), validadores y sanitizadores centralizados en `middleware/security.ts`
@@ -157,7 +161,9 @@ No se reabren sin decisión explícita del usuario.
 2. **El repositorio es público.** Ningún secreto entra en git, nunca. `scripts/check-secrets.js`
    corre como hook pre-commit y aborta el commit si detecta credenciales. Instalación:
    `node scripts/check-secrets.js --install`. Ya hubo una filtración (URI de Atlas con contraseña y
-   un client secret de Google): **ambas credenciales siguen en el historial y deben rotarse**.
+   un client secret de Google, expuestas 187 commits / ~10 semanas): el historial ya se purgó con
+   `git filter-repo` el 10/08/2026, pero **ambas credenciales deben rotarse igualmente** — el
+   historial limpio no baja el riesgo de que ya hayan sido indexadas mientras estuvieron públicas.
 3. **Privacidad por dos capas.** Palabras sensibles (`inetum`, `contrato`, `nómina`, `sueldo`,
    `password`, `token`, `credencial`, `dni`, `banco`) → se procesan solo en Ollama local; si Ollama
    no está disponible, el mensaje se rechaza en vez de salir a la nube. `/privado` fuerza local.
@@ -224,8 +230,8 @@ npm run dev                # nodemon + ts-node
 ```
 Arranque correcto = `✅ MongoDB conectado` + `🤖 BAKO Telegram activo` + `📡 BAKO Proactividad activa`.
 
-- **Dos máquinas:** el PC del trabajo va sin Ollama (usa Groq); el PC de casa expone Ollama por el
-  túnel Cloudflare `bako-ollama` (Task Scheduler `BAKO-Ollama-Tunnel`).
+- **Una sola máquina** (PC de casa; el del trabajo se dio de baja el 30/08/2026): expone Ollama por
+  el túnel Cloudflare `bako-ollama` (Task Scheduler `BAKO-Ollama-Tunnel`).
 - **Producción:** Render despliega solo al hacer push a `master`. Las variables van en el dashboard
   de Render; `render.yaml` declara cuáles con `sync: false`.
 - **Google Calendar/Gmail:** `npx ts-node scripts/auth-google.ts` genera `token.json`; su contenido
@@ -237,7 +243,8 @@ Arranque correcto = `✅ MongoDB conectado` + `🤖 BAKO Telegram activo` + `�
 - PWA en un solo fichero de 4.000 líneas: se asume a cambio de no tener build.
 - Sin confirmación previa para acciones irreversibles distintas del email: se confía en la
   interpretación del LLM.
-- Credenciales filtradas en el historial de git pendientes de rotar.
+- Credenciales filtradas pendientes de rotar (el historial de git ya se purgó el 10/08/2026, pero
+  siguen sin rotarse en Atlas y Google Cloud Console).
 
 ---
 
@@ -246,13 +253,15 @@ Arranque correcto = `✅ MongoDB conectado` + `🤖 BAKO Telegram activo` + `�
 ### Antes de desarrollar
 1. Leer `spec.md` (§3 invariantes y §6) y `plan.md`. Si la tarea no está en el plan, **añadirla
    primero**.
-2. Contrastar con los invariantes de §3 y con las cinco cualidades de §1; avisar si algo choca.
-3. Explorar el código con **codebase-memory-mcp** (`get_architecture`, `search_graph`, `trace_path`,
+2. **Revisar las tareas abiertas de BAKO en Notion** (base "Tareas" del Centro de Mando, proyecto
+   BAKO) antes de tocar código: si la tarea no existe ahí, crearla; si ya existe, no duplicarla.
+3. Contrastar con los invariantes de §3 y con las cinco cualidades de §1; avisar si algo choca.
+4. Explorar el código con **codebase-memory-mcp** (`get_architecture`, `search_graph`, `trace_path`,
    `get_code_snippet`), no releyendo ficheros enteros. `get_graph_schema` primero en cada sesión.
-4. Buscar la entidad o el helper que ya cubra el concepto antes de crear uno nuevo — sobre todo en
+5. Buscar la entidad o el helper que ya cubra el concepto antes de crear uno nuevo — sobre todo en
    `tools/` y `middleware/security.ts`, donde ya hay validadores y cachés centralizados.
-5. Para cualquier cosa visual, delegar en el subagente **ux-ui-designer** antes de maquetar.
-6. Desglosar las tareas grandes en fases dentro de `plan.md` antes de empezar.
+6. Para cualquier cosa visual, delegar en el subagente **ux-ui-designer** antes de maquetar.
+7. Desglosar las tareas grandes en fases dentro de `plan.md` antes de empezar.
 
 ### Durante el desarrollo
 - Español en comentarios, mensajes de commit y textos de usuario.
@@ -268,8 +277,9 @@ Arranque correcto = `✅ MongoDB conectado` + `🤖 BAKO Telegram activo` + `�
 3. `/security-review` si se toca auth, privacidad, secretos o se añaden endpoints.
 4. Verificar de punta a punta en la app real (Telegram, PWA o Desktop según lo tocado) y cerrar los
    procesos que se hayan levantado. Nunca dejar `npm run dev` corriendo en paralelo con Render.
-5. Registrar: marcar el punto en `plan.md` con fecha · decisiones nuevas → `spec.md` §3 ·
-   cambios de alcance o de stack → `README.md`.
+5. Registrar: marcar el punto en `plan.md` con fecha · **actualizar el estado de la tarea
+   correspondiente en Notion** (Hecho/En curso/Bloqueado, con nota si aporta contexto) · decisiones
+   nuevas → `spec.md` §3 · cambios de alcance o de stack → `README.md`.
 6. Reindexar el grafo si el cambio fue grande: `codebase-memory-mcp cli index_repository
    '{"repo_path":"C:/aplic/bako"}'`.
 7. Commit **solo cuando el usuario lo pida** (él revisa el diff), en el estilo del `git log`:
@@ -299,7 +309,8 @@ Arranque correcto = `✅ MongoDB conectado` + `🤖 BAKO Telegram activo` + `�
 | **seo-master** | Posicionamiento e indexabilidad: metadatos, Open Graph, `manifest`, datos estructurados, Core Web Vitals, robots/sitemap si alguna superficie se hace pública | Diseño visual sin objetivo de búsqueda |
 
 Los tres trabajan en español y leen este `spec.md` antes de actuar. Están versionados en el repo
-para que las dos máquinas usen los mismos especialistas.
+para que cualquier máquina nueva (si el setup vuelve a ser multi-dispositivo) use los mismos
+especialistas sin reconfigurar nada.
 
 ---
 

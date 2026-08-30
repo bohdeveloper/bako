@@ -70,6 +70,13 @@ export const JOB_DEFS: JobDef[] = [
     descripcion: 'Resumen de la semana: repos, tareas, próximos eventos',
     icon:        '📊',
   },
+  {
+    key:         'notion_sync',
+    nombre:      'Sincronización plan → Notion',
+    horario:     'Cada 6h',
+    descripcion: 'Revisa plan.md en GitHub y marca en Notion las tareas de BAKO ya completadas',
+    icon:        '🔁',
+  },
 ];
 
 export async function isJobEnabled(key: string): Promise<boolean> {
