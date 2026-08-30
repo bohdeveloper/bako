@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BAKO — Política de privacidad</title>
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --bg2: #1a1a1a;
+      --text: #e8e8e8;
+      --dim: #999;
+      --teal: #14b8a6;
+      --border: #2a2a2a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      line-height: 1.6;
+    }
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+    h1 {
+      color: var(--teal);
+      font-size: 1.6rem;
+      margin-bottom: 4px;
+    }
+    .updated {
+      color: var(--dim);
+      font-size: 0.85rem;
+      margin-bottom: 32px;
+    }
+    h2 {
+      font-size: 1.1rem;
+      margin-top: 32px;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+    p, li { color: #cfcfcf; }
+    ul { padding-left: 20px; }
+    a { color: var(--teal); }
+    .box {
+      border: 1px solid var(--border);
+      background: var(--bg2);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-top: 32px;
+      font-size: 0.9rem;
+      color: var(--dim);
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Política de privacidad — BAKO</h1>
+    <p class="updated">Última actualización: 30 de agosto de 2026</p>
+
+    <p>
+      BAKO es un asistente personal (mayordomo digital) de uso estrictamente individual, construido
+      y operado por un único desarrollador para su propio uso diario. No es un producto ni un
+      servicio ofrecido a terceros: no existe registro de usuarios, no hay una audiencia pública ni
+      se comercializa de ninguna forma.
+    </p>
+
+    <h2>Qué datos trata BAKO</h2>
+    <p>Para funcionar como asistente personal, BAKO accede, con autorización explícita de su único
+      usuario mediante OAuth de Google, a:</p>
+    <ul>
+      <li><strong>Google Calendar</strong> — lectura y creación de eventos para gestionar la agenda.</li>
+      <li><strong>Gmail</strong> — lectura de correos no leídos, y redacción/envío de correos, siempre
+        con confirmación explícita del usuario antes de enviar nada.</li>
+    </ul>
+
+    <h2>Dónde se almacenan los datos</h2>
+    <p>
+      Los tokens de acceso OAuth y los datos derivados de las conversaciones (memoria, perfil,
+      contexto) se almacenan en una base de datos privada (MongoDB Atlas) con acceso restringido por
+      credenciales. No se almacenan copias del contenido completo de los correos ni de los eventos
+      más allá de lo necesario para responder en el momento.
+    </p>
+
+    <h2>Con quién se comparten los datos</h2>
+    <p>
+      Con nadie. Los datos no se venden, ceden ni comparten con terceros. Se usan modelos de lenguaje
+      (Ollama local, Groq, OpenRouter) para procesar las conversaciones, pero solo se les envía el
+      contexto necesario para responder — nunca credenciales ni tokens de acceso.
+    </p>
+
+    <h2>Contacto</h2>
+    <p>
+      Para cualquier duda sobre esta política o sobre el tratamiento de datos:
+      <a href="mailto:ohb.seven@gmail.com">ohb.seven@gmail.com</a>
+    </p>
+
+    <div class="box">
+      Este documento existe para cumplir el requisito de Google Cloud de enlazar una política de
+      privacidad pública al configurar el consentimiento OAuth de una aplicación externa. BAKO no
+      tiene usuarios distintos de su desarrollador.
+    </div>
+  </main>
+</body>
+</html>
