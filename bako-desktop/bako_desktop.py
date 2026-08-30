@@ -262,6 +262,10 @@ class BakoDesktopApp:
         self.bako_role    = 'user'
         self._is_active   = False   # True mientras BAKO procesa o reproduce
         self._cancel_flag = threading.Event()
+        # pygame.mixer.music es un canal único de proceso: sin este lock, el
+        # saludo inicial (_speak_text) y una respuesta real (_play_audio) podían
+        # solaparse y cortarse entre sí si el usuario hablaba nada más abrir.
+        self._audio_lock = threading.Lock()
         self._notif_stop  = threading.Event()  # señal para parar el polling
         self._wake_stop   = threading.Event()  # señal para parar el wake word listener
         # Timestamp de la última notificación vista — cada cliente lleva el suyo
@@ -285,11 +289,13 @@ class BakoDesktopApp:
         # Auth: si hay DESKTOP_TOKEN, acceso directo; si no, usar JWT
         if DESKTOP_TOKEN:
             self._add_message('bako', '¿En qué puedo ayudarle, señor?')
+            self._speak_text('¿En qué puedo ayudarle, señor?')
             self._set_status('✅ Listo')
             self._start_notification_polling()
         elif self._load_auth():
             self._update_admin_btn()
             self._add_message('bako', '¿En qué puedo ayudarle, señor?')
+            self._speak_text('¿En qué puedo ayudarle, señor?')
             self._set_status('✅ Listo')
             self._start_notification_polling()
         else:
@@ -401,6 +407,7 @@ class BakoDesktopApp:
                             dlg.destroy(),
                             self._update_admin_btn(),
                             self._add_message('bako', '¿En qué puedo ayudarle, señor?'),
+                            self._speak_text('¿En qué puedo ayudarle, señor?'),
                             self._set_status('✅ Listo'),
                         ])
                         self._start_notification_polling()
@@ -545,6 +552,16 @@ class BakoDesktopApp:
             command=self._toggle_theme,
         )
         self._toggle_btn.pack(side='right', padx=12)
+
+        # Selector de voz TTS — se rellena tras consultar /api/desktop/voice-config
+        self._voice_desc_to_key = {}
+        self._voice_var = tk.StringVar(value='🔊 …')
+        self._voice_menu = tk.OptionMenu(self._hdr, self._voice_var, '🔊 …')
+        self._voice_menu.config(bg=t['bg2'], fg=t['dim'], relief='flat',
+                                 font=self.f_small, highlightthickness=0)
+        self._voice_menu.pack(side='right', padx=(0, 4))
+        self._voice_var.trace_add('write', self._on_voice_selected)
+        self._load_voice_options()
 
         # Chat area
         chat_outer = tk.Frame(self.root, bg=t['bg'])
@@ -1752,6 +1769,49 @@ class BakoDesktopApp:
     # Tema
     # ─────────────────────────────────────────────────────────────────────────
 
+    def _load_voice_options(self):
+        def _req():
+            try:
+                r = requests.get(f'{BAKO_URL}/api/desktop/voice-config',
+                                  headers=self._get_headers(), timeout=10)
+                if not r.ok:
+                    return
+                data = r.json()
+                self.root.after(0, lambda: self._populate_voice_menu(
+                    data.get('voices', []), data.get('current', 'alvaro')))
+            except Exception:
+                pass
+        threading.Thread(target=_req, daemon=True).start()
+
+    def _populate_voice_menu(self, voices, current_key):
+        self._voice_desc_to_key = {v['descripcion']: v['key'] for v in voices}
+        menu = self._voice_menu['menu']
+        menu.delete(0, 'end')
+        for v in voices:
+            menu.add_command(
+                label=v['descripcion'],
+                command=lambda desc=v['descripcion']: self._voice_var.set(desc),
+            )
+        current_desc = next((v['descripcion'] for v in voices if v['key'] == current_key), None)
+        if current_desc:
+            self._voice_loading = True
+            self._voice_var.set(current_desc)
+            self._voice_loading = False
+
+    def _on_voice_selected(self, *_args):
+        if getattr(self, '_voice_loading', False):
+            return
+        key = self._voice_desc_to_key.get(self._voice_var.get())
+        if not key:
+            return
+        def _req():
+            try:
+                requests.post(f'{BAKO_URL}/api/desktop/voice-config', json={'key': key},
+                              headers=self._get_headers(), timeout=10)
+            except Exception:
+                pass
+        threading.Thread(target=_req, daemon=True).start()
+
     def _toggle_theme(self):
         new = 'light' if self.theme_name == 'dark' else 'dark'
         self.theme_name = new
@@ -1765,6 +1825,7 @@ class BakoDesktopApp:
         self.root.configure(bg=t['bg'])
         self._hdr.configure(bg=t['bg2'])
         self._toggle_btn.configure(bg=t['bg2'], fg=t['text'], text=t['toggle_icon'])
+        self._voice_menu.configure(bg=t['bg2'], fg=t['dim'])
         self._admin_btn.configure(bg=t['bg2'])
         self._canvas.configure(bg=t['bg'])
         self._chat_frame.configure(bg=t['bg'])
@@ -2210,32 +2271,40 @@ class BakoDesktopApp:
     # Audio
     # ─────────────────────────────────────────────────────────────────────────
 
-    def _play_audio(self, audio_b64: str):
-        audio_bytes = base64.b64decode(audio_b64)
-        tmp = tempfile.NamedTemporaryFile(suffix='.webm', delete=False)
-        tmp.write(audio_bytes)
-        tmp.flush()
-        tmp.close()
-        try:
-            if PLAYER == 'pygame':
-                pygame.mixer.music.load(tmp.name)
-                pygame.mixer.music.play()
-                while pygame.mixer.music.get_busy():
-                    if self._cancel_flag.is_set():
-                        pygame.mixer.music.stop()
-                        break
-                    time.sleep(0.1)
-            else:
-                import subprocess
-                if sys.platform == 'win32':
-                    os.startfile(tmp.name); time.sleep(3)
-                elif sys.platform == 'darwin':
-                    subprocess.run(['afplay', tmp.name])
+    def _play_audio_bytes(self, audio_b64: str, cancellable: bool = False):
+        """Mecánica de reproducción compartida por _play_audio y _speak_text.
+        Serializada con _audio_lock: pygame.mixer.music es un único canal de
+        proceso, así que sin este lock una respuesta real podía cortar o
+        mezclarse con el saludo inicial si el usuario hablaba nada más abrir."""
+        with self._audio_lock:
+            audio_bytes = base64.b64decode(audio_b64)
+            tmp = tempfile.NamedTemporaryFile(suffix='.webm', delete=False)
+            tmp.write(audio_bytes)
+            tmp.flush()
+            tmp.close()
+            try:
+                if PLAYER == 'pygame':
+                    pygame.mixer.music.load(tmp.name)
+                    pygame.mixer.music.play()
+                    while pygame.mixer.music.get_busy():
+                        if cancellable and self._cancel_flag.is_set():
+                            pygame.mixer.music.stop()
+                            break
+                        time.sleep(0.1)
                 else:
-                    subprocess.run(['aplay', tmp.name])
-        finally:
-            try: os.unlink(tmp.name)
-            except Exception: pass
+                    import subprocess
+                    if sys.platform == 'win32':
+                        os.startfile(tmp.name); time.sleep(3)
+                    elif sys.platform == 'darwin':
+                        subprocess.run(['afplay', tmp.name])
+                    else:
+                        subprocess.run(['aplay', tmp.name])
+            finally:
+                try: os.unlink(tmp.name)
+                except Exception: pass
+
+    def _play_audio(self, audio_b64: str):
+        self._play_audio_bytes(audio_b64, cancellable=True)
 
         self._is_active = False
         if not self._cooling_down() and not self._cancel_flag.is_set():
@@ -2243,6 +2312,20 @@ class BakoDesktopApp:
             self._set_status('✅ Listo')
         self.root.after(0, lambda: self._mic_btn.config(
             bg=self.t['btn'], text='🎤', fg=self.t['text']))
+
+    def _speak_text(self, text: str):
+        """TTS de un texto suelto (p.ej. el saludo inicial) sin tocar el estado
+        del micro ni del botón — a diferencia de _play_audio, que sí forma parte
+        del flujo de grabación/respuesta por voz."""
+        def _req():
+            try:
+                r = requests.post(f'{BAKO_URL}/api/tts', json={'text': text},
+                                   headers=self._get_headers(), timeout=15)
+                if r.ok:
+                    self._play_audio_bytes(r.json()['audio'])
+            except Exception:
+                pass
+        threading.Thread(target=_req, daemon=True).start()
 
     # ─────────────────────────────────────────────────────────────────────────
     # Hotkey global

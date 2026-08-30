@@ -116,6 +116,33 @@
     .wake-btn.active { color: var(--teal); border-color: var(--teal); animation: wakePulse 2s ease-in-out infinite; }
     @keyframes wakePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(20,184,166,0); } 50% { box-shadow: 0 0 0 4px rgba(20,184,166,0.2); } }
 
+    /* Selector de voz TTS — pill con <select> nativo (picker del SO en móvil,
+       desplegable normal en escritorio); mismo lenguaje visual que #llmBadge. */
+    .voice-select-wrap {
+      position: relative; display: inline-flex; align-items: center;
+      color: var(--dim); transition: color 0.2s;
+    }
+    .voice-select-wrap:hover, .voice-select-wrap:focus-within { color: var(--teal); }
+    .voice-select-wrap::after {
+      content: ''; position: absolute; right: 7px; top: 50%; width: 5px; height: 5px;
+      border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+      transform: translateY(-65%) rotate(45deg); pointer-events: none; opacity: .8;
+    }
+    .voice-select {
+      appearance: none; -webkit-appearance: none; -moz-appearance: none;
+      font: inherit; font-size: 10px; font-weight: 600; letter-spacing: .04em;
+      max-width: 96px; padding: 2px 18px 2px 8px; border-radius: 20px;
+      background: transparent; border: 1px solid currentColor; color: inherit;
+      cursor: pointer; outline: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .voice-select:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+    .voice-select:disabled { cursor: wait; opacity: .6; }
+    .voice-select option { background: var(--bg2); color: var(--text); }
+    @keyframes voiceSaved { 0%,100% { transform: scale(1); } 40% { transform: scale(1.08); } }
+    .voice-select-wrap.saved  { animation: voiceSaved .3s ease-out; color: var(--teal); }
+    .voice-select-wrap.error  { color: var(--red); }
+    @media (prefers-reduced-motion: reduce) { .voice-select-wrap.saved { animation: none; } }
+
     /* ── Chat history ────────────────────────────────────────────────────────── */
     .chat-history {
       flex: 1;
@@ -1239,6 +1266,9 @@
   <h1 id="bakoTitle" style="cursor:pointer" title="Limpiar chat">BAKO</h1>
   <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:8px">
     <span id="llmBadge" style="font-size:10px;font-weight:600;letter-spacing:.04em;padding:2px 7px;border-radius:20px;opacity:.75;background:transparent;border:1px solid currentColor;display:none;cursor:pointer" title="Clic para forzar Groq / volver a automático"></span>
+    <span class="voice-select-wrap" id="voiceSelectWrap" style="display:none">
+      <select id="voiceSelect" class="voice-select" title="Voz de BAKO" aria-label="Voz de BAKO"></select>
+    </span>
     <button class="wake-btn" id="btnWakeWord" title="Activar wake word — di 'Bako'">👂</button>
   <button class="theme-toggle" id="themeToggle" title="Cambiar tema" style="position:static;transform:none">
     <!-- Icono luna (visible en modo oscuro → click para ir a claro) -->
@@ -3327,7 +3357,13 @@
       if (res.status === 401) { doLogout(); return; }
     } catch { /* sin conexión — mostrar chat de todos modos */ }
     showApp(user);
-    addMessage('bako', '¿En qué puedo ayudarle, señor?');
+    const saludoInicial = '¿En qué puedo ayudarle, señor?';
+    addMessage('bako', saludoInicial);
+    // Los navegadores bloquean el autoplay de audio sin gesto previo del usuario en
+    // la carga inicial — falla en silencio (ya lo maneja playTTS) y el saludo se
+    // queda solo en texto esa vez. En sesiones siguientes del PWA instalado suele
+    // sonar, porque el navegador ya tiene "media engagement" con el sitio.
+    playTTS(saludoInicial);
 
     document.getElementById('bakoTitle').addEventListener('click', () => {
       if (!confirm('¿Limpiar el chat?')) return;
@@ -3380,6 +3416,60 @@
 
     refreshLlmBadge();
     setInterval(refreshLlmBadge, 60_000);
+
+    // Selector de voz TTS — 6 voces fijas del backend (persistidas en Mongo).
+    // <select> nativo en vez de menú custom: en móvil abre el picker del SO
+    // (más cómodo con 6 opciones que un desplegable propio) y en escritorio
+    // se comporta como cualquier <select>, con teclado y accesibilidad gratis.
+    const voiceWrap   = document.getElementById('voiceSelectWrap');
+    const voiceSelect = document.getElementById('voiceSelect');
+
+    async function initVoiceSelect() {
+      try {
+        const res = await fetch(`${BAKO_URL}/api/desktop/voice-config`, { headers: authHeaders() });
+        if (!res.ok) return;
+        const data = await res.json();
+        voiceSelect.innerHTML = '';
+        (data.voices || []).forEach(v => {
+          const opt = document.createElement('option');
+          opt.value = v.key;
+          opt.textContent = v.descripcion || v.key;
+          voiceSelect.appendChild(opt);
+        });
+        voiceSelect.value = data.current;
+        voiceSelect.dataset.prev = data.current;
+        voiceSelect.title = 'Voz de BAKO: ' + (voiceSelect.selectedOptions[0]?.textContent || data.current);
+        voiceWrap.style.display = 'inline-flex';
+      } catch { /* si falla, el selector se queda oculto — no rompe el resto de la UI */ }
+    }
+
+    voiceSelect.addEventListener('change', async () => {
+      const prev = voiceSelect.dataset.prev || voiceSelect.value;
+      const key  = voiceSelect.value;
+      voiceSelect.disabled = true;
+      try {
+        const res = await fetch(`${BAKO_URL}/api/desktop/voice-config`, {
+          method: 'POST', headers: authHeaders(), body: JSON.stringify({ key }),
+        });
+        if (!res.ok) throw new Error('voice-update-failed');
+        const data = await res.json();
+        voiceSelect.value = data.current;
+        voiceSelect.dataset.prev = data.current;
+        voiceSelect.title = 'Voz de BAKO: ' + (voiceSelect.selectedOptions[0]?.textContent || data.current);
+        voiceWrap.classList.remove('saved');
+        void voiceWrap.offsetWidth; // reinicia la animación si se cambia dos veces seguidas
+        voiceWrap.classList.add('saved');
+        setTimeout(() => voiceWrap.classList.remove('saved'), 320);
+      } catch {
+        voiceSelect.value = prev; // el backend no confirmó — revertir selección visual
+        voiceWrap.classList.add('error');
+        setTimeout(() => voiceWrap.classList.remove('error'), 600);
+      } finally {
+        voiceSelect.disabled = false;
+      }
+    });
+
+    initVoiceSelect();
   })();
 
   window.addEventListener('load', () => {

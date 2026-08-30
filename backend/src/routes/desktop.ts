@@ -10,14 +10,14 @@ import multer from 'multer';
 import axios from 'axios';
 import FormData from 'form-data';
 import { askClaude, askClaudeStream, isOllamaAvailable, classifyQueryComplexity } from '../llm/claude';
-import { generateVoiceBuffer, cleanForVoice } from '../tools/tts';
+import { generateVoiceBuffer, cleanForVoice, VOCES_DISPONIBLES, getCurrentVoiceKey, setVoice } from '../tools/tts';
 import { getMemoriesSection, getDynamicProfileSection, getPeopleSection, getProjectsSection, getKnowledgeSection, getTasksSection, buildSystemPrompt } from '../tools/telegram';
 import { getAmbientContext } from '../tools/context';
 import { getCurrentLocation } from '../tools/memory';
 import { tryExecuteAction } from '../tools/actions';
 import { requireAuth } from '../middleware/authMiddleware';
 import { getUnreadEmails, formatEmailsForText } from '../tools/gmail';
-import { llmLimiter, validateMessage } from '../middleware/security';
+import { llmLimiter, validateMessage, generalLimiter } from '../middleware/security';
 
 // Detecta cualquier mención a emails/correo — basta con que aparezca la palabra
 const EMAIL_REGEX = /\b(emails?|correos?(\s+electr[oó]nicos?)?|mails?|bandeja|gmail)\b/i;
@@ -83,6 +83,28 @@ router.get('/llm-status', async (_req: Request, res: Response) => {
     ollamaAvailable: ollama,
     canChoose:       ollama,
   });
+});
+
+// GET /api/desktop/voice-config — voz TTS actual y catálogo disponible.
+// OJO: no "voice" a secas — esa ruta ya existe más abajo (audio → LLM → audio).
+router.get('/voice-config', generalLimiter, async (_req: Request, res: Response) => {
+  const current = await getCurrentVoiceKey();
+  res.json({
+    current,
+    voices: Object.entries(VOCES_DISPONIBLES).map(([key, v]) => ({ key, ...v })),
+  });
+});
+
+// POST /api/desktop/voice-config { key } — cambia la voz, persistida en Mongo (AutoConfig)
+router.post('/voice-config', generalLimiter, async (req: Request, res: Response) => {
+  try {
+    const key = String(req.body?.key ?? '');
+    const ok = await setVoice(key);
+    if (!ok) { res.status(400).json({ error: 'Voz no reconocida.' }); return; }
+    res.json({ current: key });
+  } catch (err) {
+    res.status(500).json({ error: (err as Error).message });
+  }
 });
 
 async function transcribeAudio(buffer: Buffer): Promise<string> {

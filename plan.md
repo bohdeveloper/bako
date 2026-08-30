@@ -78,6 +78,18 @@ impacto real en tener un mayordomo potente y seguro. Las fases 7c/9/6 conservan 
   crear y cerrar una tarea de prueba desde Telegram y comprobar prioridad P1..P4 y "Fecha objetivo"
 - [ ] Confirmación explícita antes de ejecutar acciones irreversibles distintas del email (hoy se
   confía en la interpretación del LLM) — Gap 2
+- [x] **Voz TTS persistida y elegible desde PWA/Desktop** (30/08/2026) — antes solo se cambiaba con
+  `/voz` en Telegram y se guardaba en una variable en memoria del proceso, así que se reseteaba a
+  Álvaro en cada reinicio de Render. Ahora persiste en Mongo (`AutoConfig`, key `tts_voice`).
+  - [x] `tools/tts.ts`: `getCurrentVoiceKey`/`setVoice` async contra Mongo, con caché de 30s
+  - [x] `GET`/`POST /api/desktop/voice-config` (con try/catch — hallazgo de `/code-review`)
+  - [x] PWA: selector `<select>` nativo estilizado como pill junto al badge de LLM (ux-ui-designer)
+  - [x] Desktop Python: `OptionMenu` en el header, junto al toggle de tema
+  - [x] Saludo inicial ahora se dice en voz alta en los dos clientes (no solo texto) — PWA vía
+    `playTTS()` en `initAuth`, Desktop vía `_speak_text()` nuevo en los tres flujos de arranque
+  - Hallazgo crítico corregido en la propia sesión: el endpoint nuevo pisaba silenciosamente
+    `POST /api/desktop/voice` (audio→LLM→audio) porque compartía la misma ruta — renombrado a
+    `/voice-config` antes de desplegar
 - [ ] Perfil dinámico v2: hoy `ProfileOverride` solo cubre edad, ubicación, empleador, situación
   laboral y oficina. Proyectos y rutina siguen en `profile.ts` — mover al panel admin — Gap 5
 - [ ] **Fase 9 — Desktop, VAD por amplitud** en `_record_loop` (Python) para auto-stop tras silencio;

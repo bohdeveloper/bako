@@ -4,6 +4,7 @@ import { createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import * as path from 'path';
 import * as os from 'os';
+import { AutoConfig } from '../memory/AutoConfig';
 
 export function cleanForVoice(text: string): string {
   return text
@@ -26,20 +27,50 @@ export const VOCES_DISPONIBLES: Record<string, { id: string; descripcion: string
   elena:   { id: 'es-AR-ElenaNeural',    descripcion: 'Elena — mujer, Argentina' },
 };
 
-let currentVoiceKey = process.env.TTS_VOICE_KEY ?? 'alvaro';
+// Persistida en Mongo (colección AutoConfig, key "tts_voice") en vez de en memoria
+// del proceso — antes se resetaba a Álvaro en cada reinicio de Render.
+const VOICE_CONFIG_KEY = 'tts_voice';
+const DEFAULT_VOICE_KEY = process.env.TTS_VOICE_KEY ?? 'alvaro';
 
-export function getCurrentVoiceKey(): string { return currentVoiceKey; }
+let voiceCache: { key: string; ts: number } | null = null;
+const VOICE_CACHE_TTL_MS = 30_000;
 
-export function setVoice(key: string): boolean {
+async function loadVoiceKey(): Promise<string> {
+  if (voiceCache && Date.now() - voiceCache.ts < VOICE_CACHE_TTL_MS) return voiceCache.key;
+  let cfg: { value?: string } | null = null;
+  try {
+    cfg = await AutoConfig.findOne({ key: VOICE_CONFIG_KEY }).lean();
+  } catch (err) {
+    // No cachear el fallback en un fallo transitorio de Mongo — si no, la voz
+    // real (p.ej. "elena") queda tapada por "alvaro" hasta 30s sin que se note.
+    console.warn('⚠️  tts: no se pudo leer la voz persistida, usando la última conocida o el defecto:', (err as Error).message);
+    return voiceCache?.key ?? DEFAULT_VOICE_KEY;
+  }
+  const key = cfg?.value && VOCES_DISPONIBLES[cfg.value] ? cfg.value : DEFAULT_VOICE_KEY;
+  voiceCache = { key, ts: Date.now() };
+  return key;
+}
+
+export async function getCurrentVoiceKey(): Promise<string> {
+  return loadVoiceKey();
+}
+
+export async function setVoice(key: string): Promise<boolean> {
   if (!VOCES_DISPONIBLES[key]) return false;
-  currentVoiceKey = key;
+  await AutoConfig.findOneAndUpdate(
+    { key: VOICE_CONFIG_KEY },
+    { value: key, enabled: true },
+    { upsert: true }
+  );
+  voiceCache     = { key, ts: Date.now() };
   _ttsOggPromise = null; // forzar reinicio con nueva voz
   _ttsPromise    = null;
   return true;
 }
 
-function getVoiceId(): string {
-  return VOCES_DISPONIBLES[currentVoiceKey]?.id ?? 'es-ES-AlvaroNeural';
+async function getVoiceId(): Promise<string> {
+  const key = await loadVoiceKey();
+  return VOCES_DISPONIBLES[key]?.id ?? 'es-ES-AlvaroNeural';
 }
 
 const AUDIO_FILE = path.join(os.tmpdir(), 'bako_speech.mp3');
@@ -50,7 +81,7 @@ async function getTTS(): Promise<MsEdgeTTS> {
   if (!_ttsPromise) {
     _ttsPromise = (async () => {
       const tts = new MsEdgeTTS();
-      await tts.setMetadata(getVoiceId(), OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+      await tts.setMetadata(await getVoiceId(), OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
       return tts;
     })();
   }
@@ -104,7 +135,7 @@ async function getTTSOgg(): Promise<MsEdgeTTS> {
   if (!_ttsOggPromise) {
     _ttsOggPromise = (async () => {
       const tts = new MsEdgeTTS();
-      await tts.setMetadata(getVoiceId(), OUTPUT_FORMAT.WEBM_24KHZ_16BIT_MONO_OPUS);
+      await tts.setMetadata(await getVoiceId(), OUTPUT_FORMAT.WEBM_24KHZ_16BIT_MONO_OPUS);
       return tts;
     })();
   }

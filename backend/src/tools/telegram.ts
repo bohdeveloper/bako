@@ -905,7 +905,7 @@ async function handleCommand(chatId: number, command: string, originalText = '')
   if (command.startsWith('/voz')) {
     const arg = command.split(' ')[1]?.toLowerCase().trim();
     if (arg) {
-      const ok = setVoice(arg);
+      const ok = await setVoice(arg);
       if (ok) {
         const v = VOCES_DISPONIBLES[arg];
         await bot.sendMessage(chatId, `🔊 Voz cambiada a: *${v.descripcion}*`, { parse_mode: 'Markdown' });
@@ -917,9 +917,10 @@ async function handleCommand(chatId: number, command: string, originalText = '')
         );
       }
     } else {
-      const current = VOCES_DISPONIBLES[getCurrentVoiceKey()];
+      const currentKey = await getCurrentVoiceKey();
+      const current    = VOCES_DISPONIBLES[currentKey];
       await bot.sendMessage(chatId,
-        `🔊 *Voz actual: ${current?.descripcion ?? getCurrentVoiceKey()}*\n\n` +
+        `🔊 *Voz actual: ${current?.descripcion ?? currentKey}*\n\n` +
         `Disponibles:\n${Object.entries(VOCES_DISPONIBLES).map(([k, v]) => `• \`${k}\` — ${v.descripcion}`).join('\n')}\n\nUso: /voz [nombre]`,
         { parse_mode: 'Markdown' }
       );
