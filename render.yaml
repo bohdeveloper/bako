@@ -32,6 +32,18 @@ services:
         value: es-ES-AlvaroNeural
       - key: GROQ_MODEL
         value: openai/gpt-oss-120b
+      # Modelo local vía el túnel del PC de casa. Limitado por la VRAM de la GPU:
+      # con 4 GB solo llama3.2:3b corre mayormente en GPU (y aun así ~40 s con el
+      # prompt compact, por encima del safety de 25 s). Por eso LLM_PREFER_LOCAL
+      # está en false: Ollama queda disponible por badge, pero el defecto es Groq.
+      # Con la GPU de 8 GB montada, poner los tres a la vez:
+      #   LLM_PREFER_LOCAL=true · OLLAMA_MODEL=qwen3:8b · OLLAMA_NUM_CTX=16384
+      - key: LLM_PREFER_LOCAL
+        value: "false"
+      - key: OLLAMA_MODEL
+        value: llama3.2:3b
+      - key: OLLAMA_NUM_CTX
+        value: 8192
       - key: OPENROUTER_MODEL
         value: google/gemma-4-31b-it:free
       - key: OPENROUTER_API_KEY

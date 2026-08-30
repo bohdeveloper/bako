@@ -2671,7 +2671,13 @@
   let currentController = null;  // AbortController para cancelar fetch
   let micState         = 'idle'; // tracking del estado actual del mic
   let lastRequestMs    = 0;
-  let llmMode          = 'auto'; // 'auto' | 'groq' — inicializado en initAuth
+  let llmMode          = null;    // preferencia del usuario: 'ollama' | 'groq' | null (=sin elegir)
+  let ollamaAvailable  = false;   // ¿responde el túnel de casa? decide si el badge se puede pulsar
+  let serverDefaultLlm = 'groq';  // defecto que dicta el backend (LLM_PREFER_LOCAL)
+  // Sin túnel solo hay Groq y se ignora la preferencia guardada. Con túnel manda la
+  // elección del usuario y, si no ha elegido, el defecto del servidor — así al
+  // activar LLM_PREFER_LOCAL en Render la PWA se adapta sola.
+  function effectiveLlm() { return ollamaAvailable ? (llmMode ?? serverDefaultLlm) : 'groq'; }
   let cooldownUntil    = 0;
   let convHistory      = []; // rolling history: [{role:'user'|'assistant', content}] — últimos 6 mensajes
   let countdownTimer   = null;
@@ -3045,7 +3051,7 @@
         headers: authHeaders(),
         body: JSON.stringify({
           message: text,
-          ...(llmMode === 'ollama' ? { useCloud: false } : {}),
+          useCloud: effectiveLlm() === 'groq',
           ...(loc ? { location: loc } : {}),
           ...(historySnapshot.length ? { history: historySnapshot } : {}),
         }),
@@ -3330,23 +3336,27 @@
       addMessage('bako', '¿En qué puedo ayudarle, señor?');
     });
 
-    // Badge LLM — modo: 'auto' (=Groq por defecto) | 'ollama' (forzar local).
-    // Migramos 'groq' (estado antiguo guardado) a 'auto' — semánticamente equivalente.
-    llmMode = localStorage.getItem('bako-llm-mode') || 'auto';
-    if (llmMode === 'groq') { llmMode = 'auto'; localStorage.setItem('bako-llm-mode', 'auto'); }
-    let detectedOllamaAvailable = false;
+    // Badge LLM — con el PC y el túnel levantados manda Ollama (no gasta cuota de
+    // Groq) y el badge alterna entre los dos. Sin túnel solo hay Groq: el badge se
+    // bloquea. El valor 'auto' de versiones anteriores ya no existe.
+    const savedLlm = localStorage.getItem('bako-llm-mode');
+    llmMode = (savedLlm === 'ollama' || savedLlm === 'groq') ? savedLlm : null;
+    if (savedLlm && llmMode === null) localStorage.removeItem('bako-llm-mode');
 
     function renderLlmBadge() {
       const badge    = document.getElementById('llmBadge');
-      const isOllama = llmMode === 'ollama';
-      const name     = isOllama ? 'Ollama' : 'Groq';
-      badge.textContent       = name + (isOllama ? ' ✦' : '');
+      const isOllama = effectiveLlm() === 'ollama';
+      badge.textContent       = isOllama ? 'Ollama ✦' : 'Groq';
       badge.style.color       = isOllama ? '#14b8a6' : '#f59e0b';
       badge.style.borderColor = isOllama ? '#14b8a6' : '#f59e0b';
-      badge.style.opacity     = isOllama ? '1' : '0.75';
-      badge.title             = isOllama
-        ? `Forzado: Ollama local — clic para volver a Groq (por defecto)`
-        : `Auto: Groq${detectedOllamaAvailable ? ' (Ollama disponible — clic para forzar local)' : ''}`;
+      badge.style.opacity     = ollamaAvailable ? '1' : '0.45';
+      badge.style.cursor      = ollamaAvailable ? 'pointer' : 'not-allowed';
+      badge.setAttribute('aria-disabled', String(!ollamaAvailable));
+      badge.title = !ollamaAvailable
+        ? 'PC o túnel apagados: solo Groq disponible'
+        : isOllama
+          ? 'Ollama local (PC de casa) — clic para cambiar a Groq'
+          : 'Groq en la nube — clic para volver a Ollama local';
       badge.style.display = 'inline';
     }
 
@@ -3355,13 +3365,15 @@
         const res = await fetch(`${BAKO_URL}/api/desktop/llm-status`, { headers: authHeaders() });
         if (!res.ok) return;
         const data = await res.json();
-        detectedOllamaAvailable = data.ollamaAvailable ?? false;
+        ollamaAvailable  = data.ollamaAvailable ?? false;
+        serverDefaultLlm = data.llm === 'ollama' ? 'ollama' : 'groq';
         renderLlmBadge();
       } catch { }
     }
 
     document.getElementById('llmBadge').addEventListener('click', () => {
-      llmMode = llmMode === 'ollama' ? 'auto' : 'ollama';
+      if (!ollamaAvailable) return; // deshabilitado sin túnel
+      llmMode = effectiveLlm() === 'ollama' ? 'groq' : 'ollama';
       localStorage.setItem('bako-llm-mode', llmMode);
       renderLlmBadge();
     });

@@ -45,6 +45,20 @@ function isContextTooLarge(err: unknown): boolean {
   );
 }
 
+/**
+ * ¿Ollama es el proveedor por defecto? Hoy NO: medido en el PC de casa
+ * (GTX 1650, 4 GB) el prompt compact necesita ~40 s y el mínimo ~15 s, por encima
+ * del safety de 25 s — Ollama agotaría su timeout y caería a Groq igualmente,
+ * gastando la misma cuota y perdiendo esos segundos por el camino.
+ *
+ * Con la GPU de 8 GB instalada, activarlo sin tocar código:
+ *   LLM_PREFER_LOCAL=true · OLLAMA_MODEL=qwen3:8b · OLLAMA_NUM_CTX=16384
+ *
+ * Independientemente de esto, el badge de la PWA sí puede forzar Ollama a mano
+ * mientras el túnel responda.
+ */
+const PREFER_LOCAL = /^(1|true|si|sí)$/i.test(process.env.LLM_PREFER_LOCAL ?? '');
+
 // Cache del estado de Ollama — se refresca cada 30s para no añadir latencia
 let ollamaCache: { available: boolean; ts: number } = { available: false, ts: 0 };
 async function getCachedOllamaStatus(): Promise<boolean> {
@@ -54,15 +68,20 @@ async function getCachedOllamaStatus(): Promise<boolean> {
   return available;
 }
 
-// GET /api/desktop/llm-status — devuelve qué LLM usa el endpoint /text por defecto
+// GET /api/desktop/llm-status — qué LLM usa /text por defecto y si se puede elegir.
+// Con el túnel vivo el defecto es Ollama (no gasta cuota de Groq) y el cliente puede
+// alternar; si está caído, Groq es la única opción y el badge se bloquea.
 router.get('/llm-status', async (_req: Request, res: Response) => {
   const ollama = await getCachedOllamaStatus();
   console.log(`🔍 llm-status: Ollama=${ollama} (URL=${process.env.OLLAMA_URL ?? 'localhost:11434'})`);
-  // /text usa Groq por defecto — llama3.2:3b no retiene bien el contexto complejo
+  const defaultLocal = ollama && PREFER_LOCAL;
   res.json({
-    llm:            'groq',
-    model:          process.env.GROQ_MODEL ?? 'llama-3.1-8b-instant',
+    llm:             defaultLocal ? 'ollama' : 'groq',
+    model:           defaultLocal
+      ? (process.env.OLLAMA_MODEL ?? 'llama3.2:3b')
+      : (process.env.GROQ_MODEL   ?? 'openai/gpt-oss-120b'),
     ollamaAvailable: ollama,
+    canChoose:       ollama,
   });
 });
 
@@ -168,10 +187,12 @@ router.post('/voice', llmLimiter, upload.single('audio'), async (req: Request, r
       return;
     }
 
-    const ollamaOk     = await getCachedOllamaStatus();
     const clientLocation = req.body?.location;
-    const systemPrompt = await getFullSystemPrompt(transcription, true, clientLocation); // always compact — full exceeds Groq 6000 TPM
-    const useCloud     = !ollamaOk;
+    const [ollamaOk, systemPrompt] = await Promise.all([
+      getCachedOllamaStatus(),
+      getFullSystemPrompt(transcription, true, clientLocation), // always compact — full exceeds Groq 6000 TPM
+    ]);
+    const useCloud = !(ollamaOk && PREFER_LOCAL);
     const response     = await askClaude(transcription, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
     const audioBuffer  = await safeVoiceBuffer(response);
     res.json({ transcription, response, audio: audioBuffer?.toString('base64') });
@@ -211,25 +232,28 @@ router.post('/text', llmLimiter, validateMessage, async (req: Request, res: Resp
       return;
     }
 
-    // Routing: Ollama solo si el usuario lo fuerza explícitamente con el badge Ollama✦
-    // Auto → siempre Groq; llama3.2:3b no sigue bien el system prompt con contexto ambiental
-    // Queries simples (hora, clima, saludo) → Groq + prompt mínimo (~5k chars, rápido)
-    // Queries complejas (personas, proyectos) → Groq + prompt compacto (~18k chars)
-    let useCloud: boolean;
-    let useMinimalPrompt = false;
-    if (clientUseCloud === false) {
-      // Badge Ollama✦ forzado por el usuario
-      useCloud = false;
-    } else {
-      useCloud = true;
-      const complexity = classifyQueryComplexity(message);
-      useMinimalPrompt = complexity === 'simple';
-      console.log(`🔵 Desktop /text: '${complexity}' → Groq ☁️ + prompt ${useMinimalPrompt ? 'minimal' : 'full'}`);
-    }
-    const systemPrompt = useMinimalPrompt
-      ? await getMinimalSystemPrompt(message, clientLocation)
-      : await getFullSystemPrompt(message, true, clientLocation); // always compact — full (18104 chars) always exceeds Groq 6000 TPM
-    console.log(`🔵 Desktop /text: prompt listo (${systemPrompt.length} chars, ${useCloud ? 'Groq' : 'Ollama'})`);
+    // El prompt mínimo (~5,8k chars) se procesa mucho más rápido que el compact
+    // (~16k). En Ollama esa diferencia son decenas de segundos, así que la
+    // clasificación se aplica con cualquier proveedor, no solo con Groq.
+    const complexity       = classifyQueryComplexity(message);
+    const useMinimalPrompt = complexity === 'simple';
+
+    // El sondeo de Ollama tarda hasta 6 s si el túnel está caído, así que va en
+    // paralelo con la construcción del prompt (que también consulta Mongo) en vez
+    // de sumarse a ella.
+    const [ollamaOk, systemPrompt] = await Promise.all([
+      getCachedOllamaStatus(),
+      useMinimalPrompt
+        ? getMinimalSystemPrompt(message, clientLocation)
+        : getFullSystemPrompt(message, true, clientLocation), // always compact — full (18104 chars) always exceeds Groq 6000 TPM
+    ]);
+
+    // Sin túnel solo hay Groq y se ignora lo que pida el cliente. Con túnel manda
+    // la elección explícita del badge; si no la hay, decide PREFER_LOCAL.
+    const useCloud = !ollamaOk
+      ? true
+      : typeof clientUseCloud === 'boolean' ? clientUseCloud : !PREFER_LOCAL;
+    console.log(`🔵 Desktop /text: '${complexity}' → ${useCloud ? 'Groq ☁️' : 'Ollama 🏠'} + prompt ${useMinimalPrompt ? 'minimal' : 'full'} (${systemPrompt.length} chars)`);
     const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud, conversationHistory });
     console.log(`🔵 Desktop /text: respuesta LLM OK (${response.length} chars)`);
     const audioBuffer  = await safeVoiceBuffer(response);

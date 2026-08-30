@@ -1,8 +1,39 @@
 import axios from 'axios';
 
 const OLLAMA_URL   = process.env.OLLAMA_URL   ?? 'http://localhost:11434';
+// Medido en el PC de casa (GTX 1650, 4 GB VRAM) con el prompt compact real (5.377
+// tokens): qwen3:8b tarda 85 s porque solo el 30 % cabe en la GPU; llama3.2:3b
+// tarda 40 s con el 68 % en GPU. El cuello de botella es procesar el prompt, no
+// generar. Con la GPU de 8 GB basta con poner OLLAMA_MODEL=qwen3:8b — sin tocar código.
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? 'llama3.2:3b';
 const GROQ_MODEL   = process.env.GROQ_MODEL   ?? 'openai/gpt-oss-120b';
+
+// Una variable declarada pero vacía daría 0 — y axios entiende timeout 0 como
+// "sin límite", que colgaría la petición para siempre. Solo vale un número > 0.
+function envNumber(name: string, fallback: number): number {
+  const n = Number(process.env[name]);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+// Con 4 GB de VRAM, subir num_ctx expulsa capas a la CPU y ralentiza: a 8192 el
+// reparto es 68 % GPU, a 16384 baja al 30 %. Sube este valor con la GPU nueva.
+const OLLAMA_NUM_CTX = envNumber('OLLAMA_NUM_CTX', 8192);
+
+// Debe quedar por debajo del safety timeout de los endpoints desktop, para que dé
+// tiempo a caer a Groq y responder algo en lugar de un 504.
+const OLLAMA_TIMEOUT_MS = envNumber('OLLAMA_TIMEOUT_MS', 12000);
+
+// qwen3 razona en voz alta por defecto y devuelve el razonamiento dentro de
+// <think>…</think>. Se desactiva por API (`think:false`, Ollama 0.9+) y además se
+// limpia la respuesta, por si el modelo de turno ignora el flag.
+function stripThinking(text: string): string {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    // Si num_predict corta la respuesta a mitad del razonamiento, el <think> se
+    // queda sin cerrar: se descarta hasta el final o acabaría leído en voz alta.
+    .replace(/<think>[\s\S]*$/i, '')
+    .trim();
+}
 
 export interface AskClaudeOptions {
   systemPrompt?: string;
@@ -25,18 +56,20 @@ export class PrivacyError extends Error {
   }
 }
 
-async function askOllama(messages: Message[], maxTokens?: number, temperature?: number, numCtx = 8192): Promise<string> {
+async function askOllama(messages: Message[], maxTokens?: number, temperature?: number, numCtx = OLLAMA_NUM_CTX): Promise<string> {
   const { data } = await axios.post(`${OLLAMA_URL}/api/chat`, {
     model: OLLAMA_MODEL,
     messages,
     stream: false,
+    think: false,
     options: {
       num_ctx: numCtx,
       ...(maxTokens   ? { num_predict: maxTokens }   : {}),
       ...(temperature !== undefined ? { temperature } : {}),
     },
-  }, { timeout: 10_000 });
-  return data.message?.content ?? 'Sin respuesta';
+  }, { timeout: OLLAMA_TIMEOUT_MS });
+  const content = stripThinking(data.message?.content ?? '');
+  return content || 'Sin respuesta';
 }
 
 async function askGroq(messages: Message[], maxTokens?: number, temperature?: number): Promise<string> {
@@ -130,7 +163,7 @@ function isGroqRateLimit(err: unknown): boolean {
 async function* streamOllama(messages: Message[], maxTokens?: number, temperature?: number): AsyncGenerator<string> {
   const response = await axios.post(
     `${OLLAMA_URL}/api/chat`,
-    { model: OLLAMA_MODEL, messages, stream: true, options: { num_ctx: 4096, ...(maxTokens ? { num_predict: maxTokens } : {}), ...(temperature !== undefined ? { temperature } : {}) } },
+    { model: OLLAMA_MODEL, messages, stream: true, think: false, options: { num_ctx: OLLAMA_NUM_CTX, ...(maxTokens ? { num_predict: maxTokens } : {}), ...(temperature !== undefined ? { temperature } : {}) } },
     { responseType: 'stream', timeout: 60000 }
   );
   let buf = '';

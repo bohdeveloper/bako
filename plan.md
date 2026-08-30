@@ -55,6 +55,23 @@ impacto real en tener un mayordomo potente y seguro. Las fases 7c/9/6 conservan 
   - [ ] Regenerar el client secret de OAuth en Google Cloud Console, actualizar `GOOGLE_CLIENT_SECRET`
     en Render/`.env` y re-autorizar (`auth-google.ts`)
 
+### ✅ Routing LLM local/nube — implementado y listo, pendiente de la GPU (30/08/2026)
+
+- [x] **Infraestructura de routing Ollama/Groq**, con el defecto en Groq hasta tener GPU suficiente
+  - [x] Badge de la PWA: solo se puede elegir con el túnel vivo; **deshabilitado y fijo en Groq**
+    cuando el PC o el túnel están apagados (era lo que fallaba: el badge dejaba forzar Ollama caído)
+  - [x] `/llm-status` publica el defecto real del servidor y la PWA lo obedece, así que activar la
+    variable en Render cambia el comportamiento sin tocar el cliente
+  - [x] `/text` y `/voice`: el sondeo de Ollama va en paralelo con la construcción del prompt, no en
+    serie (ahorra hasta 6 s cuando el túnel está caído)
+  - [x] `think:false` + `stripThinking()` (qwen3 devuelve `<think>`, y truncado se colaba en el TTS)
+  - [x] `OLLAMA_MODEL` / `OLLAMA_NUM_CTX` / `OLLAMA_TIMEOUT_MS` / `LLM_PREFER_LOCAL` por entorno,
+    validando que los numéricos sean > 0 (una variable vacía dejaba axios sin timeout)
+- [ ] **Al montar la GPU de 8 GB:** poner en Render `LLM_PREFER_LOCAL=true`,
+  `OLLAMA_MODEL=qwen3:8b`, `OLLAMA_NUM_CTX=16384` y **volver a medir** con el prompt compact antes de
+  darlo por bueno. Referencia actual en la GTX 1650 de 4 GB (prompt real de 5.377 tokens):
+  `llama3.2:3b` 40 s · `qwen3:8b` 85 s · presupuesto por petición: 25 s.
+
 ### 🟠 P2 · Importante — cerrar Horizonte 1 (mayordomo funcional completo)
 
 - [ ] Verificar en producción la capa de Notion adaptada a "Centro de Mando" (commit `fa05fb4`):

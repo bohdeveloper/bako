@@ -54,7 +54,7 @@ uno de estos cinco gaps. Si no, espera.
 | Backend | Node 20 · Express 5 · TypeScript · `ts-node`/`nodemon` en dev, `tsc` → `dist/` en prod |
 | BD principal | MongoDB Atlas M0 (512 MB) vía Mongoose — memoria, perfil, usuarios, config |
 | BD portfolio | Cloudflare D1 (SQLite edge) — Tracker personal y comentarios del blog |
-| LLM local | Ollama `llama3.2:3b` a través del túnel Cloudflare |
+| LLM local | Ollama `llama3.2:3b` (`OLLAMA_MODEL`) a través del túnel Cloudflare — **proveedor por defecto** cuando el túnel responde |
 | LLM cloud | Groq `openai/gpt-oss-120b` (Groq retiró `llama-3.3-70b-versatile` en agosto 2026 — ya no ofrece modelos Llama, solo `gpt-oss`, Qwen y `compound`) |
 | LLM fallback | OpenRouter (cadena de 5 modelos free, `OPENROUTER_MODEL` configurable) |
 | Embeddings | Ollama `nomic-embed-text` (768d) · fallback Cloudflare Workers AI `bge-small-en-v1.5` (384d) |
@@ -177,8 +177,19 @@ No se reabren sin decisión explícita del usuario.
    "Hecho", para que los prompts sigan hablando en lenguaje natural. Las consultas **paginan**.
 7. **Las memorias `source: 'manual'` son intocables** para el LLM (solo lectura). Solo puede
    actualizar, nunca borrar, sin confirmación explícita.
-8. **Groq por defecto en PWA y Desktop.** `llama3.2:3b` sufre "lost-in-the-middle" con prompts
-   largos; solo se usa Ollama si el badge lo fuerza o la query es simple.
+8. **El proveedor por defecto lo decide `LLM_PREFER_LOCAL`, hoy `false` → Groq** (revisado el
+   30/08/2026). El límite real no es la calidad del modelo local sino **la VRAM**. Medido en el PC de
+   casa (GTX 1650, 4 GB) con el prompt compact real (5.377 tokens): `llama3.2:3b` 40 s (68 % en GPU),
+   `qwen3:8b` 85 s (solo 30 % en GPU, necesita ~8 GB). El coste está en *procesar* el prompt, no en
+   generar. Como los endpoints desktop cortan a los 25 s, poner Ollama por defecto con esta GPU sería
+   contraproducente: agotaría su timeout, **caería a Groq igualmente** (misma cuota gastada) y habría
+   perdido esos segundos. Por eso el routing está implementado y desplegado pero **apagado**.
+   Con la GPU de 8 GB montada se activa sin tocar código:
+   `LLM_PREFER_LOCAL=true` · `OLLAMA_MODEL=qwen3:8b` · `OLLAMA_NUM_CTX=16384`.
+   Reglas que sí están activas: el badge de la PWA solo permite elegir **con el túnel vivo** — sin él
+   queda deshabilitado, fijo en Groq, ignorando la preferencia guardada; y el backend siempre manda
+   sobre el cliente. `think:false` es obligatorio con qwen3 (emite `<think>` por defecto) y
+   `stripThinking()` lo limpia también sin cerrar, por si `num_predict` trunca el razonamiento.
 9. **Prompt siempre compact en los endpoints desktop.** El prompt full (~18.100 chars ≈ 6.023 tokens)
    supera el límite de 6.000 TPM de Groq y garantiza un 413.
 10. **`profile.ts` es autoritativo** para las migraciones de conocimiento: se migra desde él sin
