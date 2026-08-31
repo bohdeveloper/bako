@@ -23,7 +23,7 @@
 | `/proyectos` | Actividad GitHub (commits, PRs, issues) |
 | `/memorias [tema]` | Buscar o listar memorias de BAKO |
 | `/perfil` | Ver/actualizar campos del perfil dinámico |
-| `/voz [nombre]` | Cambiar voz TTS (alvaro, elvira, jorge, dalia, tomas, elena) |
+| `/voz [nombre]` | Cambiar voz TTS (alvaro, elvira, ximena — persistida en Mongo, también elegible desde PWA/Desktop) |
 | `/personalidad [preset]` | Cambiar personalidad (mayordomo, colega, jarvis) |
 | `/automaticos` | Panel de mensajes automáticos con toggles |
 | `/llm [auto\|groq\|ollama]` | Forzar modelo LLM |

@@ -58,7 +58,7 @@ uno de estos cinco gaps. Si no, espera.
 | LLM cloud | Groq `openai/gpt-oss-120b` (Groq retiró `llama-3.3-70b-versatile` en agosto 2026 — ya no ofrece modelos Llama, solo `gpt-oss`, Qwen y `compound`) |
 | LLM fallback | OpenRouter (cadena de 5 modelos free, `OPENROUTER_MODEL` configurable) |
 | Embeddings | Ollama `nomic-embed-text` (768d) · fallback Cloudflare Workers AI `bge-small-en-v1.5` (384d) |
-| Voz salida | `msedge-tts` — 6 voces neurales ES/MX/AR, elegible y persistida en Mongo (`AutoConfig`, no en memoria del proceso) desde Telegram (`/voz`), PWA y Desktop |
+| Voz salida | `msedge-tts` — las 3 únicas voces neuronales es-ES de Microsoft (Álvaro, Elvira, Ximena; verificado con `MsEdgeTTS.getVoices()` el 31/08/2026, el resto del catálogo es-* es de Latinoamérica/EEUU), elegible y persistida en Mongo (`AutoConfig`, no en memoria del proceso) desde Telegram (`/voz`), PWA y Desktop |
 | Voz entrada | Groq Whisper |
 | Clientes | Telegram Bot API · PWA vanilla JS · Python tkinter |
 | Seguridad | `helmet` · `cors` con allowlist · `express-rate-limit` · JWT (`jsonwebtoken`) · `bcryptjs` |

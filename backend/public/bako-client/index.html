@@ -143,6 +143,59 @@
     .voice-select-wrap.error  { color: var(--red); }
     @media (prefers-reduced-motion: reduce) { .voice-select-wrap.saved { animation: none; } }
 
+    /* Volumen de voz — icono en el header que abre un popover con el slider,
+       para no dejar un control permanente en una barra ya cargada. */
+    .volume-control { position: relative; display: inline-flex; }
+    .volume-btn {
+      background: none; border: 1px solid var(--border); border-radius: 8px;
+      padding: 5px; cursor: pointer; color: var(--dim);
+      display: flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .volume-btn:hover, .volume-btn.open { border-color: var(--teal); color: var(--teal); }
+    .volume-btn svg { width: 18px; height: 18px; display: block; }
+
+    .volume-popover {
+      position: absolute; top: calc(100% + 10px); right: 0;
+      display: flex; align-items: center; gap: 10px;
+      background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+      padding: 10px 14px; min-width: 160px; z-index: 30;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+      opacity: 0; visibility: hidden; transform: translateY(-6px);
+      transition: opacity .18s ease-out, transform .18s ease-out, visibility .18s;
+    }
+    .volume-popover::before {
+      content: ''; position: absolute; top: -5px; right: 10px;
+      width: 9px; height: 9px; background: var(--bg2);
+      border-left: 1px solid var(--border); border-top: 1px solid var(--border);
+      transform: rotate(45deg);
+    }
+    .volume-popover.visible { opacity: 1; visibility: visible; transform: translateY(0); }
+    @media (prefers-reduced-motion: reduce) {
+      .volume-popover { transition: opacity .15s ease; transform: none; }
+    }
+
+    .volume-slider {
+      -webkit-appearance: none; appearance: none;
+      width: 120px; height: 24px; background: transparent; outline: none; cursor: pointer;
+      flex-shrink: 0;
+    }
+    .volume-slider::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--border); }
+    .volume-slider::-moz-range-track            { height: 4px; border-radius: 2px; background: var(--border); }
+    .volume-slider::-webkit-slider-thumb {
+      -webkit-appearance: none; margin-top: -7px;
+      width: 18px; height: 18px; border-radius: 50%; border: none;
+      background: var(--teal); cursor: pointer; box-shadow: 0 0 0 3px rgba(20,184,166,0.15);
+    }
+    .volume-slider::-moz-range-thumb {
+      width: 18px; height: 18px; border-radius: 50%; border: none;
+      background: var(--teal); cursor: pointer; box-shadow: 0 0 0 3px rgba(20,184,166,0.15);
+    }
+    .volume-slider:focus-visible::-webkit-slider-thumb,
+    .volume-slider:focus-visible::-moz-range-thumb { outline: 2px solid var(--teal); outline-offset: 2px; }
+    .volume-value { font-size: 11px; color: var(--dim); min-width: 30px; text-align: right; flex-shrink: 0; }
+
     /* ── Chat history ────────────────────────────────────────────────────────── */
     .chat-history {
       flex: 1;
@@ -1269,6 +1322,27 @@
     <span class="voice-select-wrap" id="voiceSelectWrap" style="display:none">
       <select id="voiceSelect" class="voice-select" title="Voz de BAKO" aria-label="Voz de BAKO"></select>
     </span>
+    <div class="volume-control" id="volumeControl">
+      <button class="volume-btn" id="btnVolume" type="button" title="Volumen de voz" aria-label="Volumen de voz de BAKO" aria-haspopup="true" aria-expanded="false">
+        <svg id="volIconMute" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H3v6h3l5 4V5z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 9.5l4 5m0-5l-4 5"/>
+        </svg>
+        <svg id="volIconLow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H3v6h3l5 4V5z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.5 9.5a3.5 3.5 0 010 5"/>
+        </svg>
+        <svg id="volIconHigh" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H3v6h3l5 4V5z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.5 9.5a3.5 3.5 0 010 5"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M18 7a8 8 0 010 10"/>
+        </svg>
+      </button>
+      <div class="volume-popover" id="volumePopover" role="group" aria-label="Volumen de voz de BAKO">
+        <input type="range" id="volumeSlider" class="volume-slider" min="0" max="100" step="1" value="100" aria-label="Volumen de voz de BAKO">
+        <span class="volume-value" id="volumeValue">100%</span>
+      </div>
+    </div>
     <button class="wake-btn" id="btnWakeWord" title="Activar wake word — di 'Bako'">👂</button>
   <button class="theme-toggle" id="themeToggle" title="Cambiar tema" style="position:static;transform:none">
     <!-- Icono luna (visible en modo oscuro → click para ir a claro) -->
@@ -2714,6 +2788,146 @@
   let countdownVal     = REVIEW_SECS;
   let userEditing      = false;
 
+  // Volumen de la voz de BAKO — persistido por dispositivo (localStorage, no en
+  // Mongo: es una preferencia de altavoces/auriculares de cada sitio, no de BAKO).
+  let ttsVolume = parseFloat(localStorage.getItem('bako-tts-volume') ?? '1');
+  if (!(ttsVolume >= 0 && ttsVolume <= 1)) ttsVolume = 1;
+  let lastSimpleAudio = null; // audio de playTTS (saludo inicial, notificaciones push)
+  function setTtsVolume(v) {
+    ttsVolume = Math.min(1, Math.max(0, v));
+    localStorage.setItem('bako-tts-volume', String(ttsVolume));
+    if (currentAudio)    currentAudio.volume    = ttsVolume;
+    if (activeTtsAudio)  activeTtsAudio.volume  = ttsVolume;
+    if (lastSimpleAudio) lastSimpleAudio.volume = ttsVolume;
+  }
+
+  // Popover de volumen — icono de altavoz en el header que despliega el slider
+  // (no ocupa espacio permanente); no depende de auth, es puramente local.
+  const btnVolume      = document.getElementById('btnVolume');
+  const volumePopover  = document.getElementById('volumePopover');
+  const volumeSlider   = document.getElementById('volumeSlider');
+  const volumeValue    = document.getElementById('volumeValue');
+  const volIconMute    = document.getElementById('volIconMute');
+  const volIconLow     = document.getElementById('volIconLow');
+  const volIconHigh    = document.getElementById('volIconHigh');
+
+  function syncVolumeUI(v) {
+    const pct = Math.round(v * 100);
+    volumeSlider.value = String(pct);
+    volumeValue.textContent = pct + '%';
+    btnVolume.title = `Volumen de voz: ${pct}%`;
+    volIconMute.style.display = v === 0            ? 'block' : 'none';
+    volIconLow.style.display  = (v > 0 && v < 0.5) ? 'block' : 'none';
+    volIconHigh.style.display = v >= 0.5           ? 'block' : 'none';
+  }
+
+  function openVolumePopover() {
+    volumePopover.classList.add('visible');
+    btnVolume.classList.add('open');
+    btnVolume.setAttribute('aria-expanded', 'true');
+  }
+  function closeVolumePopover() {
+    volumePopover.classList.remove('visible');
+    btnVolume.classList.remove('open');
+    btnVolume.setAttribute('aria-expanded', 'false');
+  }
+
+  btnVolume.addEventListener('click', e => {
+    e.stopPropagation();
+    volumePopover.classList.contains('visible') ? closeVolumePopover() : openVolumePopover();
+  });
+  volumeSlider.addEventListener('input', () => {
+    const v = Number(volumeSlider.value) / 100;
+    setTtsVolume(v);
+    syncVolumeUI(v);
+  });
+  document.addEventListener('click', e => {
+    if (!volumePopover.classList.contains('visible')) return;
+    if (e.target.closest('#volumeControl')) return;
+    closeVolumePopover();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && volumePopover.classList.contains('visible')) {
+      closeVolumePopover();
+      btnVolume.focus();
+    }
+  });
+
+  syncVolumeUI(ttsVolume);
+
+  // Botón de escuchar por mensaje — solo uno activo a la vez: si se pulsa otro
+  // mientras uno suena, el anterior se para primero.
+  let activeTtsBtn   = null;
+  let activeTtsAudio = null;
+  let activeTtsUrl   = null;
+  let pendingTtsBtn  = null; // botón cuyo fetch a /api/tts está en curso, antes
+                             // de resolver — distinto de activeTtsBtn (ya sonando)
+  let ttsRequestSeq  = 0;    // descarta una respuesta que llega tarde, después de
+                             // que otro clic (u otra fetch) ya haya tomado el turno
+
+  function stopActiveMsgTts() {
+    ttsRequestSeq++;    // invalida también cualquier fetch en curso
+    pendingTtsBtn = null;
+    if (activeTtsAudio) activeTtsAudio.pause();
+    if (activeTtsUrl) URL.revokeObjectURL(activeTtsUrl); // si no, cada clic de "parar" pierde su blob URL
+    activeTtsAudio = null;
+    activeTtsUrl   = null;
+    if (activeTtsBtn) {
+      activeTtsBtn.classList.remove('playing');
+      activeTtsBtn.textContent = '🔊';
+      activeTtsBtn.title = 'Escuchar';
+    }
+    activeTtsBtn = null;
+  }
+
+  async function playOrStopMsgTts(btn, text) {
+    // Segundo clic sobre el mismo botón, tanto si ya suena como si su petición
+    // sigue en vuelo → cancelar/silenciar.
+    if (activeTtsBtn === btn || pendingTtsBtn === btn) { stopActiveMsgTts(); return; }
+    stopActiveMsgTts(); // solo un mensaje suena (o se está pidiendo) a la vez
+
+    const seq = ++ttsRequestSeq;
+    pendingTtsBtn = btn;
+    btn.disabled = true;
+    try {
+      const res = await fetch(`${BAKO_URL}/api/tts`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) return;
+      const { audio } = await res.json();
+      // Si mientras esperábamos la respuesta se pulsó otro mensaje, o se borró o
+      // se paró este, esa acción ya ganó — descartar esta sin sonar.
+      if (seq !== ttsRequestSeq) return;
+      pendingTtsBtn = null;
+
+      const blob = b64ToBlob(audio, 'audio/webm');
+      const url  = URL.createObjectURL(blob);
+      const el   = new Audio(url);
+      el.volume  = ttsVolume;
+
+      activeTtsAudio = el;
+      activeTtsUrl   = url;
+      activeTtsBtn   = btn;
+      btn.classList.add('playing');
+      btn.textContent = '🔇';
+      btn.title = 'Silenciar';
+
+      // Revocar la URL vive solo en stopActiveMsgTts — así se libera tanto si
+      // termina sola (onended) como si el usuario la corta a mitad.
+      const finish = () => { if (activeTtsAudio === el) stopActiveMsgTts(); };
+      el.onended = finish;
+      el.onerror = finish;
+      await el.play().catch(finish);
+    } catch { /* silencioso */ } finally {
+      btn.disabled = false;
+      // Si el fetch falló o llegó tarde (seq mismatch) sin que nada más lo haya
+      // sustituido ya, no dejar el botón marcado como "pendiente" para siempre.
+      if (pendingTtsBtn === btn) pendingTtsBtn = null;
+    }
+  }
+
   // ── Chat history ───────────────────────────────────────────────────────────
   function addMessage(role, text) {
     const div = document.createElement('div');
@@ -2736,15 +2950,13 @@
     div.appendChild(bubble);
     div.appendChild(reuse);
 
+    let ttsBtn = null;
     if (role === 'bako') {
-      const ttsBtn = document.createElement('button');
+      ttsBtn = document.createElement('button');
       ttsBtn.className = 'msg-tts';
       ttsBtn.title = 'Escuchar';
       ttsBtn.textContent = '🔊';
-      ttsBtn.addEventListener('click', () => {
-        ttsBtn.classList.add('playing');
-        playTTS(text).finally(() => ttsBtn.classList.remove('playing'));
-      });
+      ttsBtn.addEventListener('click', () => playOrStopMsgTts(ttsBtn, text));
       div.appendChild(ttsBtn);
     }
 
@@ -2752,7 +2964,13 @@
     delBtn.className = 'msg-del';
     delBtn.title = 'Eliminar mensaje';
     delBtn.textContent = '✕';
-    delBtn.addEventListener('click', () => div.remove());
+    delBtn.addEventListener('click', () => {
+      // Si este mensaje se está reproduciendo, o su petición a /api/tts sigue
+      // en vuelo, pararla — si no, el audio suena solo tras borrar el mensaje,
+      // sin ningún control visible para detenerlo.
+      if (ttsBtn && (activeTtsBtn === ttsBtn || pendingTtsBtn === ttsBtn)) stopActiveMsgTts();
+      div.remove();
+    });
     div.appendChild(delBtn);
 
     chatHistory.appendChild(div);
@@ -2789,8 +3007,14 @@
       const blob = b64ToBlob(audio, 'audio/webm');
       const url  = URL.createObjectURL(blob);
       const el   = new Audio(url);
-      el.onended = () => URL.revokeObjectURL(url);
-      await el.play();
+      el.volume  = ttsVolume;
+      lastSimpleAudio = el; // para que el popover de volumen también le afecte en vivo
+      const clear = () => { URL.revokeObjectURL(url); if (lastSimpleAudio === el) lastSimpleAudio = null; };
+      el.onended = clear;
+      // Si el navegador bloquea el autoplay (frecuente en la carga inicial sin
+      // gesto previo del usuario), play() rechaza y onended nunca llega — sin
+      // este catch, lastSimpleAudio se queda apuntando a un audio muerto.
+      await el.play().catch(clear);
     } catch { /* silencioso */ }
   }
 
@@ -2833,6 +3057,7 @@
         const blob   = new Blob([bytes], { type: 'audio/mpeg' });
         const url    = URL.createObjectURL(blob);
         const audio  = new Audio(url);
+        audio.volume = ttsVolume;
         currentAudio = audio;
         setMicState('playing');
         setUiEnabled(false);

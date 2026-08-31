@@ -28,8 +28,10 @@ services:
         sync: false
       - key: WEATHER_CITY
         sync: false
-      - key: TTS_VOICE
-        value: es-ES-AlvaroNeural
+      # Solo se usa la primera vez, antes de que exista voz persistida en Mongo
+      # (AutoConfig, key tts_voice) — el código lee TTS_VOICE_KEY, no TTS_VOICE.
+      - key: TTS_VOICE_KEY
+        value: alvaro
       - key: GROQ_MODEL
         value: openai/gpt-oss-120b
       # Modelo local vía el túnel del PC de casa. Limitado por la VRAM de la GPU:

@@ -18,13 +18,14 @@ export function cleanForVoice(text: string): string {
     .replace(/\*/g, '');
 }
 
+// Catálogo real de es-ES en Edge TTS — verificado con MsEdgeTTS.getVoices() el
+// 31/08/2026: Microsoft solo ofrece estas 3 voces neuronales de España. El resto
+// del catálogo es-* (45 voces) es de Latinoamérica o es-US; se descartó a
+// propósito para que todas las voces de BAKO sean de España.
 export const VOCES_DISPONIBLES: Record<string, { id: string; descripcion: string }> = {
-  alvaro:  { id: 'es-ES-AlvaroNeural',   descripcion: 'Álvaro — hombre, España (actual)' },
+  alvaro:  { id: 'es-ES-AlvaroNeural',   descripcion: 'Álvaro — hombre, España' },
   elvira:  { id: 'es-ES-ElviraNeural',   descripcion: 'Elvira — mujer, España' },
-  jorge:   { id: 'es-MX-JorgeNeural',    descripcion: 'Jorge — hombre, México' },
-  dalia:   { id: 'es-MX-DaliaNeural',    descripcion: 'Dalia — mujer, México' },
-  tomas:   { id: 'es-AR-TomasNeural',    descripcion: 'Tomás — hombre, Argentina' },
-  elena:   { id: 'es-AR-ElenaNeural',    descripcion: 'Elena — mujer, Argentina' },
+  ximena:  { id: 'es-ES-XimenaNeural',   descripcion: 'Ximena — mujer, España' },
 };
 
 // Persistida en Mongo (colección AutoConfig, key "tts_voice") en vez de en memoria
@@ -42,9 +43,15 @@ async function loadVoiceKey(): Promise<string> {
     cfg = await AutoConfig.findOne({ key: VOICE_CONFIG_KEY }).lean();
   } catch (err) {
     // No cachear el fallback en un fallo transitorio de Mongo — si no, la voz
-    // real (p.ej. "elena") queda tapada por "alvaro" hasta 30s sin que se note.
+    // real (p.ej. "ximena") queda tapada por "alvaro" hasta 30s sin que se note.
     console.warn('⚠️  tts: no se pudo leer la voz persistida, usando la última conocida o el defecto:', (err as Error).message);
     return voiceCache?.key ?? DEFAULT_VOICE_KEY;
+  }
+  if (cfg?.value && !VOCES_DISPONIBLES[cfg.value]) {
+    // P.ej. una voz elegida antes de reducir el catálogo a solo es-ES
+    // (jorge/dalia/tomas/elena ya no existen) — cae al defecto sin avisar si no
+    // se loguea, y como es de un único usuario conviene que quede visible.
+    console.warn(`⚠️  tts: voz persistida "${cfg.value}" ya no existe en VOCES_DISPONIBLES, usando "${DEFAULT_VOICE_KEY}"`);
   }
   const key = cfg?.value && VOCES_DISPONIBLES[cfg.value] ? cfg.value : DEFAULT_VOICE_KEY;
   voiceCache = { key, ts: Date.now() };

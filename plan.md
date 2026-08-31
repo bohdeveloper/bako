@@ -90,6 +90,24 @@ impacto real en tener un mayordomo potente y seguro. Las fases 7c/9/6 conservan 
   - Hallazgo crítico corregido en la propia sesión: el endpoint nuevo pisaba silenciosamente
     `POST /api/desktop/voice` (audio→LLM→audio) porque compartía la misma ruta — renombrado a
     `/voice-config` antes de desplegar
+- [x] **Botón silenciar por mensaje + control de volumen + catálogo solo España** (31/08/2026)
+  - [x] El botón 🔊 de cada mensaje alterna a 🔇 mientras suena; un segundo clic lo para. Antes no
+    había forma de detenerlo, y el estado "sonando" se quitaba solo al *empezar* a reproducir (bug de
+    promesas: `el.play()` resuelve al arrancar, no al terminar)
+  - [x] Control de volumen: popover anclado a un icono de altavoz junto al selector de voz
+    (ux-ui-designer), persistido en `localStorage` (por dispositivo, no en Mongo)
+  - [x] Catálogo de voces reducido a las 3 únicas reales de España — verificado con
+    `MsEdgeTTS.getVoices()` (45 voces es-*, solo 3 son es-ES): `alvaro`, `elvira`, `ximena` (nueva).
+    Se quitaron `jorge`/`dalia` (México) y `tomas`/`elena` (Argentina) a petición expresa
+  - [x] De paso corregida `TTS_VOICE` → `TTS_VOICE_KEY` (env var muerta desde antes, el código nunca
+    leyó `TTS_VOICE`) en `.env.example` y `render.yaml`
+  - Hallazgos de `/code-review` (varios pases) corregidos antes de desplegar: condición de carrera si
+    se pulsaba "escuchar" en dos mensajes seguidos sin esperar respuesta (la segunda petición podía
+    pisar el estado de la primera y dejarlas sonando ambas) — resuelto con contador de secuencia y
+    `pendingTtsBtn` distinto de `activeTtsBtn`; fuga del blob URL al interrumpir a mitad; borrar un
+    mensaje mientras suena o mientras su petición sigue en vuelo no paraba el audio; el volumen no
+    afectaba al saludo inicial en vivo; aviso en log si una voz persistida ya no existe en el catálogo
+    (jorge/dalia/tomas/elena)
 - [ ] Perfil dinámico v2: hoy `ProfileOverride` solo cubre edad, ubicación, empleador, situación
   laboral y oficina. Proyectos y rutina siguen en `profile.ts` — mover al panel admin — Gap 5
 - [ ] **Fase 9 — Desktop, VAD por amplitud** en `_record_loop` (Python) para auto-stop tras silencio;
