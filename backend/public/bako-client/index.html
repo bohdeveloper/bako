@@ -2865,6 +2865,15 @@
   let ttsRequestSeq  = 0;    // descarta una respuesta que llega tarde, después de
                              // que otro clic (u otra fetch) ya haya tomado el turno
 
+  // Único sitio que sabe cómo se ve un 🔊 sonando — lo usan las tres rutas
+  // (manual bajo demanda, y auto-reproducción) para no desincronizarse entre sí.
+  function setTtsBtnState(btn, playing) {
+    if (!btn) return;
+    btn.classList.toggle('playing', playing);
+    btn.textContent = playing ? '🔇' : '🔊';
+    btn.title       = playing ? 'Silenciar' : 'Escuchar';
+  }
+
   function stopActiveMsgTts() {
     ttsRequestSeq++;    // invalida también cualquier fetch en curso
     pendingTtsBtn = null;
@@ -2872,18 +2881,19 @@
     if (activeTtsUrl) URL.revokeObjectURL(activeTtsUrl); // si no, cada clic de "parar" pierde su blob URL
     activeTtsAudio = null;
     activeTtsUrl   = null;
-    if (activeTtsBtn) {
-      activeTtsBtn.classList.remove('playing');
-      activeTtsBtn.textContent = '🔊';
-      activeTtsBtn.title = 'Escuchar';
-    }
+    setTtsBtnState(activeTtsBtn, false);
     activeTtsBtn = null;
   }
 
   async function playOrStopMsgTts(btn, text) {
+    // Este mensaje es el que BAKO está reproduciendo solo (recién respondido,
+    // sin que se pulsara "escuchar") → parar por el camino completo de
+    // stopBako(), que también libera el micro y el resto de la UI bloqueada.
+    if (autoPlayBtn === btn) { stopBako(); return; }
     // Segundo clic sobre el mismo botón, tanto si ya suena como si su petición
     // sigue en vuelo → cancelar/silenciar.
     if (activeTtsBtn === btn || pendingTtsBtn === btn) { stopActiveMsgTts(); return; }
+    if (autoPlayBtn) stopBako(); // otro mensaje sonando en automático — solo uno a la vez
     stopActiveMsgTts(); // solo un mensaje suena (o se está pidiendo) a la vez
 
     const seq = ++ttsRequestSeq;
@@ -2910,9 +2920,7 @@
       activeTtsAudio = el;
       activeTtsUrl   = url;
       activeTtsBtn   = btn;
-      btn.classList.add('playing');
-      btn.textContent = '🔇';
-      btn.title = 'Silenciar';
+      setTtsBtnState(btn, true);
 
       // Revocar la URL vive solo en stopActiveMsgTts — así se libera tanto si
       // termina sola (onended) como si el usuario la corta a mitad.
@@ -2965,10 +2973,12 @@
     delBtn.title = 'Eliminar mensaje';
     delBtn.textContent = '✕';
     delBtn.addEventListener('click', () => {
-      // Si este mensaje se está reproduciendo, o su petición a /api/tts sigue
-      // en vuelo, pararla — si no, el audio suena solo tras borrar el mensaje,
-      // sin ningún control visible para detenerlo.
-      if (ttsBtn && (activeTtsBtn === ttsBtn || pendingTtsBtn === ttsBtn)) stopActiveMsgTts();
+      // Si este mensaje se está reproduciendo (manual o en automático tras
+      // responder), o su petición a /api/tts sigue en vuelo, pararla — si no,
+      // el audio sigue sonando tras borrar el mensaje sin ningún control
+      // visible para detenerlo.
+      if (ttsBtn && autoPlayBtn === ttsBtn) stopBako();
+      else if (ttsBtn && (activeTtsBtn === ttsBtn || pendingTtsBtn === ttsBtn)) stopActiveMsgTts();
       div.remove();
     });
     div.appendChild(delBtn);
@@ -3049,8 +3059,26 @@
     if (state === 'idle' && typeof resumeWakeWord === 'function') resumeWakeWord();
   }
 
-  // Reproduce audio base64 — devuelve Promise que resuelve cuando termina o se interrumpe
-  function playBase64Audio(b64) {
+  // Botón 🔊 del mensaje que BAKO está reproduciendo solo (justo tras responder),
+  // sin que el usuario haya pulsado "escuchar" — distinto de activeTtsBtn/
+  // pendingTtsBtn, que son solo para la reproducción manual bajo demanda.
+  let autoPlayBtn = null;
+
+  function markAutoPlaying(btn) {
+    autoPlayBtn = btn;
+    setTtsBtnState(btn, true);
+  }
+  function clearAutoPlaying() {
+    setTtsBtnState(autoPlayBtn, false);
+    autoPlayBtn = null;
+  }
+
+  // Reproduce audio base64 — devuelve Promise que resuelve cuando termina o se
+  // interrumpe. btn (opcional) es el 🔊 del propio mensaje: se marca como
+  // "sonando" para que se pueda parar tocándolo, sin depender solo del botón
+  // del micrófono (que también para, pero es menos obvio que sirva para eso).
+  function playBase64Audio(b64, btn) {
+    stopActiveMsgTts(); // si sonaba un mensaje manual, solo uno de los dos suena
     return new Promise(resolve => {
       try {
         const bytes  = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
@@ -3059,12 +3087,14 @@
         const audio  = new Audio(url);
         audio.volume = ttsVolume;
         currentAudio = audio;
+        markAutoPlaying(btn);
         setMicState('playing');
         setUiEnabled(false);
         setStatus('Hablando…', 'ok');
         audio.onended = audio.onerror = () => {
           URL.revokeObjectURL(url);
           currentAudio = null;
+          clearAutoPlaying();
           setMicState('idle');
           setUiEnabled(true);
           setStatus('Listo');
@@ -3079,6 +3109,7 @@
   function stopBako() {
     if (currentController) { currentController.abort(); currentController = null; }
     if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+    clearAutoPlaying();
     setMicState('idle');
     setUiEnabled(true);
     setStatus('Interrumpido');
@@ -3353,7 +3384,7 @@
       if (convHistory.length > 12) convHistory = convHistory.slice(-12); // max 6 turnos
 
       if (data.audio) {
-        await playBase64Audio(data.audio);
+        await playBase64Audio(data.audio, msgDiv.querySelector('.msg-tts'));
       } else {
         setMicState('idle');
         setUiEnabled(true);

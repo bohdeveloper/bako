@@ -108,6 +108,14 @@ impacto real en tener un mayordomo potente y seguro. Las fases 7c/9/6 conservan 
     mensaje mientras suena o mientras su petición sigue en vuelo no paraba el audio; el volumen no
     afectaba al saludo inicial en vivo; aviso en log si una voz persistida ya no existe en el catálogo
     (jorge/dalia/tomas/elena)
+  - [x] **Unificado con la reproducción automática** (31/08/2026): al responder, BAKO habla solo sin
+    que se pulse "escuchar" — antes solo se podía parar tocando el botón del micro (que ya cambiaba a
+    icono de stop, pero era poco descubrible). Ahora el propio 🔊 del mensaje que se reproduce solo se
+    marca como `autoPlayBtn` y muestra 🔇, así que se para con el mismo gesto que el resto. Solo suena
+    un audio de BAKO a la vez en cualquier combinación (manual/automático). El botón de borrar también
+    para el audio si el mensaje que se borra es el que suena en automático — antes solo cubría el caso
+    manual. Toggle de icono consolidado en un único `setTtsBtnState()` (hallazgo de `/code-review`,
+    evita que las tres rutas de reproducción diverjan entre sí)
 - [ ] Perfil dinámico v2: hoy `ProfileOverride` solo cubre edad, ubicación, empleador, situación
   laboral y oficina. Proyectos y rutina siguen en `profile.ts` — mover al panel admin — Gap 5
 - [ ] **Fase 9 — Desktop, VAD por amplitud** en `_record_loop` (Python) para auto-stop tras silencio;
