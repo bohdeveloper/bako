@@ -66,31 +66,54 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       display: flex;
       flex-direction: column;
-      height: 100dvh;
+      /* 100dvh a secas no basta: en el primer pintado en móvil, antes de que la
+         barra de direcciones dinámica termine de asentarse, dvh puede reportar
+         una altura que no coincide con el viewport real (solo se recalcula tras
+         un reflow). --app-height la fija por JS con el valor real; 100dvh queda
+         como fallback si el JS no ha corrido aún. */
+      height: var(--app-height, 100dvh);
       transition: background 0.3s ease, color 0.3s ease;
     }
 
     /* ── Header ─────────────────────────────────────────────────────────────── */
+    /* 3 zonas flex (izquierda / título / derecha) en vez de overlays con
+       position:absolute — así el título nunca queda debajo de los controles
+       en pantallas estrechas, sea cual sea el ancho real de cada lado. */
     .header {
       flex-shrink: 0;
       display: flex;
       align-items: center;
-      justify-content: center;
-      padding: 16px 20px 10px;
+      gap: 6px;
+      padding: 14px 12px 10px;
       border-bottom: 1px solid var(--border);
       position: relative;
       z-index: 22;
       background: var(--bg);
       transition: border-color 0.3s ease, background 0.3s ease;
     }
-    .header h1 { font-size: 20px; font-weight: 700; letter-spacing: 5px; color: var(--text); }
+    .header-side {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1 1 0;
+      min-width: 0;
+    }
+    .header-side.header-right { justify-content: flex-end; }
+    .header-title {
+      flex: 0 1 auto;
+      font-size: clamp(15px, 4.5vw, 20px);
+      font-weight: 700;
+      letter-spacing: clamp(2px, 1vw, 5px);
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding: 0 4px;
+    }
     .header p  { font-size: 10px; color: var(--dim); margin-left: 10px; letter-spacing: 2px; }
 
     .theme-toggle {
-      position: absolute;
-      right: 16px;
-      top: 50%;
-      transform: translateY(-50%);
+      flex-shrink: 0;
       background: none;
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -106,6 +129,7 @@
     .theme-toggle svg   { width: 18px; height: 18px; display: block; }
 
     .wake-btn {
+      flex-shrink: 0;
       background: none; border: 1px solid var(--border); border-radius: 8px;
       padding: 5px; cursor: pointer; color: var(--dim);
       display: flex; align-items: center; justify-content: center;
@@ -143,42 +167,14 @@
     .voice-select-wrap.error  { color: var(--red); }
     @media (prefers-reduced-motion: reduce) { .voice-select-wrap.saved { animation: none; } }
 
-    /* Volumen de voz — icono en el header que abre un popover con el slider,
-       para no dejar un control permanente en una barra ya cargada. */
-    .volume-control { position: relative; display: inline-flex; }
-    .volume-btn {
-      background: none; border: 1px solid var(--border); border-radius: 8px;
-      padding: 5px; cursor: pointer; color: var(--dim);
-      display: flex; align-items: center; justify-content: center;
-      width: 32px; height: 32px;
-      transition: border-color 0.2s, color 0.2s;
-    }
-    .volume-btn:hover, .volume-btn.open { border-color: var(--teal); color: var(--teal); }
-    .volume-btn svg { width: 18px; height: 18px; display: block; }
-
-    .volume-popover {
-      position: absolute; top: calc(100% + 10px); right: 0;
-      display: flex; align-items: center; gap: 10px;
-      background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
-      padding: 10px 14px; min-width: 160px; z-index: 30;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
-      opacity: 0; visibility: hidden; transform: translateY(-6px);
-      transition: opacity .18s ease-out, transform .18s ease-out, visibility .18s;
-    }
-    .volume-popover::before {
-      content: ''; position: absolute; top: -5px; right: 10px;
-      width: 9px; height: 9px; background: var(--bg2);
-      border-left: 1px solid var(--border); border-top: 1px solid var(--border);
-      transform: rotate(45deg);
-    }
-    .volume-popover.visible { opacity: 1; visibility: visible; transform: translateY(0); }
-    @media (prefers-reduced-motion: reduce) {
-      .volume-popover { transition: opacity .15s ease; transform: none; }
-    }
+    /* Volumen de voz — fila inline dentro del popover de ajustes (no es un
+       popover propio: anidar un popover flotante dentro de otro popover
+       flotante rompía el recorte visual del padre en pantallas estrechas). */
+    .volume-control { display: flex; align-items: center; gap: 8px; }
 
     .volume-slider {
       -webkit-appearance: none; appearance: none;
-      width: 120px; height: 24px; background: transparent; outline: none; cursor: pointer;
+      width: 110px; height: 24px; background: transparent; outline: none; cursor: pointer;
       flex-shrink: 0;
     }
     .volume-slider::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--border); }
@@ -479,7 +475,7 @@
 
     /* ── Admin panel ─────────────────────────────────────────────────────────── */
     .btn-admin {
-      position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+      flex-shrink: 0;
       background: none; border: 1px solid var(--border); border-radius: 8px; padding: 6px;
       cursor: pointer; color: var(--dim); display: none;
       align-items: center; justify-content: center; transition: border-color 0.2s, color 0.2s;
@@ -487,6 +483,50 @@
     .btn-admin.visible { display: flex; }
     .btn-admin:hover { border-color: var(--blue); color: var(--blue); }
     .btn-admin svg { width: 18px; height: 18px; display: block; }
+
+    /* Ajustes personales (voz + volumen) — accesible a cualquier usuario, no
+       solo superadmin (a diferencia de #adminPanel). Icono en el header que
+       despliega un popover con los controles, sin ocupar espacio permanente. */
+    .settings-control { position: relative; display: inline-flex; flex-shrink: 0; }
+    .settings-btn {
+      background: none; border: 1px solid var(--border); border-radius: 8px;
+      padding: 5px; cursor: pointer; color: var(--dim);
+      display: flex; align-items: center; justify-content: center;
+      width: 32px; height: 32px;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .settings-btn:hover, .settings-btn.open { border-color: var(--teal); color: var(--teal); }
+    .settings-btn svg { width: 18px; height: 18px; display: block; }
+
+    .settings-popover {
+      position: absolute; top: calc(100% + 10px); left: 0;
+      display: flex; flex-direction: column; gap: 4px;
+      background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
+      padding: 12px 14px; min-width: 220px; z-index: 30;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+      opacity: 0; visibility: hidden; transform: translateY(-6px);
+      transition: opacity .18s ease-out, transform .18s ease-out, visibility .18s;
+    }
+    .settings-popover::before {
+      content: ''; position: absolute; top: -5px; left: 10px;
+      width: 9px; height: 9px; background: var(--bg2);
+      border-left: 1px solid var(--border); border-top: 1px solid var(--border);
+      transform: rotate(45deg);
+    }
+    .settings-popover.visible { opacity: 1; visibility: visible; transform: translateY(0); }
+    @media (prefers-reduced-motion: reduce) {
+      .settings-popover { transition: opacity .15s ease; transform: none; }
+    }
+    .settings-popover-title {
+      font-size: 10px; color: var(--dim); text-transform: uppercase;
+      letter-spacing: 1.5px; margin-bottom: 6px;
+    }
+    .settings-row {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 14px; padding: 7px 0;
+    }
+    .settings-row + .settings-row { border-top: 1px solid var(--border); }
+    .settings-row-label { font-size: 13px; color: var(--text); flex-shrink: 0; }
 
     .admin-overlay { display: none; }
     .admin-panel {
@@ -1310,50 +1350,65 @@
 </div>
 
 <div class="header">
-  <button class="btn-admin" id="btnAdmin" title="Gestión de usuarios">
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-    </svg>
-  </button>
-  <h1 id="bakoTitle" style="cursor:pointer" title="Limpiar chat">BAKO</h1>
-  <div style="position:absolute;right:16px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:8px">
-    <span id="llmBadge" style="font-size:10px;font-weight:600;letter-spacing:.04em;padding:2px 7px;border-radius:20px;opacity:.75;background:transparent;border:1px solid currentColor;display:none;cursor:pointer" title="Clic para forzar Groq / volver a automático"></span>
-    <span class="voice-select-wrap" id="voiceSelectWrap" style="display:none">
-      <select id="voiceSelect" class="voice-select" title="Voz de BAKO" aria-label="Voz de BAKO"></select>
-    </span>
-    <div class="volume-control" id="volumeControl">
-      <button class="volume-btn" id="btnVolume" type="button" title="Volumen de voz" aria-label="Volumen de voz de BAKO" aria-haspopup="true" aria-expanded="false">
-        <svg id="volIconMute" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H3v6h3l5 4V5z"/>
-          <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 9.5l4 5m0-5l-4 5"/>
-        </svg>
-        <svg id="volIconLow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H3v6h3l5 4V5z"/>
-          <path stroke-linecap="round" stroke-linejoin="round" d="M15.5 9.5a3.5 3.5 0 010 5"/>
-        </svg>
-        <svg id="volIconHigh" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H3v6h3l5 4V5z"/>
-          <path stroke-linecap="round" stroke-linejoin="round" d="M15.5 9.5a3.5 3.5 0 010 5"/>
-          <path stroke-linecap="round" stroke-linejoin="round" d="M18 7a8 8 0 010 10"/>
+  <div class="header-side header-left">
+    <button class="btn-admin" id="btnAdmin" title="Gestión de usuarios">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+      </svg>
+    </button>
+    <span class="settings-control" id="settingsControl">
+      <button class="settings-btn" id="btnSettings" type="button" title="Ajustes" aria-label="Ajustes de voz y volumen" aria-haspopup="true" aria-expanded="false">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 13.5V3.75m0 9.75a1.5 1.5 0 010 3m0-3a1.5 1.5 0 000 3m0 3.75V16.5m12-3V3.75m0 9.75a1.5 1.5 0 010 3m0-3a1.5 1.5 0 000 3m0 3.75V16.5m-6-9V3.75m0 3.75a1.5 1.5 0 010 3m0-3a1.5 1.5 0 000 3m0 9.75V10.5"/>
         </svg>
       </button>
-      <div class="volume-popover" id="volumePopover" role="group" aria-label="Volumen de voz de BAKO">
-        <input type="range" id="volumeSlider" class="volume-slider" min="0" max="100" step="1" value="100" aria-label="Volumen de voz de BAKO">
-        <span class="volume-value" id="volumeValue">100%</span>
+      <div class="settings-popover" id="settingsPopover" role="group" aria-label="Ajustes de voz y volumen">
+        <div class="settings-popover-title">Voz de BAKO</div>
+        <div class="settings-row">
+          <span class="settings-row-label">Voz</span>
+          <span class="voice-select-wrap" id="voiceSelectWrap" style="display:none">
+            <select id="voiceSelect" class="voice-select" title="Voz de BAKO" aria-label="Voz de BAKO"></select>
+          </span>
+        </div>
+        <div class="settings-row">
+          <span class="settings-row-label" id="btnVolume" title="Volumen de voz">
+            <svg id="volIconMute" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none;width:16px;height:16px;vertical-align:-3px">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H3v6h3l5 4V5z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 9.5l4 5m0-5l-4 5"/>
+            </svg>
+            <svg id="volIconLow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none;width:16px;height:16px;vertical-align:-3px">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H3v6h3l5 4V5z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.5 9.5a3.5 3.5 0 010 5"/>
+            </svg>
+            <svg id="volIconHigh" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:16px;height:16px;vertical-align:-3px">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H3v6h3l5 4V5z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.5 9.5a3.5 3.5 0 010 5"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M18 7a8 8 0 010 10"/>
+            </svg>
+          </span>
+          <div class="volume-control" id="volumeControl">
+            <input type="range" id="volumeSlider" class="volume-slider" min="0" max="100" step="1" value="100" aria-label="Volumen de voz de BAKO">
+            <span class="volume-value" id="volumeValue">100%</span>
+          </div>
+        </div>
       </div>
-    </div>
+    </span>
+  </div>
+  <h1 id="bakoTitle" class="header-title" style="cursor:pointer" title="Limpiar chat">BAKO</h1>
+  <div class="header-side header-right">
+    <span id="llmBadge" style="font-size:10px;font-weight:600;letter-spacing:.04em;padding:2px 7px;border-radius:20px;opacity:.75;background:transparent;border:1px solid currentColor;display:none;cursor:pointer" title="Clic para forzar Groq / volver a automático"></span>
     <button class="wake-btn" id="btnWakeWord" title="Activar wake word — di 'Bako'">👂</button>
-  <button class="theme-toggle" id="themeToggle" title="Cambiar tema" style="position:static;transform:none">
-    <!-- Icono luna (visible en modo oscuro → click para ir a claro) -->
-    <svg id="iconMoon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/>
-    </svg>
-    <!-- Icono sol (visible en modo claro → click para ir a oscuro) -->
-    <svg id="iconSun" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="display:none">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.364 6.364l-1.414-1.414M7.05 7.05L5.636 5.636m12.728 0l-1.414 1.414M7.05 16.95l-1.414 1.414M12 8a4 4 0 100 8 4 4 0 000-8z"/>
-    </svg>
-  </button>
+    <button class="theme-toggle" id="themeToggle" title="Cambiar tema">
+      <!-- Icono luna (visible en modo oscuro → click para ir a claro) -->
+      <svg id="iconMoon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/>
+      </svg>
+      <!-- Icono sol (visible en modo claro → click para ir a oscuro) -->
+      <svg id="iconSun" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="display:none">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.364 6.364l-1.414-1.414M7.05 7.05L5.636 5.636m12.728 0l-1.414 1.414M7.05 16.95l-1.414 1.414M12 8a4 4 0 100 8 4 4 0 000-8z"/>
+      </svg>
+    </button>
   </div>
 </div>
 
@@ -1407,6 +1462,25 @@
 </div>
 
 <script>
+  // ── Altura real de viewport en móvil (fix del bug clásico de 100dvh) ──────
+  // En el primer pintado, antes de que la barra de direcciones dinámica del
+  // navegador termine de asentarse, dvh puede reportar una altura que no
+  // coincide con la real — solo se recalcula tras un reflow (por eso togglear
+  // el tema "arreglaba" la vista por casualidad: fuerza ese reflow). Fijamos
+  // --app-height con el valor real y la body la usa en vez de fiarse solo de
+  // dvh; con reintentos cortos al arrancar por si el toolbar del navegador
+  // aún está animando cuando este script corre por primera vez.
+  function setAppHeight() {
+    const h = window.visualViewport?.height ?? window.innerHeight;
+    document.documentElement.style.setProperty('--app-height', h + 'px');
+  }
+  setAppHeight();
+  [50, 300, 600].forEach(ms => setTimeout(setAppHeight, ms));
+  window.addEventListener('load', setAppHeight);
+  window.addEventListener('resize', setAppHeight);
+  window.addEventListener('orientationchange', setAppHeight);
+  window.visualViewport?.addEventListener('resize', setAppHeight);
+
   // ── Tema (mismo patrón que bohdeveloper.com) ──────────────────────────────
   const iconMoon    = document.getElementById('iconMoon');
   const iconSun     = document.getElementById('iconSun');
@@ -2801,10 +2875,7 @@
     if (lastSimpleAudio) lastSimpleAudio.volume = ttsVolume;
   }
 
-  // Popover de volumen — icono de altavoz en el header que despliega el slider
-  // (no ocupa espacio permanente); no depende de auth, es puramente local.
-  const btnVolume      = document.getElementById('btnVolume');
-  const volumePopover  = document.getElementById('volumePopover');
+  // Volumen — fila del popover de ajustes; no depende de auth, es puramente local.
   const volumeSlider   = document.getElementById('volumeSlider');
   const volumeValue    = document.getElementById('volumeValue');
   const volIconMute    = document.getElementById('volIconMute');
@@ -2815,45 +2886,51 @@
     const pct = Math.round(v * 100);
     volumeSlider.value = String(pct);
     volumeValue.textContent = pct + '%';
-    btnVolume.title = `Volumen de voz: ${pct}%`;
-    volIconMute.style.display = v === 0            ? 'block' : 'none';
-    volIconLow.style.display  = (v > 0 && v < 0.5) ? 'block' : 'none';
-    volIconHigh.style.display = v >= 0.5           ? 'block' : 'none';
+    volIconMute.style.display = v === 0            ? 'inline' : 'none';
+    volIconLow.style.display  = (v > 0 && v < 0.5) ? 'inline' : 'none';
+    volIconHigh.style.display = v >= 0.5           ? 'inline' : 'none';
   }
 
-  function openVolumePopover() {
-    volumePopover.classList.add('visible');
-    btnVolume.classList.add('open');
-    btnVolume.setAttribute('aria-expanded', 'true');
-  }
-  function closeVolumePopover() {
-    volumePopover.classList.remove('visible');
-    btnVolume.classList.remove('open');
-    btnVolume.setAttribute('aria-expanded', 'false');
-  }
-
-  btnVolume.addEventListener('click', e => {
-    e.stopPropagation();
-    volumePopover.classList.contains('visible') ? closeVolumePopover() : openVolumePopover();
-  });
   volumeSlider.addEventListener('input', () => {
     const v = Number(volumeSlider.value) / 100;
     setTtsVolume(v);
     syncVolumeUI(v);
   });
-  document.addEventListener('click', e => {
-    if (!volumePopover.classList.contains('visible')) return;
-    if (e.target.closest('#volumeControl')) return;
-    closeVolumePopover();
-  });
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && volumePopover.classList.contains('visible')) {
-      closeVolumePopover();
-      btnVolume.focus();
-    }
-  });
 
   syncVolumeUI(ttsVolume);
+
+  // Popover de ajustes — reúne voz y volumen (antes vivían sueltos en el
+  // header y chocaban con el título "BAKO" en pantallas estrechas). Accesible
+  // para cualquier usuario logueado, a diferencia de #adminPanel (superadmin).
+  const btnSettings     = document.getElementById('btnSettings');
+  const settingsPopover = document.getElementById('settingsPopover');
+
+  function openSettingsPopover() {
+    settingsPopover.classList.add('visible');
+    btnSettings.classList.add('open');
+    btnSettings.setAttribute('aria-expanded', 'true');
+  }
+  function closeSettingsPopover() {
+    settingsPopover.classList.remove('visible');
+    btnSettings.classList.remove('open');
+    btnSettings.setAttribute('aria-expanded', 'false');
+  }
+
+  btnSettings.addEventListener('click', e => {
+    e.stopPropagation();
+    settingsPopover.classList.contains('visible') ? closeSettingsPopover() : openSettingsPopover();
+  });
+  document.addEventListener('click', e => {
+    if (!settingsPopover.classList.contains('visible')) return;
+    if (e.target.closest('#settingsControl')) return;
+    closeSettingsPopover();
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && settingsPopover.classList.contains('visible')) {
+      closeSettingsPopover();
+      btnSettings.focus();
+    }
+  });
 
   // Botón de escuchar por mensaje — solo uno activo a la vez: si se pulsa otro
   // mientras uno suena, el anterior se para primero.

@@ -116,6 +116,33 @@ impacto real en tener un mayordomo potente y seguro. Las fases 7c/9/6 conservan 
     para el audio si el mensaje que se borra es el que suena en automático — antes solo cubría el caso
     manual. Toggle de icono consolidado en un único `setTtsBtnState()` (hallazgo de `/code-review`,
     evita que las tres rutas de reproducción diverjan entre sí)
+- [x] **PWA móvil — cabecera apretada y salto de altura inicial** (01/09/2026, reportado por el
+  usuario; resuelto 01/09/2026 por ux-ui-designer)
+  - [x] Header rehecho como 3 zonas flex (`.header-left` / `.header-title` / `.header-right`) en vez
+    de overlays con `position:absolute` sobre un `justify-content:center` — el título ya no puede
+    quedar debajo de nada, sea cual sea el ancho real de cada lado. Selector de voz y volumen salen
+    del header y se agrupan en un nuevo botón "Ajustes" (icono de sliders, `#btnSettings`) a la
+    izquierda junto al de administración; abre `#settingsPopover`, un popover accesible para
+    cualquier usuario logueado (a diferencia de `#adminPanel`, solo `superadmin`). Dentro, cada
+    control (`#voiceSelectWrap`, `#volumeControl`) se movió tal cual, sin tocar su lógica interna —
+    solo `#btnSettings`/`#settingsPopover` son código nuevo. El header queda con lo esencial: admin
+    (si aplica) + ajustes a la izquierda, badge LLM + wake word + tema a la derecha
+  - [x] Altura real de viewport fijada por JS: `setAppHeight()` guarda
+    `window.visualViewport?.height ?? window.innerHeight` en `--app-height` sobre `<html>`, y `body`
+    usa `height: var(--app-height, 100dvh)`. Se recalcula en `load`/`resize`/`orientationchange`/
+    `visualViewport.resize` más 3 reintentos cortos (50/300/600ms) al arrancar, por si la barra de
+    direcciones del navegador aún está animando cuando el script corre por primera vez
+  - Verificado con Playwright headless a 360×740 y 320×650 (con y sin rol superadmin): sin overlaps
+    del título con ningún control, popover de ajustes dentro del viewport, slider de volumen sigue
+    guardando en `localStorage`, `--app-height` se recalcula tras resize, sin errores de JS en
+    consola. Archivo tocado:
+    `backend/public/bako-client/index.html`
+  - Hallazgo de `/code-review` corregido antes de desplegar: el volumen quedó como un popover propio
+    (`.volume-btn` + `.volume-popover`) anidado dentro del popover de ajustes — un flotante
+    `position:absolute` dentro de otro rompía el recorte visual del padre en móvil (el volumen se
+    salía por debajo del popover de ajustes). Aplanado a una fila inline (icono indicador + slider +
+    %) dentro de `.settings-row`, sin popover propio; se eliminó el toggle/open/close/outside-click
+    de `#volumePopover` que ya no aplicaba
 - [ ] Perfil dinámico v2: hoy `ProfileOverride` solo cubre edad, ubicación, empleador, situación
   laboral y oficina. Proyectos y rutina siguen en `profile.ts` — mover al panel admin — Gap 5
 - [ ] **Fase 9 — Desktop, VAD por amplitud** en `_record_loop` (Python) para auto-stop tras silencio;
