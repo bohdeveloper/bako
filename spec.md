@@ -161,9 +161,9 @@ No se reabren sin decisión explícita del usuario.
 2. **El repositorio es público.** Ningún secreto entra en git, nunca. `scripts/check-secrets.js`
    corre como hook pre-commit y aborta el commit si detecta credenciales. Instalación:
    `node scripts/check-secrets.js --install`. Ya hubo una filtración (URI de Atlas con contraseña y
-   un client secret de Google, expuestas 187 commits / ~10 semanas): el historial ya se purgó con
-   `git filter-repo` el 10/08/2026, pero **ambas credenciales deben rotarse igualmente** — el
-   historial limpio no baja el riesgo de que ya hayan sido indexadas mientras estuvieron públicas.
+   un client secret de Google, expuestas 187 commits / ~10 semanas): el historial se purgó con
+   `git filter-repo` el 10/08/2026 y ambas credenciales se rotaron el 30/08/2026 (Atlas + cliente
+   OAuth de Google recreado del todo) — incidente cerrado.
 3. **Privacidad por dos capas.** Palabras sensibles (`inetum`, `contrato`, `nómina`, `sueldo`,
    `password`, `token`, `credencial`, `dni`, `banco`) → se procesan solo en Ollama local; si Ollama
    no está disponible, el mensaje se rechaza en vez de salir a la nube. `/privado` fuerza local.
@@ -254,8 +254,6 @@ Arranque correcto = `✅ MongoDB conectado` + `🤖 BAKO Telegram activo` + `�
 - PWA en un solo fichero de 4.000 líneas: se asume a cambio de no tener build.
 - Sin confirmación previa para acciones irreversibles distintas del email: se confía en la
   interpretación del LLM.
-- Credenciales filtradas pendientes de rotar (el historial de git ya se purgó el 10/08/2026, pero
-  siguen sin rotarse en Atlas y Google Cloud Console).
 
 ---
 

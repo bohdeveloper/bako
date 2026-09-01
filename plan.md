@@ -8,10 +8,11 @@
 
 ---
 
-## Estado actual (30/08/2026)
+## Estado actual (01/09/2026)
 
-Sin cambios de código desde el commit `095a3b2` (14/08/2026): **dos semanas paradas.** Nada de lo
-pendiente ha avanzado; el orden de abajo es el punto de partida para retomar.
+Retomado tras dos semanas paradas: entre el 30/08 y el 01/09/2026 se cerraron 6 commits (routing
+LLM local/nube, voz TTS persistida, botón silenciar + volumen, y el fix de cabecera móvil/altura de
+viewport de hoy). Sigue pendiente lo de abajo.
 
 | Horizonte / fase | Estado |
 |---|---|
@@ -23,11 +24,11 @@ pendiente ha avanzado; el orden de abajo es el punto de partida para retomar.
 | Fase 7c — Rate limits de Groq | ⏳ 3 de 4 pasos |
 | Fase 8 — Automatización sin n8n | ✅ |
 | Fase 9 — Wake word y modo conversación | ⏳ PWA escritorio sí; móvil y Desktop pendientes |
-| **Seguridad** — hardening y retirada de secretos | ⏳ Falta rotar y purgar credenciales |
+| **Seguridad** — hardening y retirada de secretos | ✅ Historial purgado y credenciales rotadas (30/08/2026) |
 | **Tooling** — Spec-Driven + grafo `codebase-memory-mcp` | ✅ 14/08/2026 |
 | Horizonte 2 — BAKO inteligente (patrones, multi-agente, fine-tuning) | ❌ No empezado |
 | Horizonte 3 — Identidad propia (visión, dispositivos, casa) | ❌ No empezado |
-| Horizonte 4 — Presencia física (robótica) | ❌ No empezado |
+| Horizonte 4 — Presencia física (robótica) | ❌ No empezado en este repo — prerequisito de aprendizaje en marcha, ver nota en Horizonte 4 |
 
 ---
 
@@ -35,25 +36,9 @@ pendiente ha avanzado; el orden de abajo es el punto de partida para retomar.
 
 Todo lo de Horizonte 1 hacia abajo estaba disperso en varias fases; se ordena aquí una sola vez por
 impacto real en tener un mayordomo potente y seguro. Las fases 7c/9/6 conservan su detalle técnico
-íntegro, solo cambian de posición.
-
-### 🔴 P1 · Crítico — seguridad (bloquea todo lo demás)
-
-- [x] **Purgar el historial de git** (10/08/2026) — `git filter-repo` reescribió los 187 commits
-  afectados y se forzó el push a `origin/master`. Verificado por **git-master** el 30/08/2026 sobre
-  los 580 blobs del historial alcanzable: no queda ni rastro de la URI de Mongo ni del client secret
-  de Google, solo placeholders `***REMOVED-...***`.
-- [x] **Máquina única confirmada sincronizada** (30/08/2026) — el PC del trabajo se dio de baja, ya
-  no existe ningún dispositivo con la copia vieja del historial que pudiera resucitar la filtración
-  con un push. El PC de casa (`bohpc`) tiene `HEAD` = `origin/master` (`095a3b2`), sin divergencia.
-- [x] Hook pre-commit de `scripts/check-secrets.js` instalado — al ser máquina única, queda cerrado
-  con la comprobación en `bohpc` (30/08/2026)
-- [ ] **Rotar las credenciales** — el historial limpio no baja el riesgo real: estuvieron públicas
-  187 commits / ~10 semanas (02/06 → 10/08/2026) antes de redactarse, tiempo de sobra para que algún
-  scraper de secretos (GitGuardian, bots de GitHub) las indexara.
-  - [ ] Rotar la contraseña del usuario de MongoDB Atlas y actualizar `MONGODB_URI` en Render y en `backend/.env`
-  - [ ] Regenerar el client secret de OAuth en Google Cloud Console, actualizar `GOOGLE_CLIENT_SECRET`
-    en Render/`.env` y re-autorizar (`auth-google.ts`)
+íntegro, solo cambian de posición. El antiguo P1 (seguridad) se cerró del todo el 30/08/2026 (visto
+hoy, 01/09/2026, al sincronizar con Notion) y su detalle vive ahora en el histórico, bloque
+"Seguridad — hardening y retirada de secretos".
 
 ### ✅ Routing LLM local/nube — implementado y listo, pendiente de la GPU (30/08/2026)
 
@@ -236,6 +221,13 @@ valida las salidas antes de ejecutar.
 
 ## Horizonte 4 — Presencia física / JARVIS (~3-5 años)
 
+> **Prerequisito de aprendizaje en marcha (01/09/2026):** repo hermano
+> [bako-lab](https://github.com/bohdeveloper/bako-lab) (`C:\aplic\bako-lab`) — electrónica y
+> robótica desde cero hasta nivel experto aplicado, con Spec-Driven Development propio (su
+> `plan.md` desglosa 15 módulos en 3 tracks). Ninguna fase de este Horizonte empieza en este repo
+> hasta cerrar ese aprendizaje con criterio real (su Track C, módulo C2, es precisamente actualizar
+> esta sección con detalle realista de chasis/CAD/presupuesto en vez de lo estimado hoy).
+
 - **Fase 16 — Plataforma robótica:** Pi 4/5 8 GB + Arduino · chasis con encoders · CAD e impresión 3D
 - **Fase 17 — Percepción:** cámara estéreo · micrófono de campo amplio · ultrasónico, IMU, LiDAR
 - **Fase 18 — Autonomía:** ROS2 + nav2 · Gazebo (sim-to-real) · Stable-Baselines3 · Jetson Nano/Orin
@@ -273,7 +265,7 @@ Presupuesto: 0-150 € (GPU cloud para entrenamientos pesados).
 </details>
 
 <details>
-<summary><b>Seguridad — hardening y retirada de secretos (junio y agosto 2026)</b></summary>
+<summary><b>Seguridad — hardening y retirada de secretos (junio 2026 → 01/09/2026, cerrado)</b></summary>
 
 - Hardening completo: `helmet` con CSP, CORS con allowlist, rate limiters por familia de endpoint,
   validación y sanitización centralizadas, límite de 256 KB por request, error handler global que
@@ -285,6 +277,21 @@ Presupuesto: 0-150 € (GPU cloud para entrenamientos pesados).
   `.gitignore` reforzado (commit `99c0c80`)
 - Notion adaptado al esquema "Centro de Mando": nombres de propiedad en constantes, relación de
   proyecto, `normalizePrioridad` → P1..P4, `normalizeEstadoTarea` → "Hecho", consultas paginadas
+- **Purgado el historial de git** (10/08/2026) — `git filter-repo` reescribió los 187 commits
+  afectados y se forzó el push a `origin/master`. Verificado por **git-master** el 30/08/2026 sobre
+  los 580 blobs del historial alcanzable: no queda ni rastro de la URI de Mongo ni del client secret
+  de Google, solo placeholders `***REMOVED-...***`
+- **Máquina única confirmada sincronizada** (30/08/2026) — el PC del trabajo se dio de baja, ya no
+  existe ningún dispositivo con la copia vieja del historial que pudiera resucitar la filtración con
+  un push. El PC de casa (`bohpc`) tiene `HEAD` = `origin/master`, sin divergencia
+- **Credenciales rotadas** (30/08/2026, confirmado en Notion y por el usuario el 01/09/2026) — nueva
+  contraseña generada en MongoDB Atlas, `MONGODB_URI` actualizada en Render y `backend/.env`; cliente
+  OAuth de Google recreado del todo (el viejo se borró), consent screen pasado de Testing a
+  producción (con páginas de política de privacidad y home en `/bako-client`), `token.json`
+  regenerado sin el límite de 7 días, `GOOGLE_CLIENT_ID`/`SECRET`/`TOKEN_JSON` actualizados en Render
+  y `.env`, `auth-google.ts` re-autorizado. Cierra el riesgo real: las credenciales viejas estuvieron
+  públicas ~10 semanas (02/06 → 10/08/2026) antes de redactarse, tiempo de sobra para que algún
+  scraper las indexara — ya no sirven de nada
 </details>
 
 <details>
