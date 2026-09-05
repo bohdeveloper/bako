@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { ollamaHeaders } from './ollamaAuth';
 
 const OLLAMA_URL   = process.env.OLLAMA_URL   ?? 'http://localhost:11434';
 // Medido en el PC de casa el 05/09/2026, ya con la AMD RX 7600 de 8 GB (ROCm, no
@@ -78,7 +79,7 @@ async function askOllama(messages: Message[], maxTokens?: number, temperature?: 
       ...(maxTokens   ? { num_predict: maxTokens }   : {}),
       ...(temperature !== undefined ? { temperature } : {}),
     },
-  }, { timeout: OLLAMA_TIMEOUT_MS });
+  }, { timeout: OLLAMA_TIMEOUT_MS, headers: ollamaHeaders() });
   const content = stripThinking(data.message?.content ?? '');
   return content || 'Sin respuesta';
 }
@@ -175,7 +176,7 @@ async function* streamOllama(messages: Message[], maxTokens?: number, temperatur
   const response = await axios.post(
     `${OLLAMA_URL}/api/chat`,
     { model: OLLAMA_MODEL, messages, stream: true, think: false, keep_alive: OLLAMA_KEEP_ALIVE, options: { num_ctx: OLLAMA_NUM_CTX, ...(maxTokens ? { num_predict: maxTokens } : {}), ...(temperature !== undefined ? { temperature } : {}) } },
-    { responseType: 'stream', timeout: 60000 }
+    { responseType: 'stream', timeout: 60000, headers: ollamaHeaders() }
   );
   let buf = '';
   for await (const raw of response.data as AsyncIterable<Buffer>) {
@@ -243,11 +244,18 @@ export async function* askClaudeStream(
   }
 }
 
+// El motivo del fallo se registra a propósito: mientras se tragaba en silencio,
+// "Ollama no disponible" tapaba por igual el túnel caído, un 403 de Cloudflare,
+// un timeout o un DNS que no resuelve — y cada uno se arregla de forma distinta.
+// El 403 de Cloudflare a los datacenters costó una sesión entera de diagnóstico.
 export async function isOllamaAvailable(): Promise<boolean> {
   try {
-    await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 6000 });
+    await axios.get(`${OLLAMA_URL}/api/tags`, { timeout: 6000, headers: ollamaHeaders() });
     return true;
-  } catch {
+  } catch (err) {
+    const e = err as any;
+    const motivo = [e?.code, e?.response?.status, e?.message].filter(Boolean).join(' · ');
+    console.warn(`⚠️  Ollama no responde en ${OLLAMA_URL} → ${motivo || 'motivo desconocido'}`);
     return false;
   }
 }
@@ -300,7 +308,7 @@ async function chatOllamaWithTools(messages: Message[], tools: object[], maxToke
       ...(maxTokens   ? { num_predict: maxTokens }   : {}),
       ...(temperature !== undefined ? { temperature } : {}),
     },
-  }, { timeout: OLLAMA_TIMEOUT_MS });
+  }, { timeout: OLLAMA_TIMEOUT_MS, headers: ollamaHeaders() });
   return data.message ?? {};
 }
 

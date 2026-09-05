@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { ollamaHeaders } from '../llm/ollamaAuth';
 
 const OLLAMA_URL    = process.env.OLLAMA_URL ?? 'http://localhost:11434';
 const OLLAMA_MODEL  = 'nomic-embed-text';  // 768 dims
@@ -18,7 +19,7 @@ async function embedOllama(text: string): Promise<EmbeddingResult> {
   try {
     const { data } = await axios.post(`${OLLAMA_URL}/api/embed`,
       { model: OLLAMA_MODEL, input: text },
-      { timeout: 8000 }
+      { timeout: 8000, headers: ollamaHeaders() }
     );
     const vector: number[] = data.embeddings?.[0];
     if (vector?.length) return { vector, dim: vector.length, model: OLLAMA_MODEL };
@@ -27,7 +28,7 @@ async function embedOllama(text: string): Promise<EmbeddingResult> {
   // Legacy API: /api/embeddings
   const { data } = await axios.post(`${OLLAMA_URL}/api/embeddings`,
     { model: OLLAMA_MODEL, prompt: text },
-    { timeout: 8000 }
+    { timeout: 8000, headers: ollamaHeaders() }
   );
   const vector: number[] = data.embedding;
   if (!vector?.length) throw new Error('Ollama no devolvió embedding');

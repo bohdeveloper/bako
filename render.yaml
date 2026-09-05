@@ -46,6 +46,12 @@ services:
       # LLM_PREFER_LOCAL no llegaba a aplicarse nunca. Es el túnel del PC de casa.
       - key: OLLAMA_URL
         value: https://ollama.bohdeveloper.com
+      # Secreto compartido con la regla WAF de Cloudflare que protege
+      # ollama.bohdeveloper.com: el backend manda `x-bako-key` y Cloudflare
+      # bloquea todo lo que no la lleve. Sin esto, Ollama no tiene ninguna
+      # autenticación propia y el hostname está publicado en un repo público.
+      - key: OLLAMA_AUTH_KEY
+        sync: false
       - key: LLM_PREFER_LOCAL
         value: "true"
       - key: OLLAMA_MODEL
