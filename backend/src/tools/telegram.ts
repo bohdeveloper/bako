@@ -20,7 +20,7 @@ import { Rule } from '../memory/Rule';
 import { Person, formatPersonForContext } from '../memory/Person';
 import { Project, formatProjectForContext } from '../memory/Project';
 import { KnowledgeEntry, formatKnowledgeForContext } from '../memory/KnowledgeEntry';
-import { tryExecuteAction } from './actions';
+import { runAgentTurn } from './agent';
 import { getAmbientContext, invalidateCityWeatherCache, invalidateCalendarCache } from './context';
 
 export function buildSystemPrompt(extraContext = '', memoriesSection = '', dynamicProfileSection = '', peopleSection = '', projectsSection = '', knowledgeSection = '', tasksSection = ''): string {
@@ -1275,15 +1275,7 @@ export function startTelegramBot(): void {
       const transcription = await transcribeAudio(buffer);
       await bot.sendMessage(chatId, `🗣 _"${transcription}"_`, { parse_mode: 'Markdown' });
 
-      const voiceAction = await tryExecuteAction(transcription);
-      if (voiceAction) {
-        await bot.sendMessage(chatId, voiceAction.text, { parse_mode: 'Markdown' });
-        await sendVoiceReply(chatId, voiceAction.voice);
-        appendToSession(chatId, transcription, voiceAction.voice);
-        return;
-      }
-
-      // Intención de datos en tiempo real por voz
+      // Intención de datos en tiempo real por voz (lectura — briefing, tareas...)
       const voiceIntent = detectDataIntent(transcription);
       if (voiceIntent) {
         await handleCommand(chatId, voiceIntent, transcription);
@@ -1306,13 +1298,18 @@ export function startTelegramBot(): void {
         getTasksSection(),
       ]);
       const voiceHistory = getSessionHistory(chatId);
-      const response = await askClaude(transcription, await resolveLlmOptions({
+      const turn = await runAgentTurn(transcription, `telegram:${chatId}`, await resolveLlmOptions({
         systemPrompt: buildSystemPrompt(ambientCtx, memoriesSection, dynProfile, peopleSection, projectsSection, knowledgeSection, tasksSection),
         conversationHistory: voiceHistory,
       }));
+      const response = turn.text;
+      // Resultado de una herramienta (o su confirmación) → también en texto, con
+      // el formato Markdown de la confirmación; una respuesta conversacional
+      // normal solo va por voz, como siempre.
+      if (turn.toolUsed || /^[⚠️❌]/.test(response)) await bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
       await sendVoiceReply(chatId, response);
       appendToSession(chatId, transcription, response);
-      extractAndSaveMemories(transcription, response).catch(() => {});
+      if (!turn.toolUsed) extractAndSaveMemories(transcription, response).catch(() => {});
       const detectedMood = detectMoodFromText(transcription);
       if (detectedMood) { currentMood = detectedMood; moodMessageCount = 0; }
       else autoShiftMood();
@@ -1524,15 +1521,6 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
         return;
       }
 
-      // Intenciones de ejecución (crear/modificar Notion, Calendar...)
-      const action = await tryExecuteAction(text);
-      if (action) {
-        await bot.sendMessage(chatId, action.text, { parse_mode: 'Markdown' });
-        await sendVoiceReply(chatId, action.voice);
-        appendToSession(chatId, text, action.voice);
-        return;
-      }
-
       // Forzar datos frescos si el mensaje pregunta por calendar, gmail u otros servicios externos
       if (/calendario|agenda|cita|reuni[oó]n|evento|gmail|correo|email|mail/i.test(text)) {
         invalidateCalendarCache();
@@ -1563,13 +1551,18 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
       const extraContext = ambientCtx + (additionalParts.length > 0 ? `\n\nCONTEXTO ADICIONAL:\n${additionalParts.join('\n')}` : '');
       const conversationHistory = getSessionHistory(chatId);
 
-      const response = await askClaude(text, await resolveLlmOptions({
+      const turn = await runAgentTurn(text, `telegram:${chatId}`, await resolveLlmOptions({
         systemPrompt: buildSystemPrompt(extraContext, memoriesSection, dynProfile, peopleSection, projectsSection, knowledgeSection, tasksSection),
         conversationHistory,
       }));
+      const response = turn.text;
+      // Resultado de una herramienta (o su confirmación) → también en texto, con
+      // el formato Markdown de la confirmación; una respuesta conversacional
+      // normal solo va por voz, como siempre.
+      if (turn.toolUsed || /^[⚠️❌]/.test(response)) await bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
       await sendVoiceReply(chatId, response);
       appendToSession(chatId, text, response);
-      extractAndSaveMemories(text, response).catch(() => {});
+      if (!turn.toolUsed) extractAndSaveMemories(text, response).catch(() => {});
       const detectedMoodText = detectMoodFromText(text);
       if (detectedMoodText) { currentMood = detectedMoodText; moodMessageCount = 0; }
       else autoShiftMood();

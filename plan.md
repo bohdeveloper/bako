@@ -72,18 +72,43 @@ sabiendo lo que necesita, y sepa **hacer conexiones y deducir** — no recitar f
 
 Las fases van en orden: cada una necesita la anterior.
 
-### B0 — Tool-calling en vez de regex (la base)
+### B0 — Tool-calling en vez de regex (la base) ✅ 05/09/2026
 
-Es el desbloqueo: sin esto todo lo demás son parches. Ambos modelos en uso ya lo soportan
-(`openai/gpt-oss-120b` en Groq, `qwen3:8b` en Ollama).
+Era el desbloqueo: sin esto todo lo demás eran parches. Ambos modelos en uso lo soportan de forma
+nativa (`openai/gpt-oss-120b` en Groq, `qwen3:8b` en Ollama).
 
-- [ ] Registro de herramientas con esquema JSON, y el LLM eligiendo cuál llamar y con qué argumentos
-- [ ] Migrar las 6 acciones actuales de `actions.ts` (crear tarea, actualizar estado, crear evento,
-  crear issue, cerrar issue, siguiente acción) a herramientas, y **borrar los regex**
-- [ ] Bucle de ejecución con tope de iteraciones y errores devueltos al modelo como resultado
-- [ ] **Confirmación explícita antes de acciones irreversibles** — absorbe el viejo Gap 2 de P2, que
-  con tool-calling deja de ser un parche: la herramienta declara si es destructiva
-- [ ] Fallback: si el modelo de turno no soporta herramientas, seguir respondiendo en texto plano
+- [x] Registro de herramientas con esquema JSON en `tools/agent.ts` (nuevo), y el LLM eligiendo cuál
+  llamar y con qué argumentos en la MISMA llamada que ya se hacía para responder — no dobla el número
+  de peticiones al LLM por mensaje respecto a antes
+- [x] `askClaudeWithTools()` en `llm/claude.ts`: mismo formato de herramienta (compatible OpenAI) para
+  Groq y Ollama, con la misma cadena de resiliencia que `askClaude` (Ollama → Groq → OpenRouter en
+  429), salvo que en el escalón de OpenRouter va **sin herramientas** — sus modelos gratuitos no
+  tienen tool-calling fiable, así que ese peldaño degrada a conversación pura en vez de arriesgar una
+  acción alucinada
+- [x] Migradas las 6 acciones de `actions.ts` (crear tarea, actualizar estado, crear evento, crear
+  issue, cerrar issue, siguiente acción) a herramientas en `agent.ts`, y **`actions.ts` borrado del
+  todo** — cero regex de detección de intención en el repo
+- [x] **Confirmación explícita antes de acciones irreversibles** — absorbe el viejo Gap 2 de P2. Cada
+  herramienta declara `destructive`; hoy solo `crear_evento_calendario` lo es (compromiso real en el
+  calendario). La confirmación es texto libre ("sí"/"no") con estado en memoria (`pendingActions`,
+  TTL 5 min) para que funcione igual en Telegram, PWA y Desktop sin depender de botones inline
+- [x] **Hallazgo de pruebas real, no en el plan original**: probado con los 4 casos de prueba antes de
+  dar esto por bueno (crear tarea, crear evento, dos charlas normales) — **Groq acertó las 4, `qwen3:8b`
+  en Ollama alucinó una acción al pedirle un chiste** (creó una tarea de Notion inventada sin que
+  nadie lo pidiera). Hasta que haya un modelo local más fiable para esto, el gate de confirmación
+  cubre **todas** las herramientas cuando responde Ollama, no solo las `destructive` — decidido por
+  quién respondió de verdad (`result.provider`), no por lo que se pidió, para no penalizar el modo
+  "auto" cuando Ollama está caído y responde Groq por debajo
+- [x] Hallazgos de `/code-review` corregidos antes de cerrar: el gate de confirmación miraba
+  `options.useCloud` (lo pedido) en vez de qué proveedor respondió de verdad; sin validación de
+  campos `required` antes de pedir confirmación (un evento sin `fin` habría fallado con un error
+  opaco de Google Calendar tras confirmar); `describeArgs` interpolaba texto libre del LLM sin
+  escapar en un mensaje que Telegram parsea como Markdown (un `_` suelto rompía el envío entero)
+- [x] Verificado con pruebas aisladas contra Ollama y Groq reales (sin tocar Notion/Calendar de
+  verdad — canceladas antes de ejecutar), y `npm run build` limpio. Archivos: `llm/claude.ts`,
+  `tools/agent.ts` (nuevo, sustituye a `tools/actions.ts`), `routes/desktop.ts`, `tools/telegram.ts`
+- No se implementó: bucle multi-paso (varias herramientas encadenadas en un turno) — las 6
+  herramientas actuales no lo necesitan, se añadirá si B1 lo pide de verdad
 
 ### B1 — Herramientas sobre su propio cerebro
 

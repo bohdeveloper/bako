@@ -124,9 +124,19 @@ agenda. Cachés cortas (clima 10 min, calendar 1 min) con invalidación explíci
 (`invalidateCityWeatherCache`, `invalidateCalendarCache`, `invalidateTrackerCache`) cuando el mensaje
 menciona el recurso — el tracker y el calendario nunca se responden desde caché si se preguntan.
 
-**Ejecución de acciones.** `tools/actions.ts` detecta intención y ejecuta; `issueSync.ts` y
-`projectSync.ts` mantienen Notion y GitHub sincronizados en ambos sentidos; `planSync.ts` mantiene
-las tareas de BAKO en Notion sincronizadas con `plan.md`.
+**Ejecución de acciones — tool-calling, no regex** (`tools/agent.ts`, desde el 05/09/2026;
+`tools/actions.ts` con su detección por regex queda eliminado). `runAgentTurn()` es el punto de
+entrada único: una sola llamada a `askClaudeWithTools()` (Groq/Ollama, formato OpenAI) decide, con el
+mismo contexto de siempre, si BAKO conversa en texto o llama a una de las 6 herramientas registradas
+(crear/actualizar tarea, crear evento, crear/cerrar issue, siguiente acción). Las herramientas
+`destructive` (hoy solo crear evento de Calendar) piden confirmación explícita en texto libre antes
+de ejecutarse, con estado en memoria (`pendingActions`, TTL 5 min) — funciona igual en Telegram, PWA
+y Desktop. Medido el 05/09/2026: `qwen3:8b` en Ollama alucina llamadas a herramientas sin que nadie
+las pida (Groq no), así que el gate de confirmación cubre **todas** las herramientas cuando quien
+respondió de verdad fue Ollama, no solo las `destructive` — hasta que un modelo local más grande o
+más fino en instrucciones lo haga innecesario. `issueSync.ts` y `projectSync.ts` mantienen Notion y
+GitHub sincronizados en ambos sentidos; `planSync.ts` mantiene las tareas de BAKO en Notion
+sincronizadas con `plan.md`.
 
 **Proactividad.** `ProactivityService` registra los crons y `AutoConfig` (MongoDB) guarda qué está
 activado; `/automaticos` los conmuta con botones inline. `isJobEnabled()` se consulta antes de cada
@@ -264,8 +274,6 @@ Arranque correcto = `✅ MongoDB conectado` + `🤖 BAKO Telegram activo` + `�
 **Deuda aceptada deliberadamente:**
 - Sin tests automatizados. La verificación es manual, contra la app real.
 - PWA en un solo fichero de 4.000 líneas: se asume a cambio de no tener build.
-- Sin confirmación previa para acciones irreversibles distintas del email: se confía en la
-  interpretación del LLM.
 
 ---
 

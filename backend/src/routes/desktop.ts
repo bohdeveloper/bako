@@ -9,12 +9,12 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import axios from 'axios';
 import FormData from 'form-data';
-import { askClaude, askClaudeStream, isOllamaAvailable, classifyQueryComplexity } from '../llm/claude';
+import { isOllamaAvailable, classifyQueryComplexity } from '../llm/claude';
 import { generateVoiceBuffer, cleanForVoice, VOCES_DISPONIBLES, getCurrentVoiceKey, setVoice } from '../tools/tts';
 import { getMemoriesSection, getDynamicProfileSection, getPeopleSection, getProjectsSection, getKnowledgeSection, getTasksSection, buildSystemPrompt } from '../tools/telegram';
 import { getAmbientContext } from '../tools/context';
 import { getCurrentLocation } from '../tools/memory';
-import { tryExecuteAction } from '../tools/actions';
+import { runAgentTurn } from '../tools/agent';
 import { requireAuth } from '../middleware/authMiddleware';
 import { getUnreadEmails, formatEmailsForText } from '../tools/gmail';
 import { llmLimiter, validateMessage, generalLimiter } from '../middleware/security';
@@ -46,16 +46,11 @@ function isContextTooLarge(err: unknown): boolean {
 }
 
 /**
- * ¿Ollama es el proveedor por defecto? Hoy NO: medido en el PC de casa
- * (GTX 1650, 4 GB) el prompt compact necesita ~40 s y el mínimo ~15 s, por encima
- * del safety de 25 s — Ollama agotaría su timeout y caería a Groq igualmente,
- * gastando la misma cuota y perdiendo esos segundos por el camino.
+ * ¿Ollama es el proveedor por defecto? Desde el 05/09/2026, sí: con la AMD
+ * RX 7600 de 8 GB, qwen3:8b responde en 0,6 s con el modelo caliente (14,8 s en
+ * frío), muy por debajo del safety de 25 s. `LLM_PREFER_LOCAL=true` en Render.
  *
- * Con la GPU de 8 GB instalada, activarlo sin tocar código:
- *   LLM_PREFER_LOCAL=true · OLLAMA_MODEL=qwen3:8b · OLLAMA_NUM_CTX=16384
- *
- * Independientemente de esto, el badge de la PWA sí puede forzar Ollama a mano
- * mientras el túnel responda.
+ * Independientemente de esto, el badge de la PWA puede forzar Groq a mano.
  */
 const PREFER_LOCAL = /^(1|true|si|sí)$/i.test(process.env.LLM_PREFER_LOCAL ?? '');
 
@@ -202,22 +197,16 @@ router.post('/voice', llmLimiter, upload.single('audio'), async (req: Request, r
     const transcription = await transcribeAudio(req.file.buffer);
     if (!transcription.trim()) { res.status(400).json({ error: 'No se detectó habla' }); return; }
 
-    const action = await tryExecuteAction(transcription);
-    if (action) {
-      const audioBuffer = await safeVoiceBuffer(action.voice);
-      res.json({ transcription, response: action.text, audio: audioBuffer?.toString('base64') });
-      return;
-    }
-
     const clientLocation = req.body?.location;
     const [ollamaOk, systemPrompt] = await Promise.all([
       getCachedOllamaStatus(),
       getFullSystemPrompt(transcription, true, clientLocation), // always compact — full exceeds Groq 6000 TPM
     ]);
     const useCloud = !(ollamaOk && PREFER_LOCAL);
-    const response     = await askClaude(transcription, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
-    const audioBuffer  = await safeVoiceBuffer(response);
-    res.json({ transcription, response, audio: audioBuffer?.toString('base64') });
+    const confirmKey = `desktop:${req.authUser!.userId}`;
+    const turn = await runAgentTurn(transcription, confirmKey, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
+    const audioBuffer  = await safeVoiceBuffer(turn.voice);
+    res.json({ transcription, response: turn.text, audio: audioBuffer?.toString('base64') });
 
   } catch (err) {
     console.error('❌ Desktop /voice:', (err as Error).message);
@@ -247,12 +236,6 @@ router.post('/text', llmLimiter, validateMessage, async (req: Request, res: Resp
 
   try {
     console.log('🔵 Desktop /text: inicio', JSON.stringify(message).slice(0, 60));
-    const action = await tryExecuteAction(message);
-    if (action) {
-      const audioBuffer = await safeVoiceBuffer(action.voice);
-      res.json({ response: action.text, audio: audioBuffer?.toString('base64') });
-      return;
-    }
 
     // El prompt mínimo (~5,8k chars) se procesa mucho más rápido que el compact
     // (~16k). En Ollama esa diferencia son decenas de segundos, así que la
@@ -276,10 +259,11 @@ router.post('/text', llmLimiter, validateMessage, async (req: Request, res: Resp
       ? true
       : typeof clientUseCloud === 'boolean' ? clientUseCloud : !PREFER_LOCAL;
     console.log(`🔵 Desktop /text: '${complexity}' → ${useCloud ? 'Groq ☁️' : 'Ollama 🏠'} + prompt ${useMinimalPrompt ? 'minimal' : 'full'} (${systemPrompt.length} chars)`);
-    const response     = await askClaude(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud, conversationHistory });
-    console.log(`🔵 Desktop /text: respuesta LLM OK (${response.length} chars)`);
-    const audioBuffer  = await safeVoiceBuffer(response);
-    res.json({ response, audio: audioBuffer?.toString('base64') });
+    const confirmKey = `desktop:${req.authUser!.userId}`;
+    const turn = await runAgentTurn(message, confirmKey, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud, conversationHistory });
+    console.log(`🔵 Desktop /text: respuesta LLM OK (${turn.text.length} chars, herramienta: ${turn.toolUsed ?? 'ninguna'})`);
+    const audioBuffer  = await safeVoiceBuffer(turn.voice);
+    res.json({ response: turn.text, audio: audioBuffer?.toString('base64') });
 
   } catch (err) {
     const e = err as any;
@@ -298,32 +282,26 @@ router.post('/stream', llmLimiter, validateMessage, async (req: Request, res: Re
   const { message } = req.body;
 
   try {
-    // Todo el trabajo previo antes de abrir el stream (permite devolver errores HTTP reales)
-    const action       = await tryExecuteAction(message);
-    const systemPrompt = action ? '' : await getFullSystemPrompt(message, true);
+    // NOTA (05/09/2026): endpoint sin uso real por ningún cliente (PWA/Desktop
+    // usan /text) — se mantiene funcional pero ya no hace streaming token a
+    // token. Combinar tool-calling con streaming real exige reensamblar los
+    // fragmentos de `tool_calls` a través de los deltas del SSE del proveedor
+    // (Groq y Ollama lo soportan, pero duplica la complejidad); mientras nadie
+    // lo consuma no compensa. Si se retoma este endpoint, hacerlo entonces.
+    const confirmKey   = `desktop:${req.authUser!.userId}`;
+    const systemPrompt = await getFullSystemPrompt(message, true);
+    const turn         = await runAgentTurn(message, confirmKey, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud: true });
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    if (action) {
-      res.write(`data: ${JSON.stringify({ chunk: action.text })}\n\n`);
-      res.write('data: [DONE]\n\n');
-      res.end();
-      return;
-    }
-
-    // Desktop usa Groq (rápido, ~1s TTFT). Ollama queda para Telegram /privado.
-    let fullText = '';
-    for await (const chunk of askClaudeStream(message, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud: true })) {
-      fullText += chunk;
-      res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
-    }
+    res.write(`data: ${JSON.stringify({ chunk: turn.text })}\n\n`);
 
     // Generar audio TTS y enviarlo como evento final
     try {
-      const audioBuffer = await generateVoiceBuffer(cleanForVoice(fullText));
+      const audioBuffer = await generateVoiceBuffer(cleanForVoice(turn.text));
       res.write(`data: ${JSON.stringify({ audio: audioBuffer.toString('base64') })}\n\n`);
     } catch { /* TTS opcional — no bloquea */ }
 

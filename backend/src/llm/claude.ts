@@ -252,6 +252,139 @@ export async function isOllamaAvailable(): Promise<boolean> {
   }
 }
 
+// ── Tool-calling (B0 del plan) ──────────────────────────────────────────────
+// Formato de herramienta compatible con OpenAI (Groq lo replica tal cual) y con
+// Ollama ≥0.9 (el mismo array `tools`, ambos modelos en uso — gpt-oss-120b y
+// qwen3:8b — lo soportan de forma nativa).
+
+export interface ToolCall {
+  name:      string;
+  arguments: Record<string, any>;
+}
+
+export interface ToolCallResponse {
+  text:      string;                            // respuesta en texto normal, si no llamó a ninguna herramienta
+  toolCall?: ToolCall;                           // herramienta elegida por el modelo, si la hay
+  provider:  'ollama' | 'groq' | 'openrouter';   // quién respondió de verdad — puede no ser el `useCloud` pedido, si hubo fallback
+}
+
+interface RawToolMessage {
+  content?:    string;
+  tool_calls?: Array<{ function?: { name: string; arguments: string | Record<string, any> }; name?: string; arguments?: string | Record<string, any> }>;
+}
+
+// Ollama entrega `arguments` ya como objeto; Groq (API OpenAI) lo entrega como
+// string JSON — hay que soportar ambas formas.
+function parseToolCall(message: RawToolMessage): ToolCall | undefined {
+  const raw = message.tool_calls?.[0];
+  if (!raw) return undefined;
+  const name = raw.function?.name ?? raw.name;
+  if (!name) return undefined;
+  let args = raw.function?.arguments ?? raw.arguments;
+  if (typeof args === 'string') {
+    try { args = JSON.parse(args); } catch { args = {}; }
+  }
+  return { name, arguments: (args as Record<string, any>) ?? {} };
+}
+
+async function chatOllamaWithTools(messages: Message[], tools: object[], maxTokens?: number, temperature?: number, numCtx = OLLAMA_NUM_CTX): Promise<RawToolMessage> {
+  const { data } = await axios.post(`${OLLAMA_URL}/api/chat`, {
+    model: OLLAMA_MODEL,
+    messages,
+    tools,
+    stream: false,
+    think: false,
+    keep_alive: OLLAMA_KEEP_ALIVE,
+    options: {
+      num_ctx: numCtx,
+      ...(maxTokens   ? { num_predict: maxTokens }   : {}),
+      ...(temperature !== undefined ? { temperature } : {}),
+    },
+  }, { timeout: OLLAMA_TIMEOUT_MS });
+  return data.message ?? {};
+}
+
+async function chatGroqWithTools(messages: Message[], tools: object[], maxTokens?: number, temperature?: number): Promise<RawToolMessage> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) throw new Error('GROQ_API_KEY no está definido en .env');
+
+  const { data } = await axios.post(
+    'https://api.groq.com/openai/v1/chat/completions',
+    {
+      model: GROQ_MODEL,
+      messages,
+      tools,
+      tool_choice: 'auto',
+      ...(maxTokens   ? { max_tokens: maxTokens }   : {}),
+      temperature: temperature ?? 0.4,
+    },
+    {
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      timeout: 15_000,
+    }
+  );
+  return data.choices[0]?.message ?? {};
+}
+
+// Una sola llamada decide, con el mismo contexto de siempre, si BAKO conversa o
+// actúa — sustituye al patrón antiguo de "regex + segunda llamada de extracción"
+// (no dobla el número de peticiones al LLM por mensaje). Cadena de resiliencia
+// igual que `askClaude` (Ollama → Groq → OpenRouter en 429), con una diferencia
+// importante: si toca OpenRouter, va SIN herramientas — los modelos gratuitos de
+// ese catálogo no tienen tool-calling fiable, así que en ese escalón BAKO
+// degrada a conversación pura en vez de arriesgarse a alucinar una acción.
+export async function askClaudeWithTools(
+  prompt: string,
+  tools: object[],
+  options: AskClaudeOptions = {}
+): Promise<ToolCallResponse> {
+  const { systemPrompt, maxTokens, temperature, useCloud = false, private: isPrivate = false, conversationHistory } = options;
+
+  const messages: Message[] = [];
+  if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+  if (conversationHistory?.length) {
+    for (const m of conversationHistory) messages.push({ role: m.role, content: m.content });
+  }
+  messages.push({ role: 'user', content: prompt });
+
+  if (isPrivate) {
+    try {
+      const message = await chatOllamaWithTools(messages, tools, maxTokens, temperature);
+      return { text: stripThinking(message.content ?? ''), toolCall: parseToolCall(message), provider: 'ollama' };
+    } catch {
+      throw new PrivacyError();
+    }
+  }
+
+  async function viaOpenRouterFallback(): Promise<ToolCallResponse> {
+    const text = await askOpenRouter(messages, maxTokens, temperature);
+    return { text, provider: 'openrouter' }; // sin toolCall — ver nota arriba
+  }
+
+  if (useCloud) {
+    try {
+      const message = await chatGroqWithTools(messages, tools, maxTokens, temperature);
+      return { text: stripThinking(message.content ?? ''), toolCall: parseToolCall(message), provider: 'groq' };
+    } catch (err) {
+      if (isGroqRateLimit(err) && process.env.OPENROUTER_API_KEY) return viaOpenRouterFallback();
+      throw err;
+    }
+  }
+
+  try {
+    const message = await chatOllamaWithTools(messages, tools, maxTokens, temperature);
+    return { text: stripThinking(message.content ?? ''), toolCall: parseToolCall(message), provider: 'ollama' };
+  } catch {
+    try {
+      const message = await chatGroqWithTools(messages, tools, maxTokens, temperature);
+      return { text: stripThinking(message.content ?? ''), toolCall: parseToolCall(message), provider: 'groq' };
+    } catch (groqErr) {
+      if (isGroqRateLimit(groqErr) && process.env.OPENROUTER_API_KEY) return viaOpenRouterFallback();
+      throw groqErr;
+    }
+  }
+}
+
 export async function askClaude(prompt: string, options: AskClaudeOptions = {}): Promise<string> {
   const { systemPrompt, maxTokens, temperature, useCloud = false, private: isPrivate = false, conversationHistory } = options;
 
