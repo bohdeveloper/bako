@@ -109,6 +109,29 @@ nativa (`openai/gpt-oss-120b` en Groq, `qwen3:8b` en Ollama).
   `tools/agent.ts` (nuevo, sustituye a `tools/actions.ts`), `routes/desktop.ts`, `tools/telegram.ts`
 - No se implementó: bucle multi-paso (varias herramientas encadenadas en un turno) — las 6
   herramientas actuales no lo necesitan, se añadirá si B1 lo pide de verdad
+- [x] **Repaso posterior de B0 (05/09/2026): el gate de confirmación estaba roto y se ha
+  reescrito.** El matcher era `/^(s[ií]|...|vale|ok|correcto)\b/` y fallaba en las dos direcciones a
+  la vez, saltándose el invariante #14 de `spec.md` (`\b` prohibido en regex en español):
+  - **Rechazaba "sí"** con tilde — justo la palabra que el propio bot pedía y la que transcribe
+    Whisper en las notas de voz. La acción pendiente se descartaba en silencio y no se ejecutaba
+    nada. Con `LLM_PREFER_LOCAL=true` (Ollama por defecto → toda acción pide confirmación), eso
+    dejaba **imposible completar cualquier acción** en el flujo normal
+  - **Ejecutaba con frases corrientes**: "Si mañana llueve…", "Si puedes, dime…", "ok pero antes…",
+    "Correcto, aunque…" disparaban la acción pendiente sin que nadie la hubiera confirmado —
+    justo el fallo que el gate existía para evitar
+  - Sustituido por comparación de **frase completa normalizada** (sin acentos ni signos) contra una
+    lista, más una segunda vía acotada para confirmaciones más habladas ("sí, por favor créalo ya"):
+    máximo 5 palabras, primera palabra de sí/no, sin adversativas y sin ser pregunta
+  - **Botones inline en Telegram** (✅ Confirmar / ❌ Cancelar), como ya se hacía con el email, para
+    no depender de acertar la palabra. La lista de frases se queda para PWA y Desktop
+  - Verificado con 21 casos, incluidos los 6 que fallaban antes
+- [x] Otros arreglos del mismo repaso: `turn.voice` se construía y luego se ignoraba en Telegram (la
+  voz leía el volcado de argumentos en vez del texto preparado); los resultados de las herramientas
+  interpolaban nombres sin escapar dentro de Markdown (`*${task.nombre}*` con un `_` rompía el envío
+  y el señor veía un error aunque la tarea sí se hubiera creado) — ahora van por `md()` y, por si
+  acaso, `sendMarkdownSafe()` reintenta en crudo antes que perder el mensaje; y la confirmación decía
+  "Voy a *crea un evento…*" porque troceaba la descripción destinada al LLM (ahora cada herramienta
+  tiene su propia etiqueta legible)
 
 ### B1 — Herramientas sobre su propio cerebro
 
@@ -231,6 +254,18 @@ maquetar dos veces. Lo que sí se puede hacer desde ya es la limpieza.
     `Unregister-ScheduledTask -TaskName "BAKO-Ollama-Serve"`
   - [x] Verificado extremo a extremo: `qwen3:8b` respondiendo por `ollama.bohdeveloper.com`, 6,2 GB,
     100 % GPU, contexto 8192
+  - [x] **`OLLAMA_URL` faltaba en `render.yaml`** (05/09/2026) — era la causa de que el botón
+    Groq/Ollama de la PWA saliera siempre gris: sin esa variable el backend en Render buscaba Ollama
+    en **su propio contenedor** (`localhost:11434`, donde no hay nada), así que `isOllamaAvailable()`
+    devolvía `false` siempre, el badge se bloqueaba fijo en Groq y `LLM_PREFER_LOCAL` no llegaba a
+    aplicarse nunca por muy encendido que estuviera el PC. Añadida apuntando al túnel
+  - [x] El endpoint `/voice` ignoraba la elección del badge (solo miraba `LLM_PREFER_LOCAL`), y al
+    corregirlo salió un segundo fallo: `/voice` va por `multipart/form-data` (multer), así que
+    `useCloud` llega como **string**, no como booleano — la comprobación `typeof === 'boolean'` no
+    casaba nunca y el arreglo era un no-op. Resuelto con `parseBoolField()`, usado en los dos
+    endpoints. Hallazgo de `/code-review`
+  - La lógica del cliente ya era correcta: con túnel vivo manda la preferencia guardada del señor y,
+    si no la hay, `LLM_PREFER_LOCAL`; sin túnel el badge se deshabilita y queda fijo en Groq
 
 ### 🟠 P2 · Importante — cerrar Horizonte 1 (mayordomo funcional completo)
 

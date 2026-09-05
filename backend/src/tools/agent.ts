@@ -32,11 +32,20 @@ function stripMarkdown(text: string): string {
   return text.replace(/\*|_/g, '');
 }
 
+// Los nombres de tarea/proyecto/issue vienen de extracción libre del LLM o de lo
+// que dicte el señor, y acaban interpolados dentro de un mensaje que Telegram
+// parsea como Markdown: un `_` suelto en "revisar_informe" rompe el envío entero
+// y el señor ve un error genérico aunque la acción sí se haya ejecutado.
+function md(valor: unknown): string {
+  return String(valor ?? '').replace(/[_*[\]`]/g, '');
+}
+
 // ─── Registro de herramientas ─────────────────────────────────────────────────
 
 interface ToolDef {
   name:        string;
-  description: string;
+  description: string;              // para el LLM: cuándo usarla
+  label:       string;              // para el señor: cómo se lee en la confirmación ("Voy a <label>")
   parameters:  Record<string, any>; // JSON Schema
   destructive: boolean;             // true → pide confirmación explícita antes de ejecutar
   run:         (args: any) => Promise<string>;
@@ -46,6 +55,7 @@ const TOOLS: ToolDef[] = [
   {
     name:        'crear_tarea_notion',
     description: 'Crea una tarea nueva en Notion (Centro de Mando). Úsala cuando el señor pida crear, añadir o apuntar una tarea.',
+    label:       'crear una tarea en Notion',
     parameters: {
       type: 'object',
       properties: {
@@ -63,16 +73,17 @@ const TOOLS: ToolDef[] = [
         proyecto:    args.proyecto,
         fechaLimite: args.fechaLimite,
       });
-      const lines = [`✅ Tarea creada en Notion: *${task.nombre}*`];
-      if (task.prioridad)   lines.push(`📌 Prioridad: ${task.prioridad}`);
-      if (task.proyecto)    lines.push(`📂 Proyecto: ${task.proyecto}`);
-      if (task.fechaLimite) lines.push(`📅 Fecha objetivo: ${task.fechaLimite}`);
+      const lines = [`✅ Tarea creada en Notion: *${md(task.nombre)}*`];
+      if (task.prioridad)   lines.push(`📌 Prioridad: ${md(task.prioridad)}`);
+      if (task.proyecto)    lines.push(`📂 Proyecto: ${md(task.proyecto)}`);
+      if (task.fechaLimite) lines.push(`📅 Fecha objetivo: ${md(task.fechaLimite)}`);
       return lines.join('\n');
     },
   },
   {
     name:        'actualizar_estado_tarea_notion',
     description: 'Cambia el estado de una tarea existente en Notion (marcarla como hecha, en curso, bloqueada o por hacer).',
+    label:       'cambiar el estado de una tarea en Notion',
     parameters: {
       type: 'object',
       properties: {
@@ -88,12 +99,13 @@ const TOOLS: ToolDef[] = [
       const estado = normalizeEstadoTarea(args.nuevoEstado);
       await updateNotionTaskStatus(task.id, estado);
       const icon = estado === 'Hecho' ? '✅' : estado === 'En curso' ? '🔄' : estado === 'Bloqueado' ? '🚧' : '⏳';
-      return `${icon} Tarea *"${task.nombre}"* → *${estado}* en Notion.`;
+      return `${icon} Tarea *"${md(task.nombre)}"* → *${md(estado)}* en Notion.`;
     },
   },
   {
     name:        'crear_evento_calendario',
     description: 'Crea un evento nuevo en Google Calendar. Úsala cuando el señor pida agendar, apuntar o programar una reunión, cita o evento con fecha y hora.',
+    label:       'crear un evento en Google Calendar',
     parameters: {
       type: 'object',
       properties: {
@@ -120,15 +132,16 @@ const TOOLS: ToolDef[] = [
         hour: '2-digit', minute: '2-digit',
         timeZone: 'Europe/Madrid',
       });
-      const lines = [`📅 Evento creado en Google Calendar: *${event.title}*`, `🕐 ${fechaStr}`];
-      if (event.location)    lines.push(`📍 ${event.location}`);
-      if (event.description) lines.push(`📝 ${event.description}`);
+      const lines = [`📅 Evento creado en Google Calendar: *${md(event.title)}*`, `🕐 ${fechaStr}`];
+      if (event.location)    lines.push(`📍 ${md(event.location)}`);
+      if (event.description) lines.push(`📝 ${md(event.description)}`);
       return lines.join('\n');
     },
   },
   {
     name:        'crear_issue_sincronizado',
     description: 'Crea un issue sincronizado en Notion y GitHub para un proyecto. Úsala cuando el señor pida crear/abrir un issue o reportar un bug.',
+    label:       'crear un issue en Notion y GitHub',
     parameters: {
       type: 'object',
       properties: {
@@ -146,7 +159,7 @@ const TOOLS: ToolDef[] = [
         priority: args.prioridad ?? 'Media',
         notes:    args.descripcion,
       });
-      const lines = [`✅ Issue creado en *${proyecto}*: *${args.titulo}*`];
+      const lines = [`✅ Issue creado en *${md(proyecto)}*: *${md(args.titulo)}*`];
       if (result.ghNumber) lines.push(`🐙 GitHub #${result.ghNumber}: ${result.ghUrl}`);
       else lines.push('⚠️ GitHub: no se pudo crear (token sin permisos o repo no encontrado)');
       lines.push(`📋 Notion: ${result.notionId ? 'creado' : 'error al crear'}`);
@@ -156,6 +169,7 @@ const TOOLS: ToolDef[] = [
   {
     name:        'cerrar_issue_sincronizado',
     description: 'Cierra o completa un issue existente en Notion y GitHub. Úsala cuando el señor diga que un issue está completado o hay que cerrarlo.',
+    label:       'cerrar un issue en Notion y GitHub',
     parameters: {
       type: 'object',
       properties: {
@@ -172,12 +186,13 @@ const TOOLS: ToolDef[] = [
       else parts.push('⚠️ Notion: issue no encontrado');
       if (result.ghClosed) parts.push(`🐙 GitHub (${result.repo}): cerrado`);
       else if (result.repo) parts.push(`⚠️ GitHub (${result.repo}): issue no encontrado`);
-      return `✅ Issue *"${args.titulo}"* cerrado:\n${parts.join('\n')}`;
+      return `✅ Issue *"${md(args.titulo)}"* cerrado:\n${parts.join('\n')}`;
     },
   },
   {
     name:        'actualizar_siguiente_accion_proyecto',
     description: 'Actualiza el campo "siguiente acción" de un proyecto en Notion.',
+    label:       'actualizar la siguiente acción de un proyecto',
     parameters: {
       type: 'object',
       properties: {
@@ -189,8 +204,8 @@ const TOOLS: ToolDef[] = [
     destructive: false,
     run: async (args) => {
       const ok = await updateNotionProjectSiguienteAccion(args.proyecto, args.siguienteAccion);
-      if (!ok) return `⚠️ No encontré el proyecto *${args.proyecto}* en Notion.`;
-      return `✅ Siguiente acción de *${args.proyecto}* actualizada:\n_"${args.siguienteAccion}"_`;
+      if (!ok) return `⚠️ No encontré el proyecto *${md(args.proyecto)}* en Notion.`;
+      return `✅ Siguiente acción de *${md(args.proyecto)}* actualizada:\n_"${md(args.siguienteAccion)}"_`;
     },
   },
 ];
@@ -213,12 +228,64 @@ valor de ejemplo.`;
 // cualquier herramienta marcada `destructive`. En memoria, no en Mongo — un
 // reinicio del proceso simplemente descarta confirmaciones pendientes, lo cual
 // es lo seguro (nunca ejecutar algo que el señor no llegó a confirmar).
-interface PendingAction { toolName: string; args: Record<string, any>; ts: number; }
+interface PendingAction { toolName: string; args: Record<string, any>; ts: number; reasked?: boolean; }
 const pendingActions = new Map<string, PendingAction>();
 const PENDING_TTL_MS = 5 * 60 * 1000; // 5 min para confirmar, luego caduca
 
-const CONFIRM_YES = /^(s[ií]|confirmo|adelante|hazlo|correcto|ok|vale|proced[e]?)\b/i;
-const CONFIRM_NO  = /^(no|cancela(r)?|olv[ií]dalo|mejor no)\b/i;
+// Normaliza el mensaje para compararlo con las frases de confirmación: quita
+// acentos, signos, emojis y espacios de sobra. "Sí, hazlo!" → "si hazlo".
+function normalizeConfirm(text: string): string {
+  return text
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // quita los acentos: "sí" → "si"
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, ' ')                        // fuera puntuación y emojis
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Comparación por frase COMPLETA, no por prefijo, y sin `\b` — que en JavaScript
+// no reconoce vocales acentuadas (invariante #14 de spec.md). La versión anterior
+// con `/^(s[ií]|...|vale|ok)\b/` fallaba en las dos direcciones a la vez:
+// rechazaba "sí" (con tilde, que es justo lo que se pide y lo que transcribe
+// Whisper en las notas de voz) y en cambio ejecutaba la acción pendiente con
+// cualquier frase que empezara por "Si mañana...", "ok pero..." o "Correcto,
+// aunque...". Exigir la frase entera cierra las dos puertas.
+const CONFIRM_YES = new Set([
+  'si', 'claro', 'vale', 'ok', 'okay', 'de acuerdo', 'adelante', 'hazlo', 'confirmo',
+  'confirmado', 'correcto', 'procede', 'dale', 'afirmativo', 'perfecto', 'eso es',
+  'si por favor', 'si adelante', 'si hazlo', 'si confirmo', 'si claro', 'si gracias',
+  'hazlo ya', 'venga', 'sip', 'por favor',
+]);
+const CONFIRM_NO = new Set([
+  'no', 'no gracias', 'nope', 'dejalo', 'dejalo estar', 'olvidalo', 'cancela',
+  'cancelalo', 'cancelar', 'mejor no', 'para', 'anula', 'anulalo', 'negativo',
+  'nada', 'no hace falta', 'ni hablar', 'no por favor',
+]);
+
+// Segunda vía, para confirmaciones algo más habladas que no están en las listas
+// ("sí, por favor créalo ya"). Se exige que sea corta, que empiece por una
+// palabra de sí/no, que no lleve adversativa y que no sea una pregunta — así
+// "Si puedes, dime qué tareas tengo" o "ok pero antes dime el tiempo" siguen
+// SIN contar como confirmación.
+const YES_TOKENS = new Set(['si', 'claro', 'vale', 'ok', 'okay', 'adelante', 'hazlo', 'confirmo', 'dale', 'venga', 'correcto', 'perfecto']);
+const NO_TOKENS  = new Set(['no', 'cancela', 'cancelalo', 'olvidalo', 'dejalo', 'anula', 'anulalo', 'nada', 'negativo']);
+const ADVERSATIVAS = /\b(pero|aunque|sin embargo|salvo|excepto)\b/;
+
+export type ConfirmAnswer = 'si' | 'no' | null;
+
+function interpretConfirmation(rawText: string): ConfirmAnswer {
+  const t = normalizeConfirm(rawText);
+  if (!t) return null;
+  if (CONFIRM_YES.has(t)) return 'si';
+  if (CONFIRM_NO.has(t))  return 'no';
+
+  const palabras = t.split(' ');
+  const esPregunta = rawText.includes('?') || /\b(que|cual|cuando|donde|como|quien|por que)\b/.test(t);
+  if (palabras.length > 5 || esPregunta || ADVERSATIVAS.test(t)) return null;
+  if (YES_TOKENS.has(palabras[0])) return 'si';
+  if (NO_TOKENS.has(palabras[0]))  return 'no';
+  return null;
+}
 
 // Los valores vienen de extracción libre del LLM (o de texto tecleado/dictado
 // por el señor) — se les quita el markdown antes de interpolarlos en un mensaje
@@ -244,6 +311,31 @@ export interface AgentTurnResult {
   text:      string;
   voice:     string;
   toolUsed?: string; // nombre de la herramienta ejecutada, si hubo una — para que el llamador decida si extraer memorias de este turno
+  awaitingConfirmation?: boolean; // el texto es una pregunta de confirmación: quien pueda (Telegram) que muestre botones
+}
+
+/** Ejecuta la acción que estaba pendiente de confirmación, si sigue viva. */
+export async function confirmPendingAction(confirmKey: string): Promise<AgentTurnResult> {
+  const pending = pendingActions.get(confirmKey);
+  pendingActions.delete(confirmKey);
+  if (!pending || Date.now() - pending.ts >= PENDING_TTL_MS) {
+    return { text: '⚠️ Esa confirmación ya ha caducado, señor. Pídamelo otra vez.', voice: 'Esa confirmación ya ha caducado, señor. Pídamelo otra vez.' };
+  }
+  const tool = TOOLS.find(t => t.name === pending.toolName);
+  if (!tool) return { text: '⚠️ Ya no reconozco esa acción.', voice: 'Ya no reconozco esa acción, señor.' };
+  try {
+    const text = await tool.run(pending.args);
+    return { text, voice: stripMarkdown(text), toolUsed: tool.name };
+  } catch (err) {
+    const text = `❌ ${(err as Error).message}`;
+    return { text, voice: `No pude completar la acción. ${(err as Error).message}` };
+  }
+}
+
+/** Descarta la acción pendiente sin ejecutarla. */
+export function cancelPendingAction(confirmKey: string): AgentTurnResult {
+  pendingActions.delete(confirmKey);
+  return { text: '❌ Acción cancelada.', voice: 'Acción cancelada, señor.' };
 }
 
 /**
@@ -260,25 +352,19 @@ export async function runAgentTurn(
   // ── ¿Es la respuesta a una confirmación pendiente? ──────────────────────────
   const pending = pendingActions.get(confirmKey);
   if (pending && Date.now() - pending.ts < PENDING_TTL_MS) {
-    const trimmed = userText.trim();
-    if (CONFIRM_YES.test(trimmed)) {
-      pendingActions.delete(confirmKey);
-      const tool = TOOLS.find(t => t.name === pending.toolName);
-      if (tool) {
-        try {
-          const text = await tool.run(pending.args);
-          return { text, voice: stripMarkdown(text), toolUsed: tool.name };
-        } catch (err) {
-          const text = `❌ ${(err as Error).message}`;
-          return { text, voice: `No pude completar la acción. ${(err as Error).message}` };
-        }
-      }
+    const respuesta = interpretConfirmation(userText);
+    if (respuesta === 'si') return confirmPendingAction(confirmKey);
+    if (respuesta === 'no') return cancelPendingAction(confirmKey);
+
+    // Ni sí ni no. Se repregunta UNA sola vez, y solo si el mensaje es corto
+    // (probable intento de confirmar con una fórmula rara). A la segunda, o si
+    // el mensaje es largo, se descarta lo pendiente y sigue el flujo normal —
+    // si no, un "hola" dejaría a BAKO repreguntando durante los 5 min del TTL.
+    if (!pending.reasked && normalizeConfirm(userText).split(' ').length <= 4) {
+      pending.reasked = true;
+      const texto = 'No le he entendido, señor. ¿Confirmo la acción pendiente? Responda «sí» o «no».';
+      return { text: texto, voice: texto, awaitingConfirmation: true };
     }
-    if (CONFIRM_NO.test(trimmed)) {
-      pendingActions.delete(confirmKey);
-      return { text: '❌ Acción cancelada.', voice: 'Acción cancelada, señor.' };
-    }
-    // Ni sí ni no reconocibles → se descarta lo pendiente y se sigue como mensaje normal
     pendingActions.delete(confirmKey);
   }
 
@@ -317,8 +403,11 @@ export async function runAgentTurn(
   if (requiresConfirmation) {
     pendingActions.set(confirmKey, { toolName: tool.name, args: result.toolCall.arguments, ts: Date.now() });
     const resumen = describeArgs(result.toolCall.arguments);
-    const text = `⚠️ Voy a *${tool.description.split('.')[0].toLowerCase()}* — ${resumen}. ¿Confirma, señor? (sí/no)`;
-    return { text, voice: `¿Confirma que quiere que haga esto? ${resumen}` };
+    return {
+      text:  `⚠️ Voy a ${tool.label} — ${resumen}. ¿Confirma, señor? (sí/no)`,
+      voice: `Voy a ${tool.label}. ${resumen}. ¿Lo confirma, señor?`,
+      awaitingConfirmation: true,
+    };
   }
 
   try {
@@ -329,3 +418,5 @@ export async function runAgentTurn(
     return { text, voice: `No pude ejecutar esa acción. ${(err as Error).message}` };
   }
 }
+
+

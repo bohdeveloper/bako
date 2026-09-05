@@ -82,7 +82,7 @@ bako/
 │   │   ├── routes/                 # agent, auth, desktop, bakoClient, people, projects, knowledge,
 │   │   │                           #   notifications, autoconfig, tts, push
 │   │   ├── tools/                  # telegram, notion, github, calendar, gmail, weather, news, tts,
-│   │   │                           #   time, context, memory, embeddings, actions, issueSync,
+│   │   │                           #   time, context, memory, embeddings, agent, issueSync,
 │   │   │                           #   projectSync, planSync, profileDynamic
 │   │   ├── agents/MorningBriefingAgent.ts
 │   │   ├── services/               # ProactivityService (crons) · pushService (Web Push)
@@ -129,9 +129,12 @@ menciona el recurso — el tracker y el calendario nunca se responden desde cach
 entrada único: una sola llamada a `askClaudeWithTools()` (Groq/Ollama, formato OpenAI) decide, con el
 mismo contexto de siempre, si BAKO conversa en texto o llama a una de las 6 herramientas registradas
 (crear/actualizar tarea, crear evento, crear/cerrar issue, siguiente acción). Las herramientas
-`destructive` (hoy solo crear evento de Calendar) piden confirmación explícita en texto libre antes
-de ejecutarse, con estado en memoria (`pendingActions`, TTL 5 min) — funciona igual en Telegram, PWA
-y Desktop. Medido el 05/09/2026: `qwen3:8b` en Ollama alucina llamadas a herramientas sin que nadie
+`destructive` (hoy solo crear evento de Calendar) piden confirmación explícita antes de ejecutarse,
+con estado en memoria (`pendingActions`, TTL 5 min). En Telegram la confirmación va con **botones
+inline** (igual que el envío de email); en PWA y Desktop, comparando la **frase completa
+normalizada** (sin acentos ni signos) contra una lista cerrada, más una vía acotada para
+confirmaciones habladas — nunca por prefijo, o "Si mañana llueve…" ejecutaría la acción pendiente.
+Medido el 05/09/2026: `qwen3:8b` en Ollama alucina llamadas a herramientas sin que nadie
 las pida (Groq no), así que el gate de confirmación cubre **todas** las herramientas cuando quien
 respondió de verdad fue Ollama, no solo las `destructive` — hasta que un modelo local más grande o
 más fino en instrucciones lo haga innecesario. `issueSync.ts` y `projectSync.ts` mantienen Notion y

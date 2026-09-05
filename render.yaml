@@ -40,6 +40,12 @@ services:
       # eran 85 s. Por eso el defecto pasa a ser local.
       # OLLAMA_NUM_CTX se queda en 8192 a propósito: a 12288 la generación cae de
       # 37,5 a 5,4 tokens/s en esta GPU.
+      # Sin esto, el backend en Render busca Ollama en su PROPIO contenedor
+      # (localhost:11434, donde no hay nada): isOllamaAvailable() daba siempre
+      # false, el badge de la PWA salía gris y permanentemente fijo en Groq, y
+      # LLM_PREFER_LOCAL no llegaba a aplicarse nunca. Es el túnel del PC de casa.
+      - key: OLLAMA_URL
+        value: https://ollama.bohdeveloper.com
       - key: LLM_PREFER_LOCAL
         value: "true"
       - key: OLLAMA_MODEL

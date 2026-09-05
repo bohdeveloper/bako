@@ -37,6 +37,18 @@ function isRateLimit(err: unknown): boolean {
   );
 }
 
+/**
+ * `useCloud` llega como booleano por JSON (/text) pero como string por
+ * multipart/form-data (/voice, que va con multer) — comprobar solo `typeof ===
+ * 'boolean'` haría que la elección del badge se ignorara en el flujo de voz.
+ */
+function parseBoolField(v: unknown): boolean | undefined {
+  if (typeof v === 'boolean') return v;
+  if (v === 'true')  return true;
+  if (v === 'false') return false;
+  return undefined;
+}
+
 function isContextTooLarge(err: unknown): boolean {
   const e = err as any;
   return (
@@ -202,7 +214,14 @@ router.post('/voice', llmLimiter, upload.single('audio'), async (req: Request, r
       getCachedOllamaStatus(),
       getFullSystemPrompt(transcription, true, clientLocation), // always compact — full exceeds Groq 6000 TPM
     ]);
-    const useCloud = !(ollamaOk && PREFER_LOCAL);
+    // Misma regla que /text: sin túnel solo hay Groq; con túnel manda la elección
+    // explícita del cliente (el badge) y, si no la hay, decide LLM_PREFER_LOCAL.
+    // Antes este endpoint ignoraba la elección del cliente y solo miraba
+    // PREFER_LOCAL, así que el botón no gobernaba la voz.
+    const clientUseCloud = parseBoolField(req.body?.useCloud);
+    const useCloud = !ollamaOk
+      ? true
+      : clientUseCloud ?? !PREFER_LOCAL;
     const confirmKey = `desktop:${req.authUser!.userId}`;
     const turn = await runAgentTurn(transcription, confirmKey, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
     const audioBuffer  = await safeVoiceBuffer(turn.voice);
@@ -257,7 +276,7 @@ router.post('/text', llmLimiter, validateMessage, async (req: Request, res: Resp
     // la elección explícita del badge; si no la hay, decide PREFER_LOCAL.
     const useCloud = !ollamaOk
       ? true
-      : typeof clientUseCloud === 'boolean' ? clientUseCloud : !PREFER_LOCAL;
+      : parseBoolField(clientUseCloud) ?? !PREFER_LOCAL;
     console.log(`🔵 Desktop /text: '${complexity}' → ${useCloud ? 'Groq ☁️' : 'Ollama 🏠'} + prompt ${useMinimalPrompt ? 'minimal' : 'full'} (${systemPrompt.length} chars)`);
     const confirmKey = `desktop:${req.authUser!.userId}`;
     const turn = await runAgentTurn(message, confirmKey, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud, conversationHistory });

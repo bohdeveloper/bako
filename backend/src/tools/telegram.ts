@@ -20,7 +20,7 @@ import { Rule } from '../memory/Rule';
 import { Person, formatPersonForContext } from '../memory/Person';
 import { Project, formatProjectForContext } from '../memory/Project';
 import { KnowledgeEntry, formatKnowledgeForContext } from '../memory/KnowledgeEntry';
-import { runAgentTurn } from './agent';
+import { runAgentTurn, confirmPendingAction, cancelPendingAction, AgentTurnResult } from './agent';
 import { getAmbientContext, invalidateCityWeatherCache, invalidateCalendarCache } from './context';
 
 export function buildSystemPrompt(extraContext = '', memoriesSection = '', dynamicProfileSection = '', peopleSection = '', projectsSection = '', knowledgeSection = '', tasksSection = ''): string {
@@ -447,6 +447,37 @@ function appendToSession(chatId: number, userMsg: string, assistantMsg: string):
   }
   session.lastActivity = Date.now();
   sessionHistories.set(chatId, session);
+}
+
+// Si el Markdown no cuadra (un `_` suelto en un nombre, por ejemplo), Telegram
+// rechaza el envío entero. Mejor mandarlo en crudo que perder el mensaje.
+async function sendMarkdownSafe(chatId: number, text: string, extra: Record<string, any> = {}): Promise<void> {
+  try {
+    await bot.sendMessage(chatId, text, { parse_mode: 'Markdown', ...extra });
+  } catch {
+    await bot.sendMessage(chatId, text, extra);
+  }
+}
+
+const CONFIRM_BUTTONS = {
+  inline_keyboard: [[
+    { text: '✅ Confirmar', callback_data: 'act_confirm' },
+    { text: '❌ Cancelar',  callback_data: 'act_cancel'  },
+  ]],
+};
+
+/**
+ * Envía el resultado de un turno del agente. Cuando hay una acción esperando
+ * confirmación se usan botones inline — igual que ya se hacía al enviar un
+ * email — para no depender de acertar con la palabra exacta.
+ */
+async function sendAgentTurn(chatId: number, turn: AgentTurnResult): Promise<void> {
+  if (turn.awaitingConfirmation) {
+    await sendMarkdownSafe(chatId, turn.text, { reply_markup: CONFIRM_BUTTONS });
+  } else if (turn.toolUsed || turn.text.startsWith('❌') || turn.text.startsWith('⚠️')) {
+    await sendMarkdownSafe(chatId, turn.text);
+  }
+  await sendVoiceReply(chatId, turn.voice);
 }
 
 async function sendVoiceReply(chatId: number, text: string): Promise<void> {
@@ -1219,6 +1250,16 @@ export function startTelegramBot(): void {
       );
     } catch { /* mensaje muy antiguo, ignorar */ }
 
+    // Confirmación de una acción del agente (crear evento, tarea…)
+    if (query.data === 'act_confirm' || query.data === 'act_cancel') {
+      const turn = query.data === 'act_confirm'
+        ? await confirmPendingAction(`telegram:${chatId}`)
+        : cancelPendingAction(`telegram:${chatId}`);
+      await sendMarkdownSafe(chatId, turn.text);
+      await sendVoiceReply(chatId, turn.voice);
+      return;
+    }
+
     // Toggle de mensaje automático
     if (query.data?.startsWith('autotoggle_')) {
       const key     = query.data.replace('autotoggle_', '');
@@ -1303,11 +1344,7 @@ export function startTelegramBot(): void {
         conversationHistory: voiceHistory,
       }));
       const response = turn.text;
-      // Resultado de una herramienta (o su confirmación) → también en texto, con
-      // el formato Markdown de la confirmación; una respuesta conversacional
-      // normal solo va por voz, como siempre.
-      if (turn.toolUsed || /^[⚠️❌]/.test(response)) await bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
-      await sendVoiceReply(chatId, response);
+      await sendAgentTurn(chatId, turn);
       appendToSession(chatId, transcription, response);
       if (!turn.toolUsed) extractAndSaveMemories(transcription, response).catch(() => {});
       const detectedMood = detectMoodFromText(transcription);
@@ -1556,11 +1593,7 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
         conversationHistory,
       }));
       const response = turn.text;
-      // Resultado de una herramienta (o su confirmación) → también en texto, con
-      // el formato Markdown de la confirmación; una respuesta conversacional
-      // normal solo va por voz, como siempre.
-      if (turn.toolUsed || /^[⚠️❌]/.test(response)) await bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
-      await sendVoiceReply(chatId, response);
+      await sendAgentTurn(chatId, turn);
       appendToSession(chatId, text, response);
       if (!turn.toolUsed) extractAndSaveMemories(text, response).catch(() => {});
       const detectedMoodText = detectMoodFromText(text);
