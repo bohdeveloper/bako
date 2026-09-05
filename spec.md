@@ -54,7 +54,7 @@ uno de estos cinco gaps. Si no, espera.
 | Backend | Node 20 · Express 5 · TypeScript · `ts-node`/`nodemon` en dev, `tsc` → `dist/` en prod |
 | BD principal | MongoDB Atlas M0 (512 MB) vía Mongoose — memoria, perfil, usuarios, config |
 | BD portfolio | Cloudflare D1 (SQLite edge) — Tracker personal y comentarios del blog |
-| LLM local | Ollama `llama3.2:3b` (`OLLAMA_MODEL`) a través del túnel Cloudflare — **proveedor por defecto** cuando el túnel responde |
+| LLM local | Ollama `qwen3:8b` (`OLLAMA_MODEL`) en la AMD RX 7600 de 8 GB vía ROCm, expuesto por el túnel Cloudflare — **proveedor por defecto** cuando el túnel responde |
 | LLM cloud | Groq `openai/gpt-oss-120b` (Groq retiró `llama-3.3-70b-versatile` en agosto 2026 — ya no ofrece modelos Llama, solo `gpt-oss`, Qwen y `compound`) |
 | LLM fallback | OpenRouter (cadena de 5 modelos free, `OPENROUTER_MODEL` configurable) |
 | Embeddings | Ollama `nomic-embed-text` (768d) · fallback Cloudflare Workers AI `bge-small-en-v1.5` (384d) |
@@ -156,6 +156,12 @@ historial.
 
 No se reabren sin decisión explícita del usuario.
 
+0. **BAKO parte de cero y aprende hablando** (decidido el 05/09/2026, reenfoque del proyecto). El
+   conocimiento sobre Borja y su entorno **vive en la base de datos, nunca en el código**: BAKO lo
+   construye poco a poco conversando, pregunta con criterio lo que le falta, y sabe conectar y
+   deducir en vez de recitar fichas. `knowledge/profile.ts` — 306 líneas hardcodeadas — es deuda a
+   liquidar, no el modelo a seguir. Cualquier propuesta que añada conocimiento personal al código
+   choca con este invariante. Detalle y fases en `plan.md`, bloque "🧠 El cerebro de BAKO".
 1. **Coste $0/mes.** Cualquier propuesta que introduzca un servicio de pago se rechaza o se difiere
    (por eso Twitter/X y LinkedIn siguen pendientes: sus APIs requieren plan de pago).
 2. **El repositorio es público.** Ningún secreto entra en git, nunca. `scripts/check-secrets.js`
@@ -177,15 +183,21 @@ No se reabren sin decisión explícita del usuario.
    "Hecho", para que los prompts sigan hablando en lenguaje natural. Las consultas **paginan**.
 7. **Las memorias `source: 'manual'` son intocables** para el LLM (solo lectura). Solo puede
    actualizar, nunca borrar, sin confirmación explícita.
-8. **El proveedor por defecto lo decide `LLM_PREFER_LOCAL`, hoy `false` → Groq** (revisado el
-   30/08/2026). El límite real no es la calidad del modelo local sino **la VRAM**. Medido en el PC de
-   casa (GTX 1650, 4 GB) con el prompt compact real (5.377 tokens): `llama3.2:3b` 40 s (68 % en GPU),
-   `qwen3:8b` 85 s (solo 30 % en GPU, necesita ~8 GB). El coste está en *procesar* el prompt, no en
-   generar. Como los endpoints desktop cortan a los 25 s, poner Ollama por defecto con esta GPU sería
-   contraproducente: agotaría su timeout, **caería a Groq igualmente** (misma cuota gastada) y habría
-   perdido esos segundos. Por eso el routing está implementado y desplegado pero **apagado**.
-   Con la GPU de 8 GB montada se activa sin tocar código:
-   `LLM_PREFER_LOCAL=true` · `OLLAMA_MODEL=qwen3:8b` · `OLLAMA_NUM_CTX=16384`.
+8. **El proveedor por defecto lo decide `LLM_PREFER_LOCAL`, desde el 05/09/2026 `true` → Ollama**
+   con Groq de respaldo. Lo que lo bloqueaba era la VRAM y dejó de serlo al montar la **AMD Radeon
+   RX 7600 de 8 GB** (funciona con Ollama vía **ROCm, no CUDA** — la máquina ya no tiene GPU NVIDIA).
+   Medido el 05/09/2026 con un prompt real de 7.695 tokens: `qwen3:8b` responde en **0,6 s** con el
+   modelo caliente y 14,8 s si hay que cargarlo, frente a los 85 s de la GTX 1650 anterior.
+   Tres reglas que salieron de esa medición y no son obvias:
+   `OLLAMA_NUM_CTX` **se queda en 8192** (a 12288 la generación cae de 37,5 a 5,4 tok/s en esta GPU,
+   aunque `ollama ps` siga diciendo 100 % GPU); `OLLAMA_TIMEOUT_MS` **debe superar los 14,8 s de
+   carga en frío** y quedar bajo el safety de 25 s de los endpoints desktop — con los 12 s de antes,
+   la primera pregunta tras un rato de inactividad se iba siempre a Groq; y las llamadas mandan
+   `keep_alive` (`OLLAMA_KEEP_ALIVE`, 30m) para que el modelo siga residente y se responda en 0,6 s
+   en vez de 14,8 s, a costa de ~6,2 GB de VRAM ocupados mientras dura.
+   Ollama arranca al iniciar sesión con la tarea `BAKO-Ollama-Serve`, igual que el túnel con
+   `BAKO-Ollama-Tunnel`: antes solo arrancaba el túnel, así que "PC encendido" no implicaba "Ollama
+   disponible" y el badge veía el túnel vivo sin nada detrás.
    Reglas que sí están activas: el badge de la PWA solo permite elegir **con el túnel vivo** — sin él
    queda deshabilitado, fijo en Groq, ignorando la preferencia guardada; y el backend siempre manda
    sobre el cliente. `think:false` es obligatorio con qwen3 (emite `<think>` por defecto) y

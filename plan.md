@@ -8,11 +8,17 @@
 
 ---
 
-## Estado actual (01/09/2026)
+## Estado actual (05/09/2026)
 
-Retomado tras dos semanas paradas: entre el 30/08 y el 01/09/2026 se cerraron 6 commits (routing
-LLM local/nube, voz TTS persistida, botón silenciar + volumen, y el fix de cabecera móvil/altura de
-viewport de hoy). Sigue pendiente lo de abajo.
+**El objetivo del proyecto se ha reenfocado.** BAKO funciona como asistente (lee agenda, tareas,
+correo, clima; ejecuta acciones en Notion, Calendar, GitHub y Gmail; es proactivo con 7 crons), pero
+su conocimiento sobre Borja está **hardcodeado en `profile.ts`** y solo aprende frases sueltas. Lo
+que se quiere es lo contrario: un BAKO que **parte de cero**, construye su conocimiento hablando,
+**pregunta con criterio** lo que le falta, y sabe **conectar y deducir** en vez de recitar. Eso es
+ahora la prioridad 1 y tiene bloque propio abajo (**🧠 El cerebro de BAKO**).
+
+Del 30/08 al 05/09/2026: 7 commits (routing LLM local/nube, voz TTS persistida, silenciar + volumen,
+cabecera móvil, GPU nueva en marcha). Seguridad cerrada del todo.
 
 | Horizonte / fase | Estado |
 |---|---|
@@ -26,7 +32,9 @@ viewport de hoy). Sigue pendiente lo de abajo.
 | Fase 9 — Wake word y modo conversación | ⏳ PWA escritorio sí; móvil y Desktop pendientes |
 | **Seguridad** — hardening y retirada de secretos | ✅ Historial purgado y credenciales rotadas (30/08/2026) |
 | **Tooling** — Spec-Driven + grafo `codebase-memory-mcp` | ✅ 14/08/2026 |
-| Horizonte 2 — BAKO inteligente (patrones, multi-agente, fine-tuning) | ❌ No empezado |
+| **LLM local** — GPU de 8 GB y Ollama por defecto | ✅ 05/09/2026 |
+| **🧠 El cerebro de BAKO** — de perfil hardcodeado a memoria viva | 🔜 **Prioridad 1**, sin empezar |
+| Horizonte 2 — Multi-agente y fine-tuning | ❌ No empezado (después del cerebro) |
 | Horizonte 3 — Identidad propia (visión, dispositivos, casa) | ❌ No empezado |
 | Horizonte 4 — Presencia física (robótica) | ❌ No empezado en este repo — prerequisito de aprendizaje en marcha, ver nota en Horizonte 4 |
 
@@ -40,7 +48,123 @@ impacto real en tener un mayordomo potente y seguro. Las fases 7c/9/6 conservan 
 hoy, 01/09/2026, al sincronizar con Notion) y su detalle vive ahora en el histórico, bloque
 "Seguridad — hardening y retirada de secretos".
 
-### ✅ Routing LLM local/nube — implementado y listo, pendiente de la GPU (30/08/2026)
+---
+
+## 🧠 El cerebro de BAKO — prioridad 1 (reenfoque del 05/09/2026)
+
+**Lo que se quiere:** que BAKO **parta de cero**, vaya formando su conocimiento sobre Borja y su
+entorno **poco a poco y con preguntas sólidas**, tenga la inteligencia y el interés de acabar
+sabiendo lo que necesita, y sepa **hacer conexiones y deducir** — no recitar fichas.
+
+**Por qué hoy no lo es** (auditoría del 05/09/2026 sobre los 48 ficheros del backend):
+
+- `knowledge/profile.ts` son **306 líneas de la vida de Borja escritas a mano en el código**. Es el
+  opuesto exacto de partir de cero, y además va en un repo público
+- Las acciones se disparan con **regex** (`actions.ts`), no con tool-calling: "apúntame que tengo que
+  llamar al fontanero" no crea nada porque no encaja el patrón. Cada capacidad nueva = otro regex
+- El único aprendizaje automático (`extractAndSaveMemories`) solo escribe **frases sueltas** en
+  `Memory`. **Nunca** crea ni actualiza una Persona, un Proyecto o un Conocimiento
+- BAKO **no pregunta nunca**. No tiene forma de saber qué le falta, ni de pedirlo
+- No hay relaciones entre las piezas del cerebro ni deducción: `Person`, `Project` y
+  `KnowledgeEntry` son tres listas planas que se vuelcan al prompt
+- Solo puede borrar con "olvida X" sobre `Memory`; Personas, Proyectos y Conocimiento son intocables
+  desde la conversación
+
+Las fases van en orden: cada una necesita la anterior.
+
+### B0 — Tool-calling en vez de regex (la base)
+
+Es el desbloqueo: sin esto todo lo demás son parches. Ambos modelos en uso ya lo soportan
+(`openai/gpt-oss-120b` en Groq, `qwen3:8b` en Ollama).
+
+- [ ] Registro de herramientas con esquema JSON, y el LLM eligiendo cuál llamar y con qué argumentos
+- [ ] Migrar las 6 acciones actuales de `actions.ts` (crear tarea, actualizar estado, crear evento,
+  crear issue, cerrar issue, siguiente acción) a herramientas, y **borrar los regex**
+- [ ] Bucle de ejecución con tope de iteraciones y errores devueltos al modelo como resultado
+- [ ] **Confirmación explícita antes de acciones irreversibles** — absorbe el viejo Gap 2 de P2, que
+  con tool-calling deja de ser un parche: la herramienta declara si es destructiva
+- [ ] Fallback: si el modelo de turno no soporta herramientas, seguir respondiendo en texto plano
+
+### B1 — Herramientas sobre su propio cerebro
+
+Que BAKO escriba en su memoria **por las mismas vías que actúa fuera**. "Ibon se ha mudado a Bilbao"
+debe actualizar la *Persona* Ibon, no crear una frase suelta.
+
+- [ ] CRUD como herramientas sobre `Person`, `Project`, `KnowledgeEntry` y `Memory`
+- [ ] Actualizar y **borrar** hablando, no solo crear (hoy solo existe "olvida X" sobre `Memory`)
+- [ ] Un clasificador que decida **en qué caja va cada dato** — es lo que hoy no existe: todo cae en
+  `Memory`. Sustituye al botón manual "Migrar memoria" del panel
+- [ ] Trazabilidad: cada dato guarda de qué conversación salió y cuándo, para poder revisarlo
+- [ ] Que el propio BAKO pueda consultarse ("¿qué sabes de Ibon?") sin depender de lo que quepa en el
+  prompt
+
+### B2 — Partir de cero de verdad
+
+- [ ] Vaciar `knowledge/profile.ts` a la base de datos (Personas / Conocimiento / `ProfileOverride`)
+  y **dejar el código sin datos personales** — de paso, el repo público deja de contener la vida de
+  Borja
+- [ ] Absorbe el viejo "Perfil dinámico v2" de P2 (proyectos y rutina fuera de `profile.ts`) y la
+  "edición de perfil ampliada" de P3: con el perfil en la BD, ambas dejan de ser tareas aparte
+- [ ] **Modo génesis**: poder arrancar con la base vacía y que BAKO lo sepa — que diga "no sé nada de
+  usted todavía" en vez de alucinar
+- [ ] Decidir qué es irreductible (identidad mínima, trato de "señor", reglas de conducta) y se queda
+  en el prompt base, frente a lo que es conocimiento y debe vivir en la BD
+
+### B3 — Curiosidad: las preguntas sólidas
+
+Aquí es donde BAKO deja de ser pasivo. El riesgo a evitar es el interrogatorio: una pregunta buena y
+oportuna vale más que diez seguidas.
+
+- [ ] Detectar **huecos**: qué no sabe y debería (una persona mencionada que no está en `Person`, un
+  proyecto sin estado, un dato caducado)
+- [ ] Presupuesto de preguntas — como máximo una por conversación, y solo si aporta
+- [ ] Momento: al cerrar una conversación o en el briefing, nunca interrumpiendo una petición
+- [ ] Registro de lo ya preguntado, incluido lo que Borja **no quiso contestar**, para no insistir
+- [ ] Preguntas encadenadas: si aparece un nombre nuevo, preguntar por esa persona antes que por algo
+  aleatorio
+
+### B4 — Conexiones y deducción
+
+- [ ] Relaciones tipadas entre las piezas: Persona ↔ Proyecto ↔ Conocimiento (hoy `conexiones` es un
+  array de nombres sueltos en `Person`, sin nada al otro lado)
+- [ ] Deducir en vez de repetir: "Yaimy trabaja en LAE, que está en Galicia" + "planean mudarse a
+  Galicia" → la mudanza depende del trabajo de Yaimy. Y poder explicarlo si se le pregunta
+- [ ] Distinguir lo **dicho** de lo **deducido**, con nivel de confianza, y no presentar una
+  deducción como un hecho
+- [ ] Contradicciones: hoy la regla es "usa el más reciente sin mencionar el conflicto". Debería
+  detectarlas y **preguntar** (enlaza con B3)
+- [ ] Caducidad: un dato de hace dos años no vale lo mismo que uno de ayer
+
+### B5 — Recuperación a escala
+
+Hoy la búsqueda semántica **carga todas las memorias de Mongo y calcula el coseno en Node** en cada
+consulta. Correcto con 100 registros, insostenible con 10.000.
+
+- [ ] MongoDB Atlas Vector Search en lugar del coseno en memoria
+- [ ] Recuperación híbrida: vector + recorrido de relaciones (B4), no solo similitud
+- [ ] Retirar las listas de tags hardcodeadas de `tools/memory.ts` (`SOCIAL_TAGS`, `PROJECT_TAGS`,
+  `PERSONAL_TAGS`, con nombres propios escritos a mano) — deuda del sistema de tiers
+- [ ] Medir: cuánto contexto se gasta por respuesta y si lo recuperado era lo relevante
+
+### B6 — El panel como ventana al cerebro
+
+La reorganización va **después de B2**, cuando la forma del cerebro ya sea la definitiva, para no
+maquetar dos veces. Lo que sí se puede hacer desde ya es la limpieza.
+
+- [ ] **Limpieza inmediata** (no depende de nada): quitar "Limpiar memorias importadas" (su trabajo
+  de limpieza puntual ya se hizo en 7b-A) y "Migrar memoria" (migración inicial, cara de reejecutar y
+  sustituida por el clasificador de B1); dejar un solo botón de deduplicación
+- [ ] Reorganizar en pestañas que sigan el cerebro: `Perfil` · `Personas` · `Proyectos` ·
+  `Conocimiento` · `Recuerdos` · `Sistema` (avisos, push, mantenimiento) · `Usuarios`
+- [ ] Hoy la pestaña **Usuarios es un cajón de sastre**: usuarios, mantenimiento de memoria, avisos
+  automáticos, Web Push y cerrar sesión, todo junto
+- [ ] Falta una pestaña de **Perfil**: lo más denso del cerebro (`profile.ts`) no se puede ver ni
+  editar desde ningún sitio
+- [ ] Ver conexiones y deducciones (B4), y de dónde salió cada dato (B1)
+
+---
+
+### ✅ Routing LLM local/nube — cerrado con la GPU nueva (05/09/2026)
 
 - [x] **Infraestructura de routing Ollama/Groq**, con el defecto en Groq hasta tener GPU suficiente
   - [x] Badge de la PWA: solo se puede elegir con el túnel vivo; **deshabilitado y fijo en Groq**
@@ -52,17 +176,43 @@ hoy, 01/09/2026, al sincronizar con Notion) y su detalle vive ahora en el histó
   - [x] `think:false` + `stripThinking()` (qwen3 devuelve `<think>`, y truncado se colaba en el TTS)
   - [x] `OLLAMA_MODEL` / `OLLAMA_NUM_CTX` / `OLLAMA_TIMEOUT_MS` / `LLM_PREFER_LOCAL` por entorno,
     validando que los numéricos sean > 0 (una variable vacía dejaba axios sin timeout)
-- [ ] **Al montar la GPU de 8 GB:** poner en Render `LLM_PREFER_LOCAL=true`,
-  `OLLAMA_MODEL=qwen3:8b`, `OLLAMA_NUM_CTX=16384` y **volver a medir** con el prompt compact antes de
-  darlo por bueno. Referencia actual en la GTX 1650 de 4 GB (prompt real de 5.377 tokens):
-  `llama3.2:3b` 40 s · `qwen3:8b` 85 s · presupuesto por petición: 25 s.
+- [x] **GPU de 8 GB montada y medida** (05/09/2026) — la GPU nueva **no es NVIDIA**: es una **AMD
+  Radeon RX 7600 de 8 GB**, que funciona con Ollama vía **ROCm, no CUDA** (dato a tener en cuenta en
+  todo lo de visión/IA de `bako-lab`, cuyo `spec.md` aún da por hecha una GTX 1650 con CUDA).
+  Medido con un prompt real de 7.695 tokens, contra los 85 s de `qwen3:8b` en la GTX 1650:
+
+  | `num_ctx` | En frío | Caliente | Generación | Reparto |
+  |---|---|---|---|---|
+  | 4096 | 11,1 s | 0,5 s | 43,2 tok/s | 100 % GPU |
+  | **8192** | **14,8 s** | **0,6 s** | **37,5 tok/s** | **100 % GPU** |
+  | 12288 | 48,5 s | 3,6 s | 5,4 tok/s | 100 % GPU |
+  | 16384 | 49,7 s | 3,7 s | 5,2 tok/s | 93 % GPU |
+
+  - [x] **`OLLAMA_NUM_CTX` se queda en 8192, no 16384** como decía este plan: de 8192 a 12288 la
+    generación se desploma de 37,5 a 5,4 tok/s aunque `ollama ps` siga diciendo 100 % GPU. Subirlo
+    habría hecho a BAKO 6 veces más lento creyendo que se le mejoraba
+  - [x] **`OLLAMA_TIMEOUT_MS` subido de 12 s a 18 s** — bug que el cambio de GPU destapa: cargar el
+    modelo en frío cuesta 14,8 s, así que con 12 s la primera pregunta tras un rato de inactividad
+    se iba **siempre** a Groq aunque el PC estuviese encendido. 18 s deja margen bajo el safety de
+    25 s de los endpoints desktop
+  - [x] **`keep_alive` añadido a las llamadas a Ollama** (`OLLAMA_KEEP_ALIVE`, por defecto 30m) — con
+    el modelo residente se responde en 0,6 s en vez de 14,8 s. Cuesta ~6,2 GB de VRAM ocupados
+    mientras dura
+  - [x] `LLM_PREFER_LOCAL=true` y `OLLAMA_MODEL=qwen3:8b` en `render.yaml` y en los defectos del
+    código — **falta aplicarlos en el dashboard de Render**, que es donde manda de verdad
+  - [x] **Tarea programada `BAKO-Ollama-Serve`** creada al inicio de sesión: Ollama no arrancaba solo
+    (solo lo hacía el túnel), así que "PC encendido" no implicaba "Ollama disponible" — el badge veía
+    el túnel vivo pero sin nada detrás. Se quita con
+    `Unregister-ScheduledTask -TaskName "BAKO-Ollama-Serve"`
+  - [x] Verificado extremo a extremo: `qwen3:8b` respondiendo por `ollama.bohdeveloper.com`, 6,2 GB,
+    100 % GPU, contexto 8192
 
 ### 🟠 P2 · Importante — cerrar Horizonte 1 (mayordomo funcional completo)
 
 - [ ] Verificar en producción la capa de Notion adaptada a "Centro de Mando" (commit `fa05fb4`):
   crear y cerrar una tarea de prueba desde Telegram y comprobar prioridad P1..P4 y "Fecha objetivo"
-- [ ] Confirmación explícita antes de ejecutar acciones irreversibles distintas del email (hoy se
-  confía en la interpretación del LLM) — Gap 2
+- ➡️ ~~Confirmación explícita antes de acciones irreversibles (Gap 2)~~ — **movido a B0**: con
+  tool-calling deja de ser un parche, la propia herramienta declara si es destructiva
 - [x] **Voz TTS persistida y elegible desde PWA/Desktop** (30/08/2026) — antes solo se cambiaba con
   `/voz` en Telegram y se guardaba en una variable en memoria del proceso, así que se reseteaba a
   Álvaro en cada reinicio de Render. Ahora persiste en Mongo (`AutoConfig`, key `tts_voice`).
@@ -128,8 +278,8 @@ hoy, 01/09/2026, al sincronizar con Notion) y su detalle vive ahora en el histó
     salía por debajo del popover de ajustes). Aplanado a una fila inline (icono indicador + slider +
     %) dentro de `.settings-row`, sin popover propio; se eliminó el toggle/open/close/outside-click
     de `#volumePopover` que ya no aplicaba
-- [ ] Perfil dinámico v2: hoy `ProfileOverride` solo cubre edad, ubicación, empleador, situación
-  laboral y oficina. Proyectos y rutina siguen en `profile.ts` — mover al panel admin — Gap 5
+- ➡️ ~~Perfil dinámico v2 (proyectos y rutina fuera de `profile.ts`, Gap 5)~~ — **movido a B2**, que
+  vacía el fichero entero a la BD en vez de campo a campo
 - [ ] **Fase 9 — Desktop, VAD por amplitud** en `_record_loop` (Python) para auto-stop tras silencio;
   hoy sigue en push-to-talk después de la palabra de activación
 - [ ] **Fase 9 — Móvil, wake word sin clics (WebAudio VAD).** `SpeechRecognition(continuous:true)`
@@ -156,7 +306,8 @@ hoy, 01/09/2026, al sincronizar con Notion) y su detalle vive ahora en el histó
   `/api/v1/models` de OpenRouter cuando ocurra
 - [ ] Fase 9 — modelo de wake word propio: ~30 grabaciones de "Bako" → ONNX, sustituye a `hey_jarvis`
 - [ ] Widget de chat público en bohdeveloper.com (diferido desde la Fase 7)
-- [ ] Edición de perfil ampliada en el panel admin (más campos que `ProfileOverride`)
+- ➡️ ~~Edición de perfil ampliada en el panel admin~~ — **movido a B2/B6**: con el perfil en la BD,
+  editarlo deja de ser una tarea aparte
 
 ### ⚪ P4 · Diferido / bloqueado
 
@@ -188,6 +339,12 @@ Lo que queda del horizonte son los pendientes de arriba (7c paso 4, Fase 9 móvi
 diferida). Cuando esos se cierren, el horizonte está completo.
 
 ## Horizonte 2 — BAKO inteligente (~1-2 años)
+
+> **Reenfocado el 05/09/2026.** El núcleo de "BAKO inteligente" ya no son los agentes: es el bloque
+> **🧠 El cerebro de BAKO** de arriba (partir de cero, aprender preguntando, conectar y deducir), que
+> pasa a prioridad 1. Lo de abajo viene **después**, y algunas piezas cambian de sentido cuando el
+> cerebro exista: la Fase 10 (patrones) es prácticamente B4 aplicado al tiempo, y la Fase 11
+> (multi-agente) solo tiene sentido sobre el tool-calling de B0.
 
 ### Fase 10 — Aprendizaje de patrones
 - [ ] Analizar commits, tareas y rutinas para detectar patrones ("llevas 3 días sin avanzar en

@@ -34,18 +34,22 @@ services:
         value: alvaro
       - key: GROQ_MODEL
         value: openai/gpt-oss-120b
-      # Modelo local vía el túnel del PC de casa. Limitado por la VRAM de la GPU:
-      # con 4 GB solo llama3.2:3b corre mayormente en GPU (y aun así ~40 s con el
-      # prompt compact, por encima del safety de 25 s). Por eso LLM_PREFER_LOCAL
-      # está en false: Ollama queda disponible por badge, pero el defecto es Groq.
-      # Con la GPU de 8 GB montada, poner los tres a la vez:
-      #   LLM_PREFER_LOCAL=true · OLLAMA_MODEL=qwen3:8b · OLLAMA_NUM_CTX=16384
+      # Modelo local vía el túnel del PC de casa. Medido el 05/09/2026 con la AMD
+      # RX 7600 de 8 GB (ROCm) y un prompt real de 7.695 tokens: qwen3:8b responde
+      # en 0,6 s caliente y 14,8 s si hay que cargarlo — antes, en la GTX 1650,
+      # eran 85 s. Por eso el defecto pasa a ser local.
+      # OLLAMA_NUM_CTX se queda en 8192 a propósito: a 12288 la generación cae de
+      # 37,5 a 5,4 tokens/s en esta GPU.
       - key: LLM_PREFER_LOCAL
-        value: "false"
+        value: "true"
       - key: OLLAMA_MODEL
-        value: llama3.2:3b
+        value: qwen3:8b
       - key: OLLAMA_NUM_CTX
         value: 8192
+      # Por encima de los 14,8 s de carga en frío y por debajo del safety de 25 s
+      # de los endpoints desktop, para que aún dé tiempo a caer a Groq si falla.
+      - key: OLLAMA_TIMEOUT_MS
+        value: "18000"
       - key: OPENROUTER_MODEL
         value: google/gemma-4-31b-it:free
       - key: OPENROUTER_API_KEY

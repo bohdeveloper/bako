@@ -1,11 +1,11 @@
 import axios from 'axios';
 
 const OLLAMA_URL   = process.env.OLLAMA_URL   ?? 'http://localhost:11434';
-// Medido en el PC de casa (GTX 1650, 4 GB VRAM) con el prompt compact real (5.377
-// tokens): qwen3:8b tarda 85 s porque solo el 30 % cabe en la GPU; llama3.2:3b
-// tarda 40 s con el 68 % en GPU. El cuello de botella es procesar el prompt, no
-// generar. Con la GPU de 8 GB basta con poner OLLAMA_MODEL=qwen3:8b — sin tocar código.
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? 'llama3.2:3b';
+// Medido en el PC de casa el 05/09/2026, ya con la AMD RX 7600 de 8 GB (ROCm, no
+// CUDA), con un prompt real de 7.695 tokens: qwen3:8b responde en 0,6 s con el
+// modelo caliente y 14,8 s si hay que cargarlo. En la GTX 1650 anterior eran 85 s.
+// Ya cabe de sobra, así que qwen3:8b pasa a ser el defecto.
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? 'qwen3:8b';
 const GROQ_MODEL   = process.env.GROQ_MODEL   ?? 'openai/gpt-oss-120b';
 
 // Una variable declarada pero vacía daría 0 — y axios entiende timeout 0 como
@@ -15,13 +15,23 @@ function envNumber(name: string, fallback: number): number {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-// Con 4 GB de VRAM, subir num_ctx expulsa capas a la CPU y ralentiza: a 8192 el
-// reparto es 68 % GPU, a 16384 baja al 30 %. Sube este valor con la GPU nueva.
+// 8192 es el punto óptimo en la RX 7600, y no por falta de VRAM: medido con
+// qwen3:8b, de 8192 a 12288 la generación se desploma de 37,5 a 5,4 tokens/s
+// aunque `ollama ps` siga diciendo 100 % GPU. Subirlo a 16384 no aporta contexto
+// útil y multiplica por 6 el tiempo de respuesta.
 const OLLAMA_NUM_CTX = envNumber('OLLAMA_NUM_CTX', 8192);
 
-// Debe quedar por debajo del safety timeout de los endpoints desktop, para que dé
-// tiempo a caer a Groq y responder algo en lugar de un 504.
-const OLLAMA_TIMEOUT_MS = envNumber('OLLAMA_TIMEOUT_MS', 12000);
+// Cuánto se queda el modelo residente en VRAM tras responder. Con el modelo
+// caliente se responde en 0,6 s; cargarlo cuesta 14,8 s. El coste de tenerlo
+// residente es ~7 GB de VRAM ocupados en el PC, así que 30m es el equilibrio:
+// aguanta una conversación entera y libera la GPU si se deja de usar.
+const OLLAMA_KEEP_ALIVE = process.env.OLLAMA_KEEP_ALIVE ?? '30m';
+
+// Debe quedar por debajo del safety timeout de los endpoints desktop (25 s), para
+// que dé tiempo a caer a Groq y responder algo en lugar de un 504. Antes eran 12 s,
+// por debajo de los 14,8 s que cuesta cargar el modelo en frío: la primera pregunta
+// tras un rato sin usar a BAKO se iba siempre a Groq aunque el PC estuviera encendido.
+const OLLAMA_TIMEOUT_MS = envNumber('OLLAMA_TIMEOUT_MS', 18000);
 
 // qwen3 razona en voz alta por defecto y devuelve el razonamiento dentro de
 // <think>…</think>. Se desactiva por API (`think:false`, Ollama 0.9+) y además se
@@ -62,6 +72,7 @@ async function askOllama(messages: Message[], maxTokens?: number, temperature?: 
     messages,
     stream: false,
     think: false,
+    keep_alive: OLLAMA_KEEP_ALIVE,
     options: {
       num_ctx: numCtx,
       ...(maxTokens   ? { num_predict: maxTokens }   : {}),
@@ -163,7 +174,7 @@ function isGroqRateLimit(err: unknown): boolean {
 async function* streamOllama(messages: Message[], maxTokens?: number, temperature?: number): AsyncGenerator<string> {
   const response = await axios.post(
     `${OLLAMA_URL}/api/chat`,
-    { model: OLLAMA_MODEL, messages, stream: true, think: false, options: { num_ctx: OLLAMA_NUM_CTX, ...(maxTokens ? { num_predict: maxTokens } : {}), ...(temperature !== undefined ? { temperature } : {}) } },
+    { model: OLLAMA_MODEL, messages, stream: true, think: false, keep_alive: OLLAMA_KEEP_ALIVE, options: { num_ctx: OLLAMA_NUM_CTX, ...(maxTokens ? { num_predict: maxTokens } : {}), ...(temperature !== undefined ? { temperature } : {}) } },
     { responseType: 'stream', timeout: 60000 }
   );
   let buf = '';
