@@ -265,6 +265,12 @@ maquetar dos veces. Lo que sí se puede hacer desde ya es la limpieza.
     que además levanta el servidor sin ventana. El fallo fue comprobar solo la clave `Run` del
     registro y no la carpeta de Inicio; el resultado era un arranque duplicado y un CMD de más en
     pantalla. Tarea eliminada el 05/09/2026
+  - [x] **El túnel pasa a servicio de Windows** (`Cloudflared`, LocalSystem, automático) el
+    05/09/2026: sin ventana de consola y **arranca antes de iniciar sesión**, así que el túnel está
+    vivo aunque nadie se loguee. `BAKO-Ollama-Tunnel` queda desactivada como respaldo. Trampa que
+    costó dos pasadas: `cloudflared service install` registró el servicio **sin argumentos** (solo el
+    exe, sin `--config` ni `tunnel run`), figurando como "Running" sin servir nada — se detectó
+    mirando el `binPath` y se corrigió con `sc config`
   - [x] Verificado extremo a extremo: `qwen3:8b` respondiendo por `ollama.bohdeveloper.com`, 6,2 GB,
     100 % GPU, contexto 8192
   - [x] **`OLLAMA_URL` faltaba en `render.yaml`** (05/09/2026) — era la causa de que el botón

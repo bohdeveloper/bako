@@ -209,11 +209,17 @@ No se reabren sin decisión explícita del usuario.
    `keep_alive` (`OLLAMA_KEEP_ALIVE`, 30m) para que el modelo siga residente y se responda en 0,6 s
    en vez de 14,8 s, a costa de ~6,2 GB de VRAM ocupados mientras dura.
    Ollama arranca solo con su propia app de bandeja (`ollama app.exe`, acceso directo en la carpeta
-   de Inicio de Windows), que levanta el servidor **sin ventana de consola**. El túnel lo arranca la
-   tarea `BAKO-Ollama-Tunnel` al iniciar sesión. Ojo al comprobar si Ollama arranca solo: mirar
-   **la carpeta de Inicio**, no solo la clave `Run` del registro — mirar solo el registro llevó el
-   05/09/2026 a crear una tarea `BAKO-Ollama-Serve` que duplicaba el arranque y abría un CMD de más;
-   se eliminó.
+   de Inicio de Windows), que levanta el servidor **sin ventana de consola**. Ojo al comprobar si
+   arranca solo: mirar **la carpeta de Inicio**, no solo la clave `Run` del registro — mirar solo el
+   registro llevó el 05/09/2026 a crear una tarea `BAKO-Ollama-Serve` que duplicaba el arranque y
+   abría un CMD de más; se eliminó.
+   El túnel corre como **servicio de Windows** (`Cloudflared`, LocalSystem, arranque automático):
+   sin ventana y **antes de iniciar sesión**, así que el túnel está vivo aunque nadie se loguee. La
+   tarea `BAKO-Ollama-Tunnel` que hacía esto antes queda **desactivada** como respaldo
+   (`Enable-ScheduledTask` la recupera). Trampa al instalarlo: `cloudflared service install` registró
+   el servicio **sin argumentos** (solo el exe, sin `--config` ni `tunnel run`), así que figuraba como
+   "Running" sin servir nada; hay que comprobar el `binPath` con `sc qc Cloudflared` y, si falta,
+   fijarlo con `sc config`.
    **El túnel está autenticado** (`OLLAMA_AUTH_KEY` → cabecera `x-bako-key` en las seis llamadas a
    Ollama): Ollama no tiene login propio y su hostname está publicado en un repo público, así que hay
    una regla WAF en Cloudflare que **bloquea todo lo que no lleve esa cabecera**. Antes de eso, lo
