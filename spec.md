@@ -208,9 +208,12 @@ No se reabren sin decisión explícita del usuario.
    la primera pregunta tras un rato de inactividad se iba siempre a Groq; y las llamadas mandan
    `keep_alive` (`OLLAMA_KEEP_ALIVE`, 30m) para que el modelo siga residente y se responda en 0,6 s
    en vez de 14,8 s, a costa de ~6,2 GB de VRAM ocupados mientras dura.
-   Ollama arranca al iniciar sesión con la tarea `BAKO-Ollama-Serve`, igual que el túnel con
-   `BAKO-Ollama-Tunnel`: antes solo arrancaba el túnel, así que "PC encendido" no implicaba "Ollama
-   disponible" y el badge veía el túnel vivo sin nada detrás.
+   Ollama arranca solo con su propia app de bandeja (`ollama app.exe`, acceso directo en la carpeta
+   de Inicio de Windows), que levanta el servidor **sin ventana de consola**. El túnel lo arranca la
+   tarea `BAKO-Ollama-Tunnel` al iniciar sesión. Ojo al comprobar si Ollama arranca solo: mirar
+   **la carpeta de Inicio**, no solo la clave `Run` del registro — mirar solo el registro llevó el
+   05/09/2026 a crear una tarea `BAKO-Ollama-Serve` que duplicaba el arranque y abría un CMD de más;
+   se eliminó.
    **El túnel está autenticado** (`OLLAMA_AUTH_KEY` → cabecera `x-bako-key` en las seis llamadas a
    Ollama): Ollama no tiene login propio y su hostname está publicado en un repo público, así que hay
    una regla WAF en Cloudflare que **bloquea todo lo que no lleve esa cabecera**. Antes de eso, lo

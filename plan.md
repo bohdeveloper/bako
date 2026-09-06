@@ -260,10 +260,11 @@ maquetar dos veces. Lo que sí se puede hacer desde ya es la limpieza.
     mientras dura
   - [x] `LLM_PREFER_LOCAL=true` y `OLLAMA_MODEL=qwen3:8b` en `render.yaml` y en los defectos del
     código — **falta aplicarlos en el dashboard de Render**, que es donde manda de verdad
-  - [x] **Tarea programada `BAKO-Ollama-Serve`** creada al inicio de sesión: Ollama no arrancaba solo
-    (solo lo hacía el túnel), así que "PC encendido" no implicaba "Ollama disponible" — el badge veía
-    el túnel vivo pero sin nada detrás. Se quita con
-    `Unregister-ScheduledTask -TaskName "BAKO-Ollama-Serve"`
+  - ⚠️ Se creó una tarea `BAKO-Ollama-Serve` al ver que Ollama no estaba corriendo, **y sobraba**:
+    Ollama ya arranca solo con su app de bandeja (acceso directo en la carpeta de Inicio de Windows),
+    que además levanta el servidor sin ventana. El fallo fue comprobar solo la clave `Run` del
+    registro y no la carpeta de Inicio; el resultado era un arranque duplicado y un CMD de más en
+    pantalla. Tarea eliminada el 05/09/2026
   - [x] Verificado extremo a extremo: `qwen3:8b` respondiendo por `ollama.bohdeveloper.com`, 6,2 GB,
     100 % GPU, contexto 8192
   - [x] **`OLLAMA_URL` faltaba en `render.yaml`** (05/09/2026) — era la causa de que el botón
