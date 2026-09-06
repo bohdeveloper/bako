@@ -132,6 +132,18 @@ nativa (`openai/gpt-oss-120b` en Groq, `qwen3:8b` en Ollama).
   acaso, `sendMarkdownSafe()` reintenta en crudo antes que perder el mensaje; y la confirmación decía
   "Voy a *crea un evento…*" porque troceaba la descripción destinada al LLM (ahora cada herramienta
   tiene su propia etiqueta legible)
+- [x] **BAKO sabe dónde se ejecuta** (05/09/2026) — preguntado "¿estás usando la GPU de mi PC?"
+  contestó *"estoy operando como un modelo de lenguaje basado en la nube"* mientras corría en la GPU
+  de casa: no tenía el dato y se lo inventaba. `runAgentTurn` inyecta ahora una línea de EJECUCIÓN
+  ACTUAL con el proveedor y el modelo reales. Se decide por **quién va a responder de verdad**
+  (sondeo cacheado), no por lo que se pidió: en modo "auto" se pide Ollama sin comprobar nada y, con
+  el túnel caído, responde Groq — decir lo contrario sería crear la misma alucinación que se quería
+  quitar. De paso, la caché del sondeo se unifica en `llm/claude.ts` (había dos independientes
+  sondeando el túnel por separado). Verificado en vivo con Groq: *"estoy ejecutándome en la nube con
+  el modelo openai/gpt-oss-120b"*
+- [x] PWA: al terminar el turno vuelve el cursor al input, para encadenar mensajes sin pinchar. Solo
+  si el turno se inició **escribiendo** — tras una nota de voz abriría el teclado del móvil sin que
+  nadie lo pida — y sin robar el foco si hay otro campo activo o el panel de admin abierto
 
 ### B1 — Herramientas sobre su propio cerebro
 

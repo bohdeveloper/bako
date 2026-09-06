@@ -9,7 +9,7 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import axios from 'axios';
 import FormData from 'form-data';
-import { isOllamaAvailable, classifyQueryComplexity } from '../llm/claude';
+import { isOllamaAvailableCached, classifyQueryComplexity } from '../llm/claude';
 import { generateVoiceBuffer, cleanForVoice, VOCES_DISPONIBLES, getCurrentVoiceKey, setVoice } from '../tools/tts';
 import { getMemoriesSection, getDynamicProfileSection, getPeopleSection, getProjectsSection, getKnowledgeSection, getTasksSection, buildSystemPrompt } from '../tools/telegram';
 import { getAmbientContext } from '../tools/context';
@@ -66,14 +66,10 @@ function isContextTooLarge(err: unknown): boolean {
  */
 const PREFER_LOCAL = /^(1|true|si|sí)$/i.test(process.env.LLM_PREFER_LOCAL ?? '');
 
-// Cache del estado de Ollama — se refresca cada 30s para no añadir latencia
-let ollamaCache: { available: boolean; ts: number } = { available: false, ts: 0 };
-async function getCachedOllamaStatus(): Promise<boolean> {
-  if (Date.now() - ollamaCache.ts < 30_000) return ollamaCache.available;
-  const available = await isOllamaAvailable();
-  ollamaCache = { available, ts: Date.now() };
-  return available;
-}
+// El sondeo cacheado vive en llm/claude.ts: lo comparten el badge de la PWA y la
+// construcción del prompt (que necesita saber qué proveedor responderá de verdad),
+// y tener dos cachés independientes significaba sondear el túnel el doble.
+const getCachedOllamaStatus = isOllamaAvailableCached;
 
 // GET /api/desktop/llm-status — qué LLM usa /text por defecto y si se puede elegir.
 // Con el túnel vivo el defecto es Ollama (no gasta cuota de Groq) y el cliente puede

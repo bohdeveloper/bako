@@ -2849,6 +2849,7 @@
   let currentController = null;  // AbortController para cancelar fetch
   let micState         = 'idle'; // tracking del estado actual del mic
   let lastRequestMs    = 0;
+  let pendingTextFocus = false;  // el turno se inició escribiendo → devolver el cursor al input al acabar
   let llmMode          = null;    // preferencia del usuario: 'ollama' | 'groq' | null (=sin elegir)
   let ollamaAvailable  = false;   // ¿responde el túnel de casa? decide si el badge se puede pulsar
   let serverDefaultLlm = 'groq';  // defecto que dicta el backend (LLM_PREFER_LOCAL)
@@ -3193,7 +3194,9 @@
   }
 
   function setUiEnabled(enabled) {
-    if (enabled && isCoolingDown()) return;
+    // En cooldown la UI sigue bloqueada, así que se descarta el foco pendiente:
+    // si no, se dispararía en un turno posterior sin venir a cuento.
+    if (enabled && isCoolingDown()) { pendingTextFocus = false; return; }
     // El mic button NUNCA se deshabilita cuando BAKO está activo —
     // precisamente entonces sirve para interrumpirle.
     const bakoActive = micState === 'processing' || micState === 'playing';
@@ -3208,6 +3211,18 @@
     btnSendText.disabled      = !enabled;
     btnSendReview.disabled    = !enabled;
     btnSendText.style.opacity = enabled ? '' : '0.4';
+
+    // Al terminar el turno, devolver el cursor al input para poder seguir
+    // escribiendo sin volver a pincharlo. Solo si el turno se inició
+    // escribiendo: tras una nota de voz robaría el foco y abriría el teclado
+    // del móvil sin que nadie lo haya pedido.
+    if (enabled && pendingTextFocus) {
+      pendingTextFocus = false;
+      const activo   = document.activeElement;
+      const enOtro   = activo && activo !== textInput && /^(INPUT|TEXTAREA|SELECT)$/.test(activo.tagName);
+      const panelOpen = document.getElementById('adminPanel')?.classList.contains('visible');
+      if (!enOtro && !panelOpen) textInput.focus();
+    }
   }
 
   // ── Rate limit ─────────────────────────────────────────────────────────────
@@ -3386,6 +3401,7 @@
     const text = textInput.value.trim();
     if (!text) return;
     textInput.value = '';
+    pendingTextFocus = true; // turno iniciado escribiendo → recuperar el cursor al acabar
     sendMessage(text);
   }
   btnSendText.addEventListener('click', sendTextInput);
@@ -3478,6 +3494,11 @@
       addStatusMsg('⚠️ Sin conexión con BAKO');
       setMicState('idle');
       if (!isCoolingDown()) { setUiEnabled(true); setStatus('Sin conexión', 'error'); }
+    } finally {
+      // El turno ha acabado por donde sea (respuesta, rate limit, 401, error): si
+      // nadie llegó a consumir el foco pendiente, se descarta. Si no, sobreviviría
+      // hasta un turno posterior y robaría el foco tras una nota de voz.
+      pendingTextFocus = false;
     }
   }
 

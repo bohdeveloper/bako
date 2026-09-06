@@ -13,7 +13,7 @@
  *  - Actualizar siguiente acción de un proyecto
  */
 
-import { askClaudeWithTools, AskClaudeOptions } from '../llm/claude';
+import { askClaudeWithTools, describeRuntime, isOllamaAvailableCached, AskClaudeOptions } from '../llm/claude';
 import { createNotionTask, updateNotionTaskStatus, findNotionTaskByName, updateNotionProjectSiguienteAccion, normalizeEstadoTarea } from './notion';
 import { createCalendarEvent } from './calendar';
 import { createIssueSync, closeIssueSync } from './issueSync';
@@ -369,7 +369,15 @@ export async function runAgentTurn(
   }
 
   // ── Llamada única: el modelo decide si conversa o llama a una herramienta ──
-  const systemPrompt = `${options.systemPrompt ?? ''}\n\n${TOOL_INSTRUCTIONS}\nFecha y hora actual: ${fechaContexto()}`;
+  // Qué proveedor va a responder DE VERDAD, no el que se pidió: en modo "auto"
+  // se pide Ollama sin comprobar nada, y con el túnel caído responde Groq por el
+  // fallback interno. Decirle al prompt lo contrario sería crear la misma
+  // alucinación que este bloque viene a quitar.
+  const enLaNube = (options.useCloud ?? false) || !(await isOllamaAvailableCached());
+  const runtime = `EJECUCIÓN ACTUAL: ahora mismo te ejecuta ${describeRuntime(enLaNube)}. `
+    + `Si el señor pregunta dónde te ejecutas, con qué modelo funcionas o si estás usando la GPU de su PC, `
+    + `respóndele con este dato — nunca supongas que eres un modelo en la nube.`;
+  const systemPrompt = `${options.systemPrompt ?? ''}\n\n${TOOL_INSTRUCTIONS}\nFecha y hora actual: ${fechaContexto()}\n${runtime}`;
   const result = await askClaudeWithTools(userText, TOOL_SCHEMAS, { ...options, systemPrompt });
 
   if (!result.toolCall) {

@@ -244,6 +244,19 @@ export async function* askClaudeStream(
   }
 }
 
+/**
+ * Quién está sirviendo la petición, en texto, para inyectarlo en el prompt.
+ * Sin esto BAKO no tiene forma de saberlo y se lo inventa: preguntado el
+ * 05/09/2026 si usaba la GPU del PC, contestó "estoy operando como un modelo de
+ * lenguaje basado en la nube" mientras corría en la GPU de casa.
+ * No se codifica el modelo de GPU a propósito — ya cambió una vez.
+ */
+export function describeRuntime(useCloud: boolean): string {
+  return useCloud
+    ? `Groq, en la nube, con el modelo ${GROQ_MODEL}`
+    : `Ollama con el modelo ${OLLAMA_MODEL}, en la GPU del PC de casa del señor, a través del túnel Cloudflare`;
+}
+
 // El motivo del fallo se registra a propósito: mientras se tragaba en silencio,
 // "Ollama no disponible" tapaba por igual el túnel caído, un 403 de Cloudflare,
 // un timeout o un DNS que no resuelve — y cada uno se arregla de forma distinta.
@@ -258,6 +271,19 @@ export async function isOllamaAvailable(): Promise<boolean> {
     console.warn(`⚠️  Ollama no responde en ${OLLAMA_URL} → ${motivo || 'motivo desconocido'}`);
     return false;
   }
+}
+
+// Sondeo cacheado 30 s. Vive aquí y no en la ruta desktop porque lo necesitan
+// dos sitios: el badge de la PWA y, antes de construir el prompt, saber qué
+// proveedor va a responder de verdad — con el túnel caído, pedir Ollama acaba
+// en Groq, y decirle al prompt lo contrario es justo la alucinación que se
+// quiere evitar.
+let ollamaCache: { available: boolean; ts: number } = { available: false, ts: 0 };
+export async function isOllamaAvailableCached(): Promise<boolean> {
+  if (Date.now() - ollamaCache.ts < 30_000) return ollamaCache.available;
+  const available = await isOllamaAvailable();
+  ollamaCache = { available, ts: Date.now() };
+  return available;
 }
 
 // ── Tool-calling (B0 del plan) ──────────────────────────────────────────────
