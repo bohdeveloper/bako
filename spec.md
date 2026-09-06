@@ -211,6 +211,13 @@ No se reabren sin decisión explícita del usuario.
    Ollama arranca al iniciar sesión con la tarea `BAKO-Ollama-Serve`, igual que el túnel con
    `BAKO-Ollama-Tunnel`: antes solo arrancaba el túnel, así que "PC encendido" no implicaba "Ollama
    disponible" y el badge veía el túnel vivo sin nada detrás.
+   **El túnel está autenticado** (`OLLAMA_AUTH_KEY` → cabecera `x-bako-key` en las seis llamadas a
+   Ollama): Ollama no tiene login propio y su hostname está publicado en un repo público, así que hay
+   una regla WAF en Cloudflare que **bloquea todo lo que no lleve esa cabecera**. Antes de eso, lo
+   único que separaba la GPU de casa de internet era el filtro de bots de Cloudflare, que devolvía
+   403 a los datacenters — y por tanto **a Render**, dejando el badge gris permanentemente por mucho
+   que el PC estuviera encendido. Al montar la regla hay que apagar Bot Fight Mode: en el plan
+   gratuito no se puede saltar con reglas WAF.
    Reglas que sí están activas: el badge de la PWA solo permite elegir **con el túnel vivo** — sin él
    queda deshabilitado, fijo en Groq, ignorando la preferencia guardada; y el backend siempre manda
    sobre el cliente. `think:false` es obligatorio con qwen3 (emite `<think>` por defecto) y
@@ -269,7 +276,17 @@ Arranque correcto = `✅ MongoDB conectado` + `🤖 BAKO Telegram activo` + `�
 - **Una sola máquina** (PC de casa; el del trabajo se dio de baja el 30/08/2026): expone Ollama por
   el túnel Cloudflare `bako-ollama` (Task Scheduler `BAKO-Ollama-Tunnel`).
 - **Producción:** Render despliega solo al hacer push a `master`. Las variables van en el dashboard
-  de Render; `render.yaml` declara cuáles con `sync: false`.
+  de Render; `render.yaml` declara cuáles con `sync: false`. **Cambiar `render.yaml` no cambia nada
+  en producción** — solo se aplica al sincronizar el Blueprint; manda siempre el dashboard.
+- ⚠️ **El ISP de casa bloquea a ratos los rangos de IP de Cloudflare** (los bloqueos por IP que hacen
+  los operadores españoles): las IPs de la zona dejan de responder, presentan un certificado
+  autofirmado `core1.netops.test / Widgits Pty Ltd` para cualquier SNI y no envían `cf-ray`. Va y
+  viene solo. Verificado el 05/09/2026 con `tracert`: la interceptación está dentro de la red del
+  operador (salto 3 en adelante), no en el equipo ni en Cloudflare, y **no afecta a Render**.
+  Implicación práctica: **no diagnosticar el túnel desde el PC de casa cuando pase esto** — un
+  `bohdeveloper.com` "caído" desde casa puede estar perfectamente en pie para el resto del mundo. La
+  prueba buena es el badge de la PWA o los logs de Render. Para distinguirlo en 10 segundos: si otra
+  IP de Cloudflare sirve el mismo hostname con certificado válido, es el ISP.
 - **Google Calendar/Gmail:** `npx ts-node scripts/auth-google.ts` genera `token.json`; su contenido
   se pega como `GOOGLE_TOKEN_JSON` en Render. El `refresh_token` no caduca salvo revocación.
 - **Instalación en máquina nueva:** [SETUP.md](SETUP.md), incluida la tabla de límites por servicio.

@@ -266,6 +266,20 @@ maquetar dos veces. Lo que sí se puede hacer desde ya es la limpieza.
     endpoints. Hallazgo de `/code-review`
   - La lógica del cliente ya era correcta: con túnel vivo manda la preferencia guardada del señor y,
     si no la hay, `LLM_PREFER_LOCAL`; sin túnel el badge se deshabilita y queda fijo en Groq
+  - [x] **La causa de fondo era el filtro de bots de Cloudflare**, no `OLLAMA_URL` (que también
+    faltaba): `ollama.bohdeveloper.com` devolvía **200 desde la red de casa y 403 desde cualquier
+    datacenter** — y Render es un datacenter. Como Ollama no tiene autenticación propia y el hostname
+    está en un repo público, no se arregló abriendo el hostname sino **autenticándolo**:
+    `OLLAMA_AUTH_KEY` → cabecera `x-bako-key` en las seis llamadas a Ollama (chat, stream, tools,
+    sondeo y los dos endpoints de embeddings) + regla WAF que bloquea lo que no la lleve, y Bot Fight
+    Mode apagado (en el plan gratuito no se puede saltar con reglas WAF). **Badge en verde
+    verificado el 05/09/2026**
+  - [x] `isOllamaAvailable()` dejaba de tragarse el error: que fuera mudo es la razón de que esto
+    costara una sesión entera — "no disponible" tapaba por igual el túnel caído, un 403, un timeout y
+    un DNS roto. Ahora registra el motivo
+  - Trampa a recordar, documentada en `spec.md` §5: **el ISP de casa bloquea a ratos los rangos de IP
+    de Cloudflare**, y mientras dura no se puede diagnosticar el túnel desde el PC (el dominio parece
+    caído desde casa y está perfectamente en pie para Render). La prueba buena es el badge o los logs
 
 ### 🟠 P2 · Importante — cerrar Horizonte 1 (mayordomo funcional completo)
 
