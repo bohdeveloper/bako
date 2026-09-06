@@ -270,7 +270,8 @@ maquetar dos veces. Lo que sí se puede hacer desde ya es la limpieza.
     vivo aunque nadie se loguee. `BAKO-Ollama-Tunnel` queda desactivada como respaldo. Trampa que
     costó dos pasadas: `cloudflared service install` registró el servicio **sin argumentos** (solo el
     exe, sin `--config` ni `tunnel run`), figurando como "Running" sin servir nada — se detectó
-    mirando el `binPath` y se corrigió con `sc config`
+    mirando el `binPath` y se corrigió con `sc config`. **Verificado**: con el `cloudflared` de la
+    tarea ya matado, el badge de la PWA sigue en "Ollama ✦", así que el túnel lo sirve el servicio
   - [x] Verificado extremo a extremo: `qwen3:8b` respondiendo por `ollama.bohdeveloper.com`, 6,2 GB,
     100 % GPU, contexto 8192
   - [x] **`OLLAMA_URL` faltaba en `render.yaml`** (05/09/2026) — era la causa de que el botón
