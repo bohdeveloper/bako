@@ -50,14 +50,20 @@ async function embedCloudflare(text: string): Promise<EmbeddingResult> {
   return { vector, dim: vector.length, model: CF_MODEL };
 }
 
-/** Genera embedding intentando Ollama primero, fallback a Cloudflare Workers AI. */
-export async function generateEmbedding(text: string): Promise<EmbeddingResult> {
+/**
+ * Genera embedding intentando Ollama primero, fallback a Cloudflare Workers AI.
+ * `privado:true` (invariante §3.3) desactiva ese fallback: Cloudflare es una
+ * API en la nube igual que Groq, así que un texto sensible que no pueda
+ * embeberse en Ollama simplemente no se embebe, en vez de salir fuera.
+ */
+export async function generateEmbedding(text: string, opts?: { privado?: boolean }): Promise<EmbeddingResult> {
   const t = text.slice(0, 2000); // ~512 tokens — suficiente para memorias
   try {
     const result = await embedOllama(t);
     console.log(`🔢 Embedding Ollama (${result.dim} dims)`);
     return result;
-  } catch {
+  } catch (err) {
+    if (opts?.privado) throw err;
     const result = await embedCloudflare(t);
     console.log(`🔢 Embedding Cloudflare Workers AI (${result.dim} dims)`);
     return result;

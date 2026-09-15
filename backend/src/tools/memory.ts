@@ -9,6 +9,7 @@ export async function saveMemory(
     importance?: IMemory['importance'];
     source?:     IMemory['source'];
     tags?:       string[];
+    privado?:    boolean; // §3.3: el embedding no sale a Cloudflare si Ollama falla
   } = {}
 ): Promise<IMemory> {
   const saved = await Memory.create({
@@ -20,7 +21,7 @@ export async function saveMemory(
   });
 
   // Generar embedding en background — no bloquea la respuesta al usuario
-  generateEmbedding(content).then(({ vector, dim, model }) =>
+  generateEmbedding(content, { privado: options.privado }).then(({ vector, dim, model }) =>
     Memory.findByIdAndUpdate(saved._id, { embedding: vector, embeddingDim: dim, embeddingModel: model })
   ).catch(() => {}); // Silent fail — sin embedding BAKO sigue funcionando
 
@@ -101,10 +102,10 @@ export async function getMemories(
   return [...social, ...projects, ...personal, ...technical];
 }
 
-export async function searchMemories(query: string): Promise<IMemory[]> {
+export async function searchMemories(query: string, opts?: { privado?: boolean }): Promise<IMemory[]> {
   // Búsqueda semántica — si hay embeddings disponibles, usarlos
   try {
-    const { vector, dim } = await generateEmbedding(query);
+    const { vector, dim } = await generateEmbedding(query, opts);
     const candidates = await Memory.find({ embeddingDim: dim }).lean() as any[];
     if (candidates.length >= 3) {
       const scored = candidates
@@ -175,33 +176,24 @@ export async function getCurrentLocation(): Promise<string> {
   return inferLocationFromRoutine();
 }
 
-const EXTRACTION_SYSTEM = `Eres el sistema de memoria de BAKO, asistente personal de Borja.
-Analiza la conversación y extrae SOLO hechos importantes y duraderos.
-
-NO extraer:
-- Consultas de tiempo, noticias, saludos
-- Datos ya en el perfil base (nombre, ciudad, trabajo en Inetum, rutina conocida)
-- Eventos de calendario, reuniones o citas con hora/fecha (son datos TRANSITORIOS que cambian; el calendario es la fuente de verdad)
-- Cualquier cosa que empiece por "tiene una reunión", "tiene una cita", "tiene un evento"
-
-SÍ extraer: bloqueos en proyectos, decisiones importantes, cambios de planes, preferencias nuevas, estados emocionales relevantes, actualizaciones de proyectos, metas nuevas.
-
-Responde ÚNICAMENTE con JSON válido (sin texto adicional):
-[{"content":"...","type":"fact|preference|project_update|decision|feeling","importance":"high|medium|low","tags":["tag1"]}]
-
-Si no hay nada que merezca guardarse, responde exactamente: []`;
-
 const UPDATE_OR_CREATE_SYSTEM = `Tienes dos memorias del asistente BAKO sobre Borja. ¿La nueva información actualiza/reemplaza a la existente, o es información adicional diferente? Responde solo: ACTUALIZAR o CREAR`;
 
-// 7b-D: guarda o actualiza según similitud semántica con memorias existentes
-async function deduplicateAndSave(entry: {
+/**
+ * 7b-D: guarda o actualiza según similitud semántica con memorias existentes.
+ * `privado:true` (invariante §3.3) corta el fallback a la nube tanto del
+ * embedding (Cloudflare) como de la decisión ACTUALIZAR/CREAR (Groq): si
+ * Ollama no responde, se guarda como memoria nueva sin comparar en vez de
+ * arriesgar una llamada fuera con contenido sensible.
+ */
+export async function deduplicateAndSave(entry: {
   content:    string;
   type:       IMemory['type'];
   importance: IMemory['importance'];
   tags:       string[];
-}): Promise<void> {
+}, opts?: { privado?: boolean }): Promise<void> {
+  const privado = opts?.privado ?? false;
   try {
-    const { vector, dim } = await generateEmbedding(entry.content);
+    const { vector, dim } = await generateEmbedding(entry.content, { privado });
     const candidates = await Memory.find({ embeddingDim: dim, source: { $ne: 'manual' } }).lean() as any[];
     const similar = candidates
       .map((m: any) => ({ m, score: cosineSimilarity(vector, m.embedding ?? []) }))
@@ -212,7 +204,7 @@ async function deduplicateAndSave(entry: {
       const best = similar[0];
       const decision = await askClaude(
         `Existente: "${best.m.content}"\nNueva: "${entry.content}"`,
-        { systemPrompt: UPDATE_OR_CREATE_SYSTEM, maxTokens: 10, useCloud: false }
+        { systemPrompt: UPDATE_OR_CREATE_SYSTEM, maxTokens: 10, ...(privado ? { private: true } : { useCloud: false }) }
       );
       if (decision.trim().toUpperCase().startsWith('ACTUALIZAR')) {
         await Memory.findByIdAndUpdate(best.m._id, {
@@ -234,40 +226,7 @@ async function deduplicateAndSave(entry: {
     importance: entry.importance,
     source:     'extracted',
     tags:       entry.tags ?? [],
+    privado,
   });
   console.log(`🧠 Memoria guardada: "${entry.content}"`);
-}
-
-export async function extractAndSaveMemories(userMessage: string, assistantResponse: string): Promise<void> {
-  try {
-    const conversation = `Usuario: ${userMessage}\nBAKO: ${assistantResponse}`;
-    const raw = await askClaude(conversation, {
-      systemPrompt: EXTRACTION_SYSTEM,
-      maxTokens:    400,
-      useCloud:     false,
-    });
-
-    const jsonMatch = raw.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return;
-
-    const entries = JSON.parse(jsonMatch[0]) as Array<{
-      content:    string;
-      type:       IMemory['type'];
-      importance: IMemory['importance'];
-      tags:       string[];
-    }>;
-
-    for (const entry of entries) {
-      if (entry.content?.length > 10) {
-        await deduplicateAndSave({
-          content:    entry.content,
-          type:       entry.type,
-          importance: entry.importance,
-          tags:       entry.tags ?? [],
-        });
-      }
-    }
-  } catch {
-    // Silent fail — la memoria es no crítica
-  }
 }

@@ -15,6 +15,7 @@ import { getMemoriesSection, getDynamicProfileSection, getPeopleSection, getProj
 import { getAmbientContext } from '../tools/context';
 import { getCurrentLocation } from '../tools/memory';
 import { runAgentTurn } from '../tools/agent';
+import { learnFromConversation } from '../tools/brain';
 import { requireAuth } from '../middleware/authMiddleware';
 import { getUnreadEmails, formatEmailsForText } from '../tools/gmail';
 import { llmLimiter, validateMessage, generalLimiter } from '../middleware/security';
@@ -220,6 +221,10 @@ router.post('/voice', llmLimiter, upload.single('audio'), async (req: Request, r
       : clientUseCloud ?? !PREFER_LOCAL;
     const confirmKey = `desktop:${req.authUser!.userId}`;
     const turn = await runAgentTurn(transcription, confirmKey, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
+    // Aprender de la conversación, en segundo plano. Hasta el 06/09/2026 esto
+    // solo pasaba en Telegram: todo lo hablado por la PWA o el Desktop no le
+    // enseñaba nada a BAKO.
+    if (!turn.toolUsed) learnFromConversation(transcription, turn.text).catch(() => {});
     const audioBuffer  = await safeVoiceBuffer(turn.voice);
     res.json({ transcription, response: turn.text, audio: audioBuffer?.toString('base64') });
 
@@ -277,6 +282,7 @@ router.post('/text', llmLimiter, validateMessage, async (req: Request, res: Resp
     const confirmKey = `desktop:${req.authUser!.userId}`;
     const turn = await runAgentTurn(message, confirmKey, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud, conversationHistory });
     console.log(`🔵 Desktop /text: respuesta LLM OK (${turn.text.length} chars, herramienta: ${turn.toolUsed ?? 'ninguna'})`);
+    if (!turn.toolUsed) learnFromConversation(message, turn.text).catch(() => {});
     const audioBuffer  = await safeVoiceBuffer(turn.voice);
     res.json({ response: turn.text, audio: audioBuffer?.toString('base64') });
 

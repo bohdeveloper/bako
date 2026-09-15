@@ -15,6 +15,8 @@ export interface IPerson extends Document {
   conexiones:  string[];          // nombres de otras personas relacionadas
   activo:      boolean;           // sigue siendo parte de la vida actual
   orden:       number;            // posición manual en el panel de admin
+  fuente:      'manual' | 'conversacion'; // cómo NACIÓ la ficha (no cambia al actualizarla)
+  origen:      string;            // frase del último cambio, para poder revisarlo después
   createdAt:   Date;
   updatedAt:   Date;
 }
@@ -32,6 +34,10 @@ const PersonSchema = new Schema<IPerson>(
     conexiones:  [String],
     activo:      { type: Boolean, default: true },
     orden:       { type: Number, default: 0 },
+    // Trazabilidad: sin esto, un dato aprendido hablando es indistinguible de uno
+    // metido a mano, y no hay forma de revisar de dónde salió si es erróneo.
+    fuente:      { type: String, enum: ['manual','conversacion'], default: 'manual' },
+    origen:      { type: String, default: '' },
   },
   { timestamps: true }
 );

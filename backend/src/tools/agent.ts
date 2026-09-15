@@ -18,6 +18,7 @@ import { createNotionTask, updateNotionTaskStatus, findNotionTaskByName, updateN
 import { createCalendarEvent } from './calendar';
 import { createIssueSync, closeIssueSync } from './issueSync';
 import { invalidateCalendarCache } from './context';
+import { consultarCerebro } from './brain';
 import { nowInSpain } from './time';
 
 function fechaContexto(): string {
@@ -48,6 +49,7 @@ interface ToolDef {
   label:       string;              // para el señor: cómo se lee en la confirmación ("Voy a <label>")
   parameters:  Record<string, any>; // JSON Schema
   destructive: boolean;             // true → pide confirmación explícita antes de ejecutar
+  soloLectura?: boolean;            // no escribe nada → nunca pide confirmación, ni con el modelo local
   run:         (args: any) => Promise<string>;
 }
 
@@ -188,6 +190,23 @@ const TOOLS: ToolDef[] = [
       else if (result.repo) parts.push(`⚠️ GitHub (${result.repo}): issue no encontrado`);
       return `✅ Issue *"${md(args.titulo)}"* cerrado:\n${parts.join('\n')}`;
     },
+  },
+  {
+    name:        'consultar_cerebro',
+    description: 'Consulta lo que BAKO tiene guardado sobre una persona, un tema o un asunto concreto (personas, conocimiento personal y recuerdos). Úsala cuando el señor pregunte "¿qué sabes de X?" o cuando necesites datos sobre alguien que no aparezcan ya en el contexto.',
+    label:       'consultar lo que sé sobre eso',
+    parameters: {
+      type: 'object',
+      properties: {
+        tema: { type: 'string', description: 'Nombre de la persona o tema a buscar' },
+      },
+      required: ['tema'],
+    },
+    destructive: false,
+    // Solo lectura: no pide confirmación ni siquiera con el modelo local, porque
+    // en el peor caso devuelve una búsqueda que no venía a cuento.
+    soloLectura: true,
+    run: async (args) => consultarCerebro(String(args.tema ?? '')),
   },
   {
     name:        'actualizar_siguiente_accion_proyecto',
@@ -407,7 +426,7 @@ export async function runAgentTurn(
   // que Groq (gpt-oss-120b) acertó las 4 pruebas sin un solo falso positivo.
   // Hasta que haya un modelo local más fiable para esto, mejor confirmar de
   // más que escribir basura en Notion/Calendar sin que el señor lo pidiera.
-  const requiresConfirmation = tool.destructive || result.provider === 'ollama';
+  const requiresConfirmation = tool.destructive || (result.provider === 'ollama' && !tool.soloLectura);
   if (requiresConfirmation) {
     pendingActions.set(confirmKey, { toolName: tool.name, args: result.toolCall.arguments, ts: Date.now() });
     const resumen = describeArgs(result.toolCall.arguments);

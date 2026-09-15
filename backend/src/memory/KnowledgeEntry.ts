@@ -18,7 +18,8 @@ export interface IKnowledgeEntry extends Document {
   valor:       string;      // contenido principal
   detalles:    string[];    // puntos adicionales
   importancia: 'alta' | 'media' | 'baja';
-  fuente:      'manual' | 'extracted';
+  fuente:      'manual' | 'extracted' | 'conversacion';
+  origen:      string;      // frase de la que salió, para poder revisarlo después
   activo:      boolean;
   createdAt:   Date;
   updatedAt:   Date;
@@ -31,7 +32,10 @@ const KnowledgeSchema = new Schema<IKnowledgeEntry>(
     valor:       { type: String, required: true },
     detalles:    [String],
     importancia: { type: String, enum: ['alta','media','baja'], default: 'media' },
-    fuente:      { type: String, enum: ['manual','extracted'], default: 'manual' },
+    fuente:      { type: String, enum: ['manual','extracted','conversacion'], default: 'manual' },
+    // Trazabilidad: la frase de la que salió, para poder revisar de dónde viene
+    // un dato si resulta estar mal.
+    origen:      { type: String, default: '' },
     activo:      { type: Boolean, default: true },
   },
   { timestamps: true }

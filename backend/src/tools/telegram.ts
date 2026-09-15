@@ -14,7 +14,9 @@ import { nowInSpain } from './time';
 import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
 import { generateVoiceBuffer, setVoice, getCurrentVoiceKey, VOCES_DISPONIBLES, cleanForVoice } from './tts';
 import { BAKO_PROFILE } from '../knowledge/profile';
-import { saveMemory, getMemories, searchMemories, formatMemoriesForPrompt, forgetMemory, extractAndSaveMemories, getCurrentLocation } from './memory';
+import { saveMemory, getMemories, searchMemories, formatMemoriesForPrompt, forgetMemory, getCurrentLocation } from './memory';
+import { learnFromConversation } from './brain';
+import { isSensitive } from './privacy';
 import { buildDynamicProfileContext, updateProfileField, detectProfileUpdate, PROFILE_FIELDS } from './profileDynamic';
 import { Rule } from '../memory/Rule';
 import { Person, formatPersonForContext } from '../memory/Person';
@@ -187,11 +189,8 @@ export async function getDynamicProfileSection(): Promise<string> {
   catch { return ''; }
 }
 
-const SENSITIVE_PATTERN = /inetum|contrato|nómina|sueldo|salario|password|contraseña|token|secret|credencial|dni|seguridad social|banco|cuenta corriente|tarjeta/i;
-
-function isSensitive(text: string): boolean {
-  return SENSITIVE_PATTERN.test(text);
-}
+// isSensitive vive en tools/privacy.ts: lo comparten este manejador y el
+// clasificador del cerebro (ver la nota del módulo).
 
 let bot: TelegramBot;
 
@@ -1346,7 +1345,7 @@ export function startTelegramBot(): void {
       const response = turn.text;
       await sendAgentTurn(chatId, turn);
       appendToSession(chatId, transcription, response);
-      if (!turn.toolUsed) extractAndSaveMemories(transcription, response).catch(() => {});
+      if (!turn.toolUsed) learnFromConversation(transcription, response).catch(() => {});
       const detectedMood = detectMoodFromText(transcription);
       if (detectedMood) { currentMood = detectedMood; moodMessageCount = 0; }
       else autoShiftMood();
@@ -1595,7 +1594,7 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
       const response = turn.text;
       await sendAgentTurn(chatId, turn);
       appendToSession(chatId, text, response);
-      if (!turn.toolUsed) extractAndSaveMemories(text, response).catch(() => {});
+      if (!turn.toolUsed) learnFromConversation(text, response).catch(() => {});
       const detectedMoodText = detectMoodFromText(text);
       if (detectedMoodText) { currentMood = detectedMoodText; moodMessageCount = 0; }
       else autoShiftMood();
