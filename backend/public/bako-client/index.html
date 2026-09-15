@@ -1090,7 +1090,6 @@
     </div>
     <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
       <div class="admin-section-title">Datos estructurados</div>
-      <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnMigrateMemories" data-tooltip="Analiza conversaciones con IA y extrae Personas, Proyectos y Conocimiento" style="width:100%">Migrar memoria</button><button class="mobile-info" data-target="btnMigrateMemories" type="button">ℹ</button></div>
       <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnDedupePreview" data-tooltip="Muestra grupos de memorias duplicadas sin eliminar nada" style="width:100%">Previsualizar deduplicación</button><button class="mobile-info" data-target="btnDedupePreview" type="button">ℹ</button></div>
       <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnDedupe" data-tooltip="Elimina permanentemente los duplicados detectados" style="width:100%">Deduplicar memoria</button><button class="mobile-info" data-target="btnDedupe" type="button">ℹ</button></div>
       <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnEmbedMemories" data-tooltip="Genera vectores de búsqueda semántica para todas las memorias" style="width:100%">Generar embeddings</button><button class="mobile-info" data-target="btnEmbedMemories" type="button">ℹ</button></div>
@@ -1636,24 +1635,6 @@
   loginPassEl.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
   loginUserEl.addEventListener('keydown', e => { if (e.key === 'Enter') loginPassEl.focus(); });
   logoutBtn.addEventListener('click', doLogout);
-
-  document.getElementById('btnMigrateMemories').addEventListener('click', async () => {
-    const btn = document.getElementById('btnMigrateMemories');
-    const fb  = document.getElementById('seedFeedback');
-    btn.disabled = true; btn.textContent = '⏳ Analizando memorias con IA… (puede tardar ~30s)';
-    fb.textContent = ''; fb.className = 'admin-feedback';
-    try {
-      const res  = await fetch(`${BAKO_URL}/api/agent/migrate-memories`, { method:'POST', headers: authHeaders() });
-      const data = await res.json();
-      if (res.ok) {
-        fb.textContent = `✓ ${data.memorias_leidas} memorias leídas · Personas: +${data.people.created} (${data.people.skipped} ya existían) · Proyectos: +${data.projects.created} (${data.projects.skipped} ya existían) · Conocimiento: +${data.knowledge.created} (${data.knowledge.skipped} ya existían)`;
-        fb.className = 'admin-feedback ok';
-      } else {
-        fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
-      }
-    } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
-    finally { btn.disabled = false; btn.textContent = '🧠 Migrar memoria'; }
-  });
 
   document.getElementById('btnDedupePreview').addEventListener('click', async () => {
     const btn = document.getElementById('btnDedupePreview');

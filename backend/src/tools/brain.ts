@@ -24,6 +24,7 @@ import { KnowledgeEntry, KnowledgeCategory } from '../memory/KnowledgeEntry';
 import { askClaude } from '../llm/claude';
 import { deduplicateAndSave, searchMemories } from './memory';
 import { isSensitive } from './privacy';
+import { escapeRegex } from '../middleware/security';
 
 const CATEGORIAS: KnowledgeCategory[] = [
   'salud', 'valores', 'caracter', 'finanzas', 'historia', 'rutina', 'objetivos', 'legal', 'hobbies', 'otro',
@@ -142,8 +143,12 @@ async function aplicarPersona(op: Operacion, origen: string, conversacion: strin
   // existente en vez de crear un duplicado — justo el problema que este
   // guardarraíl dice evitar. La colección es pequeña, así que comparar en JS
   // sale más barato que mantener un índice de texto normalizado en Mongo.
+  // Excluye `fuente:'manual'`: igual que `deduplicateAndSave` nunca deja que el
+  // clasificador pise una Memory manual (invariante §7), una ficha creada a
+  // mano en el panel no se toca desde la conversación — si de verdad coincide
+  // el nombre, mejor un duplicado nuevo que una sobrescritura silenciosa.
   const target    = normalizar(nombre);
-  const candidatas = await Person.find();
+  const candidatas = await Person.find({ fuente: { $ne: 'manual' } });
   const existente  = candidatas.find(p =>
     normalizar(p.nombre) === target || p.alias.some(a => normalizar(a) === target)
   );
@@ -194,7 +199,11 @@ async function aplicarPersona(op: Operacion, origen: string, conversacion: strin
 }
 
 async function aplicarConocimiento(op: Operacion, origen: string): Promise<string | null> {
-  const clave = op.clave?.trim();
+  // snake_case en minúsculas: el prompt ya se lo pide al clasificador, pero sin
+  // normalizar aquí una variación de mayúsculas/formato ("Rutina_Diaria" vs
+  // "rutina_diaria") no encontraría la entrada existente y crearía un duplicado
+  // — el mismo fallo que `normalizar()` ya evita para nombres de Persona.
+  const clave = op.clave?.trim().toLowerCase().replace(/\s+/g, '_');
   const valor = op.valor?.trim();
   if (!clave || !valor) return null;
 
@@ -210,8 +219,9 @@ async function aplicarConocimiento(op: Operacion, origen: string): Promise<strin
   // es, porque imprime la propuesta, no la del registro tocado). Sin filtrar por
   // `activo`, igual que en `aplicarPersona`: si no, una entrada desactivada es
   // invisible para esta búsqueda y el tema reaparece como un duplicado nuevo en
-  // vez de actualizar el original.
-  const existente = await KnowledgeEntry.findOne({ categoria, clave });
+  // vez de actualizar el original. `fuente:'manual'` sí se excluye — invariante
+  // §7: lo curado a mano en el panel no se pisa desde la conversación.
+  const existente = await KnowledgeEntry.findOne({ categoria, clave, fuente: { $ne: 'manual' } });
   if (existente) {
     const detallesNuevos = (op.detalles ?? []).filter(d => d && !existente.detalles.includes(d));
     const huboCambio = existente.valor !== valor || existente.importancia !== importancia || detallesNuevos.length > 0;
@@ -351,8 +361,7 @@ export async function learnFromConversation(
 export async function consultarCerebro(tema: string): Promise<string> {
   const t = tema.trim();
   if (!t) return 'No sé sobre qué quiere que busque, señor.';
-  const escapado = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const rx = new RegExp(escapado, 'i');
+  const rx = new RegExp(escapeRegex(t), 'i');
 
   // §3.3: si el propio tema es sensible, la búsqueda semántica no puede
   // arriesgarse a embeberlo en Cloudflare si Ollama no responde.
@@ -386,4 +395,69 @@ export async function consultarCerebro(tema: string): Promise<string> {
 
   if (!partes.length) return `No tengo nada guardado sobre "${t}", señor.`;
   return partes.join('\n');
+}
+
+// ─── Olvidar ─────────────────────────────────────────────────────────────────
+
+/**
+ * Borrado hablado — B2.5 del plan. A diferencia de crear/actualizar (que corren
+ * en background sin pedir permiso), esto es destructivo: se registra como tool
+ * explícita con `destructive:true` en `agent.ts`, así que ya pasa por el gate de
+ * confirmación de B0 antes de que `run()` llegue a ejecutarse aquí.
+ *
+ * Soft-delete (`activo:false`), no borrado físico — coherente con cómo ya se
+ * marcan las fichas desactivadas en `aplicarPersona`/`aplicarConocimiento`, y
+ * reversible desde el panel si el clasificador se equivocó de ficha.
+ *
+ * Una ficha `fuente:'manual'` no se toca por voz, igual que el invariante §7
+ * protege las memorias manuales: lo que el señor curó a mano en el panel no
+ * desaparece porque el clasificador entienda mal un nombre parecido.
+ */
+export async function olvidarPersona(nombre: string): Promise<string> {
+  const t = nombre.trim();
+  if (!t) return 'No sé a quién quiere que olvide, señor.';
+
+  const target = normalizar(t);
+  const candidatas = (await Person.find({ activo: true })).filter(p =>
+    normalizar(p.nombre) === target || p.alias.some(a => normalizar(a) === target)
+  );
+  if (!candidatas.length) return `No tengo ninguna ficha activa de "${t}", señor.`;
+  // Dos personas con el mismo nombre/alias no deberían existir, pero si pasa,
+  // desactivar la primera que devuelva Mongo sería jugársela a qué ficha es la
+  // correcta — mismo criterio de desambiguación que `olvidarConocimiento`.
+  if (candidatas.length > 1) {
+    return `Hay ${candidatas.length} personas activas llamadas "${t}", señor. No puedo elegir por usted — desactive la ficha correcta desde el panel.`;
+  }
+
+  const existente = candidatas[0];
+  if (existente.fuente === 'manual') {
+    return `La ficha de ${existente.nombre} se creó a mano desde el panel — bórrela desde ahí, señor.`;
+  }
+
+  existente.activo = false;
+  await existente.save();
+  return `👤 Persona olvidada: ${existente.nombre}. Sigue en la base de datos por si hace falta recuperarla, pero BAKO no la usará.`;
+}
+
+export async function olvidarConocimiento(tema: string): Promise<string> {
+  const t = tema.trim();
+  if (!t) return 'No sé qué conocimiento quiere que olvide, señor.';
+
+  const rx = new RegExp(escapeRegex(t), 'i');
+  const candidatos = await KnowledgeEntry.find({ activo: true, $or: [{ clave: rx }, { valor: rx }] });
+
+  if (!candidatos.length) return `No tengo ningún conocimiento activo que coincida con "${t}", señor.`;
+  if (candidatos.length > 1) {
+    const opciones = candidatos.map(k => `${k.categoria}/${k.clave}`).join(', ');
+    return `Hay varias entradas que coinciden con "${t}" (${opciones}). Dígame la clave exacta.`;
+  }
+
+  const existente = candidatos[0];
+  if (existente.fuente === 'manual') {
+    return `La entrada ${existente.categoria}/${existente.clave} se creó a mano desde el panel — bórrela desde ahí, señor.`;
+  }
+
+  existente.activo = false;
+  await existente.save();
+  return `📚 Conocimiento olvidado: ${existente.categoria}/${existente.clave}. Sigue en la base de datos por si hace falta recuperarlo, pero BAKO no lo usará.`;
 }

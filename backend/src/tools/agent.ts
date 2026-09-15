@@ -18,7 +18,7 @@ import { createNotionTask, updateNotionTaskStatus, findNotionTaskByName, updateN
 import { createCalendarEvent } from './calendar';
 import { createIssueSync, closeIssueSync } from './issueSync';
 import { invalidateCalendarCache } from './context';
-import { consultarCerebro } from './brain';
+import { consultarCerebro, olvidarPersona, olvidarConocimiento } from './brain';
 import { nowInSpain } from './time';
 
 function fechaContexto(): string {
@@ -207,6 +207,34 @@ const TOOLS: ToolDef[] = [
     // en el peor caso devuelve una búsqueda que no venía a cuento.
     soloLectura: true,
     run: async (args) => consultarCerebro(String(args.tema ?? '')),
+  },
+  {
+    name:        'olvidar_persona',
+    description: 'Desactiva (olvida) una Persona guardada en el cerebro de BAKO. Úsala SOLO cuando el señor pida explícitamente olvidar o borrar la ficha de alguien concreto. Nunca la uses para conocimiento personal de Borja ni para recuerdos sueltos.',
+    label:       'olvidar esa persona',
+    parameters: {
+      type: 'object',
+      properties: {
+        nombre: { type: 'string', description: 'Nombre de la persona a olvidar' },
+      },
+      required: ['nombre'],
+    },
+    destructive: true,
+    run: async (args) => olvidarPersona(String(args.nombre ?? '')),
+  },
+  {
+    name:        'olvidar_conocimiento',
+    description: 'Desactiva (olvida) una entrada de conocimiento personal sobre Borja. Úsala SOLO cuando el señor pida explícitamente olvidar o borrar un dato conocido suyo. Nunca la uses para personas ni para recuerdos sueltos.',
+    label:       'olvidar ese conocimiento',
+    parameters: {
+      type: 'object',
+      properties: {
+        tema: { type: 'string', description: 'Clave o tema del conocimiento a olvidar' },
+      },
+      required: ['tema'],
+    },
+    destructive: true,
+    run: async (args) => olvidarConocimiento(String(args.tema ?? '')),
   },
   {
     name:        'actualizar_siguiente_accion_proyecto',

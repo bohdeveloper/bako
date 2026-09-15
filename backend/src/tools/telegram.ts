@@ -13,7 +13,6 @@ import { getUnreadEmails, getEmailBody, createDraft, sendEmail, sendDraft, forma
 import { nowInSpain } from './time';
 import { askClaude, isOllamaAvailable, PrivacyError } from '../llm/claude';
 import { generateVoiceBuffer, setVoice, getCurrentVoiceKey, VOCES_DISPONIBLES, cleanForVoice } from './tts';
-import { BAKO_PROFILE } from '../knowledge/profile';
 import { saveMemory, getMemories, searchMemories, formatMemoriesForPrompt, forgetMemory, getCurrentLocation } from './memory';
 import { learnFromConversation } from './brain';
 import { isSensitive } from './privacy';
@@ -32,18 +31,20 @@ export function buildSystemPrompt(extraContext = '', memoriesSection = '', dynam
   const diasSemana = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
   const diaSemana  = diasSemana[now.getDay()];
 
-  // Deducir contexto situacional según hora y día
+  // Contexto situacional genérico según hora y día — B2 (15/09/2026): antes daba
+  // por hecho una rutina concreta (bus Errentería→Donostia, "jornada en Inetum",
+  // "Biziki o Shaolin en Arramendi") hardcodeada aquí mismo, fuera de profile.ts
+  // pero con el mismo problema del invariante §3.0. La rutina real, si la hay,
+  // vive en KnowledgeEntry y llega ya al prompt vía knowledgeSection.
   const hora24 = now.getHours();
   const esFinDeSemana = now.getDay() === 0 || now.getDay() === 6;
   let situacion = '';
   if (!esFinDeSemana) {
-    if (hora24 >= 5 && hora24 < 6)       situacion = 'Acaba de despertar. Rutina matutina: Kronoshin y preparación.';
-    else if (hora24 >= 6 && hora24 < 7)  situacion = 'En camino al trabajo — bus Errentería → Donostia.';
-    else if (hora24 >= 7 && hora24 < 14) situacion = 'Jornada laboral en Inetum, Donostia.';
-    else if (hora24 >= 14 && hora24 < 15) situacion = 'Volviendo a casa — bus Donostia → Errentería.';
-    else if (hora24 >= 15 && hora24 < 19) situacion = 'Tiempo personal en casa — ocio o proyectos propios.';
-    else if (hora24 >= 19 && hora24 < 21) situacion = 'Entrenamiento: Biziki o técnica Shaolin en Arramendi.';
-    else if (hora24 >= 21)               situacion = 'Noche — ducha, cena ligera y descanso.';
+    if (hora24 >= 5 && hora24 < 9)        situacion = 'Primera hora de la mañana.';
+    else if (hora24 >= 9 && hora24 < 14)  situacion = 'Media mañana — probable jornada laboral.';
+    else if (hora24 >= 14 && hora24 < 16) situacion = 'Mediodía.';
+    else if (hora24 >= 16 && hora24 < 21) situacion = 'Tarde — tiempo personal.';
+    else                                   situacion = 'Noche.';
   } else {
     situacion = `Fin de semana — día libre. ${diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1)}.`;
   }
@@ -78,8 +79,7 @@ ${projectsSection ? `PROYECTOS DE BORJA (estado actual y siguiente acción — �
 ${tasksSection ? `TAREAS PENDIENTES DE BORJA (fuente de verdad: Notion. Si el señor pregunta qué tiene pendiente, responde SOLO con esto. Si esta sección no aparece, di que no tienes acceso a las tareas — nunca las inventes):\n${tasksSection}\n` : ''}
 ${peopleSection ? `PERSONAS QUE BAKO CONOCE (úsalas con naturalidad al hablar, no las enumeres a menos que se pidan explícitamente):\n${peopleSection}\n` : ''}
 ${knowledgeSection ? `CONOCIMIENTO PERSONAL DE BORJA (salud, valores, finanzas, historia, rutina — úsalo como contexto natural):\n${knowledgeSection}\n` : ''}
-${memoriesSection ? `RECUERDOS DINÁMICOS (hechos, observaciones, estados — complementan el perfil estructurado):\n${memoriesSection}\n` : ''}
-IDENTIDAD: ${BAKO_PROFILE.identidad.nombre}, ${BAKO_PROFILE.identidad.edad} años (cumple el ${BAKO_PROFILE.identidad.cumpleanos}). Vive en ${BAKO_PROFILE.identidad.ubicacion}. ${BAKO_PROFILE.identidad.situacion_laboral}`;
+${memoriesSection ? `RECUERDOS DINÁMICOS (hechos, observaciones, estados — complementan el perfil estructurado):\n${memoriesSection}\n` : ''}`;
 }
 
 export async function getPeopleSection(charBudget = Infinity): Promise<string> {
@@ -1144,9 +1144,12 @@ export function startTelegramBot(): void {
         return;
       }
       await bot.sendMessage(chatId, '🔒 Procesando en modo privado (solo local)...');
-      const memoriesSection = await getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, text);
+      const [memoriesSection, dynProfile] = await Promise.all([
+        getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, text),
+        getDynamicProfileSection(),
+      ]);
       const response = await askClaude(text, {
-        systemPrompt: buildSystemPrompt('', memoriesSection),
+        systemPrompt: buildSystemPrompt('', memoriesSection, dynProfile),
         private: true,
       });
       await sendVoiceReply(chatId, response);
@@ -1486,14 +1489,17 @@ export function startTelegramBot(): void {
         const asunto  = draftMatch[2]?.trim() ?? '';
         await bot.sendMessage(chatId, `✍️ Redactando email para ${destino}${asunto ? ` sobre "${asunto}"` : ''}...`);
         try {
-          const memoriesSection = await getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, text);
+          const [memoriesSection, dynProfile] = await Promise.all([
+            getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, text),
+            getDynamicProfileSection(),
+          ]);
           const draftPrompt = `Redacta un email profesional pero cercano.
 Destinatario: ${destino}
 ${asunto ? `Asunto: ${asunto}` : ''}
 Remitente: Borja Olazabal (desarrollador fullstack, bohdeveloper.com)
 Idioma: español. Tono: directo y profesional. Sin asteriscos ni markdown.
 Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
-          const cuerpo  = await askClaude(draftPrompt, { systemPrompt: buildSystemPrompt('', memoriesSection) });
+          const cuerpo  = await askClaude(draftPrompt, { systemPrompt: buildSystemPrompt('', memoriesSection, dynProfile) });
           const subject = asunto || `Mensaje de Borja Olazabal`;
 
           // Guarda borrador en Gmail y estado pendiente
@@ -1547,9 +1553,12 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
           return;
         }
         await bot.sendMessage(chatId, '🔒 Contenido sensible detectado — procesando solo en local...');
-        const memoriesSection = await getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, text);
+        const [memoriesSection, dynProfile] = await Promise.all([
+          getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, text),
+          getDynamicProfileSection(),
+        ]);
         const response = await askClaude(text, {
-          systemPrompt: buildSystemPrompt('', memoriesSection),
+          systemPrompt: buildSystemPrompt('', memoriesSection, dynProfile),
           private: true,
         });
         await sendVoiceReply(chatId, response);

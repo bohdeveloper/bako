@@ -7,8 +7,16 @@
  * pedir que un día se añada una palabra en uno y no en el otro, dejando un
  * agujero silencioso justo en la regla que protege los datos.
  */
-const SENSITIVE_PATTERN = /inetum|contrato|nómina|sueldo|salario|password|contraseña|token|secret|credencial|dni|seguridad social|banco|cuenta corriente|tarjeta/i;
+const SENSITIVE_PATTERN = /inetum|contrato|nomina|sueldo|salario|password|contrasena|token|secret|credencial|dni|seguridad social|banco|cuenta corriente|tarjeta/i;
+
+// Sin acentos, y el texto de entrada también se despoja de ellos antes de
+// comparar: "nómina"/"contraseña" escritos con tilde (la forma normal) no
+// deben colar por la rendija de una regex que solo reconocía la versión sin
+// acentuar. Mismo criterio que ya usa el guardarraíl de nombres en brain.ts.
+function normalizar(s: string): string {
+  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
 
 export function isSensitive(text: string): boolean {
-  return SENSITIVE_PATTERN.test(text);
+  return SENSITIVE_PATTERN.test(normalizar(text));
 }

@@ -74,7 +74,7 @@ bako/
 │   ├── src/
 │   │   ├── index.ts                # Express, helmet/CORS/rate limit, monta rutas, arranca bot y crons
 │   │   ├── llm/claude.ts           # Orquestador LLM: routing por complejidad + cadena de fallback
-│   │   ├── knowledge/profile.ts    # Perfil estático base (autoritativo para migraciones)
+│   │   ├── knowledge/profile.ts    # Solo lo irreductible (trato, estilo) — sin datos de Borja desde B2
 │   │   ├── memory/                 # Modelos Mongoose: Memory, Person, Project, KnowledgeEntry,
 │   │   │                           #   ProfileOverride, User, Task, Rule, Notification,
 │   │   │                           #   PushSubscription, AutoConfig
@@ -85,8 +85,7 @@ bako/
 │   │   │                           #   time, context, memory, embeddings, agent, issueSync,
 │   │   │                           #   projectSync, planSync, profileDynamic
 │   │   ├── agents/MorningBriefingAgent.ts
-│   │   ├── services/               # ProactivityService (crons) · pushService (Web Push)
-│   │   └── scripts/seedBrain.ts
+│   │   └── services/               # ProactivityService (crons) · pushService (Web Push)
 │   ├── scripts/                    # auth-google, seed/setup Notion, import de contexto, autostart
 │   └── public/bako-client/         # PWA: index.html (~4.000 líneas) + manifest.json + sw.js
 ├── bako-desktop/bako_desktop.py    # Cliente de escritorio Python
@@ -172,9 +171,14 @@ No se reabren sin decisión explícita del usuario.
 0. **BAKO parte de cero y aprende hablando** (decidido el 05/09/2026, reenfoque del proyecto). El
    conocimiento sobre Borja y su entorno **vive en la base de datos, nunca en el código**: BAKO lo
    construye poco a poco conversando, pregunta con criterio lo que le falta, y sabe conectar y
-   deducir en vez de recitar fichas. `knowledge/profile.ts` — 306 líneas hardcodeadas — es deuda a
-   liquidar, no el modelo a seguir. Cualquier propuesta que añada conocimiento personal al código
-   choca con este invariante. Detalle y fases en `plan.md`, bloque "🧠 El cerebro de BAKO".
+   deducir en vez de recitar fichas. Cualquier propuesta que añada conocimiento personal al código
+   choca con este invariante. **Reset real ejecutado el 15/09/2026 (B2)**: las 306 líneas de
+   `profile.ts` y lo migrado en 7b-A (9 proyectos, familia, 19 entradas de conocimiento) se
+   descartaron sin conservar — con volcado de seguridad local, fuera del repo — en vez de migrarse.
+   Lo único sembrado fue la identidad mínima que pidió el señor (nombre, nombre completo, fecha de
+   nacimiento, sexo, ubicación), como `ProfileOverride`, nunca en código. Todo lo demás se reaprende
+   hablando con el clasificador de `tools/brain.ts` (B1). Detalle y fases en `plan.md`, bloque
+   "🧠 El cerebro de BAKO".
 1. **Coste $0/mes.** Cualquier propuesta que introduzca un servicio de pago se rechaza o se difiere
    (por eso Twitter/X y LinkedIn siguen pendientes: sus APIs requieren plan de pago).
 2. **El repositorio es público.** Ningún secreto entra en git, nunca. `scripts/check-secrets.js`
@@ -233,8 +237,12 @@ No se reabren sin decisión explícita del usuario.
    `stripThinking()` lo limpia también sin cerrar, por si `num_predict` trunca el razonamiento.
 9. **Prompt siempre compact en los endpoints desktop.** El prompt full (~18.100 chars ≈ 6.023 tokens)
    supera el límite de 6.000 TPM de Groq y garantiza un 413.
-10. **`profile.ts` es autoritativo** para las migraciones de conocimiento: se migra desde él sin
-    pasar por el LLM, para no inventar datos de familia y proyectos.
+10. **`profile.ts` ya no es autoritativo para nada personal** (invariante reescrito el 15/09/2026,
+    B2). Solo contiene `instrucciones_para_bako` (trato de "señor", estilo, prioridad de no
+    inventar) — nada que dependa de un hecho concreto sobre Borja. La identidad mínima vive en
+    `ProfileOverride` (`tools/profileDynamic.ts`), y `buildDynamicProfileContext()` avisa
+    explícitamente cuando no hay nada sembrado ("modo génesis") en vez de dejar huecos que el LLM
+    rellene inventando.
 11. **Personalidad configurable** con `mayordomo clásico` como preset por defecto (sarcasmo 8,
     ironía 8). El tono se adapta solo mediante el estado de ánimo detectado.
 12. **La voz nunca lleva markdown.** `cleanForVoice` limpia todo antes del TTS.

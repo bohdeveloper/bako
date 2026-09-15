@@ -150,25 +150,115 @@ nativa (`openai/gpt-oss-120b` en Groq, `qwen3:8b` en Ollama).
 Que BAKO escriba en su memoria **por las mismas vías que actúa fuera**. "Ibon se ha mudado a Bilbao"
 debe actualizar la *Persona* Ibon, no crear una frase suelta.
 
-- [ ] CRUD como herramientas sobre `Person`, `Project`, `KnowledgeEntry` y `Memory`
-- [ ] Actualizar y **borrar** hablando, no solo crear (hoy solo existe "olvida X" sobre `Memory`)
-- [ ] Un clasificador que decida **en qué caja va cada dato** — es lo que hoy no existe: todo cae en
-  `Memory`. Sustituye al botón manual "Migrar memoria" del panel
-- [ ] Trazabilidad: cada dato guarda de qué conversación salió y cuándo, para poder revisarlo
-- [ ] Que el propio BAKO pueda consultarse ("¿qué sabes de Ibon?") sin depender de lo que quepa en el
-  prompt
+- [x] **Un clasificador que decida en qué caja va cada dato** (06/09/2026) — `tools/brain.ts`
+  sustituye a `extractAndSaveMemories`: decide si algo es `persona` (`Person`), `conocimiento`
+  (`KnowledgeEntry`) o `recuerdo` (`Memory`), y si crea o actualiza algo que ya existe. Corre en
+  background tras cada turno de Telegram/PWA/Desktop, **no como tool del LLM**: con Ollama de
+  defecto cada llamada a herramienta pasa por el gate de confirmación (B0), y pedir permiso por
+  cada dato aprendido haría la conversación inusable. Sustituye también al botón manual "Migrar
+  memoria" del panel (7b), que ya no hace falta para lo nuevo
+  - Clasificar es razonamiento estructurado que el modelo local no aguanta: medido con "he
+    conocido a X, amigo de Julen que vive en Hernani y es profesor", `qwen3:8b` devolvió `[]` y
+    Groq creó la ficha completa con la conexión. Se clasifica en la nube salvo turno sensible
+    (invariante §3.3), que se queda en local aunque eso signifique aprender menos de él
+  - Guardarraíl contra alucinación de nombres: el nombre propuesto debe aparecer literalmente
+    (normalizando acentos) en la conversación — probado que ante "te presento a ZZOtroTest" el
+    modelo creó una ficha "ZoetroTest"; sin el filtro, el cerebro se llena de "Ibon"/"Iban" que no
+    se hablan entre sí
+- [x] **Trazabilidad** (06/09/2026) — `Person` y `KnowledgeEntry` ganan `fuente` (cómo NACIÓ la
+  ficha: `manual`/`conversacion`, no cambia al actualizar) y `origen` (la frase del último cambio,
+  sí se actualiza). Máximo 300 caracteres del mensaje del usuario
+- [x] **Que BAKO pueda consultarse** (06/09/2026) — tool `consultar_cerebro`, de solo lectura
+  (`soloLectura:true` en `ToolDef`, nunca pide confirmación ni con el modelo local: en el peor caso
+  devuelve una búsqueda que no venía a cuento). Mira las tres cajas a la vez
+- [x] **Actualizar hablando** para `Person` y `KnowledgeEntry`, no solo crear — cubierto por el
+  clasificador de arriba. Notas y conexiones de una Persona se acumulan, no se reemplazan
+- [ ] **Borrar hablando** — sigue sin existir para `Person`/`KnowledgeEntry` (solo "olvida X" sobre
+  `Memory`, invariante §3.3/§7 de todos modos exige confirmación explícita para borrar)
+- [ ] `Project` queda fuera del clasificador — sigue sin actualizarse hablando
+- [ ] CRUD explícito como *herramientas* del LLM (en vez de clasificador en background) — se
+  descartó a propósito por el problema del gate de confirmación de arriba; no se retoma salvo que
+  un modelo local más fiable lo haga viable
+- Hallazgos de dos rondas de `/code-review` corregidos antes de cerrar: la búsqueda de Persona por
+  nombre/alias no toleraba acentos aunque el guardarraíl de arriba sí los normalizaba (creaba
+  "Inigo" duplicado en vez de actualizar "Íñigo"); actualizar solo `importancia` sin cambiar
+  `valor` se descartaba en silencio; reenviar el mismo dato sin cambios pisaba `origen` igualmente,
+  perdiendo la trazabilidad del último cambio real; una `KnowledgeEntry` desactivada no se
+  encontraba y el tema reaparecía como duplicado en vez de avisar "desactivada: no se usará"
+  (como ya hacía `Person`); el log de fallo del clasificador decía siempre "no local" aunque el
+  peldaño que fallara fuera la nube
+- Fuga de privacidad corregida antes de cerrar (invariante §3.3): `generateEmbedding` caía a
+  Cloudflare Workers AI si Ollama no respondía, sin mirar si el contenido era sensible — igual que
+  la decisión ACTUALIZAR/CREAR de `deduplicateAndSave` caía a Groq. Flag `privado` añadido y
+  enhebrado por `generateEmbedding` → `saveMemory`/`searchMemories`/`deduplicateAndSave` →
+  `askClaude({private:true})`, incluida la tool nueva `consultar_cerebro` cuando el propio tema
+  preguntado es sensible. `/security-review` sin hallazgos tras la corrección
+- Riesgo conocido sin resolver, anotado para no repetir el hallazgo: `loQueYaSabe` recorta las
+  claves de conocimiento sensibles/`legal/` antes de mandarlas a Groq, pero manda la lista completa
+  de **nombres de personas** sin ese mismo filtro — igual que el resto del prompt normal (Personas,
+  Proyectos, Memorias ya viajan enteros a Groq en cada turno), así que no es una regresión de esta
+  fase, pero tampoco se ha resuelto
+- Verificado con `backend/src/scripts/_verify_b1.ts` (turno normal crea Persona con conexión
+  correcta, ficha desactivada avisa sin reactivarse sola, turno sensible se descarta en vez de
+  salir a la nube) y `npm run build` limpio
 
 ### B2 — Partir de cero de verdad
 
-- [ ] Vaciar `knowledge/profile.ts` a la base de datos (Personas / Conocimiento / `ProfileOverride`)
-  y **dejar el código sin datos personales** — de paso, el repo público deja de contener la vida de
-  Borja
-- [ ] Absorbe el viejo "Perfil dinámico v2" de P2 (proyectos y rutina fuera de `profile.ts`) y la
-  "edición de perfil ampliada" de P3: con el perfil en la BD, ambas dejan de ser tareas aparte
-- [ ] **Modo génesis**: poder arrancar con la base vacía y que BAKO lo sepa — que diga "no sé nada de
-  usted todavía" en vez de alucinar
-- [ ] Decidir qué es irreductible (identidad mínima, trato de "señor", reglas de conducta) y se queda
-  en el prompt base, frente a lo que es conocimiento y debe vivir en la BD
+**Decisión del señor (15/09/2026), más estricta que el planteamiento original de este bloque**: no
+es una migración de `profile.ts` a la BD, es un **reset real**. Sembrado mínimo — nombre, nombre
+completo, fecha de nacimiento, sexo, lugar de residencia — y todo lo demás (familia, proyectos
+personales, perfil técnico, rutina, salud, finanzas, legal...) se **descarta**, no se migra, y se
+reaprende hablando con el clasificador de B1. Incluye lo ya migrado en 7b-A (9 proyectos, familia,
+19 entradas de conocimiento): se borra también, con un volcado local de seguridad antes de tocar
+nada (fuera del repo, no es una migración reversible desde la app). Pidió además que el CRUD hablado
+quede completo — crear, actualizar, **borrar** y consultar — cerrando el cabo suelto que quedó
+abierto en B1 (solo `Person`/`KnowledgeEntry` tenían crear/actualizar, no borrar).
+
+Fases, en orden — **todas cerradas el 15/09/2026**:
+
+- [x] **B2.1 — Backup y reset de la BD.** Script `b2_reset.ts` (no commiteado a propósito: llevaba
+  el nombre completo, fecha de nacimiento y sexo del señor en literal — mantenerlo en el repo público
+  habría reintroducido justo el problema que este bloque resuelve). Volcado a JSON local, fuera del
+  repo, de `Person` (20), `Project` (19), `KnowledgeEntry` (33) y `Memory` (1) antes de vaciar las
+  cuatro colecciones de verdad contra la base de producción (la misma que usa Render)
+- [x] **B2.2 — Identidad mínima sembrada.** `nombre`, `nombre_completo`, `fecha_nacimiento`, `sexo`
+  y `ubicacion` añadidos a `PROFILE_FIELDS` (`profileDynamic.ts`, con `immutable:true` en los 4 que
+  no van a cambiar, para que `checkStaleFields` no pregunte cada 90 días si un nombre "sigue siendo
+  correcto") y sembrados como `ProfileOverride` — mismo mecanismo que ya usaba Gap 5
+- [x] **B2.3 — `profile.ts` reducido a lo irreductible.** De 306 líneas a solo
+  `instrucciones_para_bako` (trato de "señor", estilo, prioridad de no inventar). Efecto en cadena
+  detectado al compilar: el endpoint `POST /api/agent/migrate-memories` (7b-A, ~250 líneas) y el
+  script `seedBrain.ts` dependían de los campos personales borrados — ambos eran trabajo de
+  migración ya hecho una vez y redundante con el reset, así que se eliminaron enteros (incluido el
+  botón "Migrar memoria" del panel, que además ya estaba señalado para quitar en B6). De paso
+  apareció un `knowledge/profile.json` **muerto y sin importar en ningún sitio**, con una copia
+  vieja de los mismos datos personales — borrado también
+- [x] **B2.4 — Modo génesis de verdad.** `buildDynamicProfileContext()` ya no deja líneas vacías y
+  devuelve un aviso explícito de "todavía no sabe nada, no invente" cuando no hay nada sembrado.
+  Quitada la línea `IDENTIDAD: ...` hardcodeada de `buildSystemPrompt` (redundante e inconsistente
+  con `profile.ts` vacío). Generalizado el bloque `situacion`, que daba por hecho una rutina
+  concreta (bus Errentería→Donostia, "jornada en Inetum", "Biziki o Shaolin en Arramendi")
+  hardcodeada fuera de `profile.ts` — mismo problema del invariante §3.0 aunque estuviera en otro
+  fichero. Hallazgo de `/code-review`: quitar esa línea rompía la identidad base en las 3 llamadas a
+  `buildSystemPrompt` que no pasaban `dynamicProfileSection` (`/privado`, detección de sensible,
+  borrador de email) — corregido pasándosela también ahí
+- [x] **B2.5 — Cerrar el CRUD hablado.** `olvidar_persona` y `olvidar_conocimiento`, tools
+  explícitas con `destructive:true` en `agent.ts` (heredan el gate de confirmación de B0 gratis, sin
+  tocar `runAgentTurn`). Soft-delete (`activo:false`), y una ficha `fuente:'manual'` no se toca por
+  voz — mismo criterio que el invariante §7 ya aplica a las memorias manuales
+- Hallazgos de dos rondas más de `/code-review` corregidos: el clasificador podía pisar una
+  `Person`/`KnowledgeEntry` creada a mano desde el panel (`deduplicateAndSave` ya excluía
+  `source:'manual'` para `Memory`, esto no lo hacía para las otras dos cajas); `aplicarConocimiento`
+  no normalizaba mayúsculas en `clave` como sí hacía `aplicarPersona` con nombres, así que una
+  variación de formato creaba un duplicado; `olvidarPersona` no desambiguaba si dos fichas activas
+  compartían nombre (sí lo hacía `olvidarConocimiento`); `isSensitive()` no quitaba acentos del
+  texto de entrada, así que "nómina" con tilde (la forma normal de escribirlo) colaba por la
+  rendija de una regex pensada solo en ASCII; regex-escape duplicado en tres sitios en vez de
+  reutilizar `escapeRegex` de `middleware/security.ts`
+- `/security-review` sin hallazgos tras las correcciones
+- Riesgo aceptado y no resuelto: `loQueYaSabe` (B1) sigue mandando la lista de nombres de Persona
+  entera a Groq en turnos no sensibles, sin el mismo recorte que ya aplica a las claves de
+  conocimiento — documentado ahí, no es nuevo de B2
 
 ### B3 — Curiosidad: las preguntas sólidas
 
