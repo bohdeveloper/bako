@@ -25,11 +25,18 @@ import { askClaude } from '../llm/claude';
 import { deduplicateAndSave, searchMemories } from './memory';
 import { isSensitive } from './privacy';
 import { escapeRegex } from '../middleware/security';
+import { PROFILE_FIELDS } from './profileDynamic';
 
 const CATEGORIAS: KnowledgeCategory[] = [
   'salud', 'valores', 'caracter', 'finanzas', 'historia', 'rutina', 'objetivos', 'legal', 'hobbies', 'otro',
 ];
 const RELACIONES = ['pareja', 'familiar', 'amigo', 'compañero', 'conocido', 'otro'];
+
+// Se deriva de PROFILE_FIELDS en vez de escribirse a mano en el prompt: la lista
+// escrita a mano ya se había desincronizado una vez (excluía "rutina laboral"
+// diciendo que vivía en el perfil base, cuando tras el reset de B2 no vivía en
+// ningún sitio — así que esa información no se guardaba en ninguna caja).
+const CAMPOS_DE_PERFIL = Object.values(PROFILE_FIELDS).map(f => f.label.toLowerCase()).join(', ');
 
 // ─── Qué sabe ya, para que el clasificador pueda decir "actualizar" ──────────
 
@@ -76,9 +83,11 @@ Si es nuevo, usa "crear".
 
 NO guardes: consultas de tiempo, noticias o la hora; saludos; eventos de calendario con fecha y hora
 (el calendario es su propia fuente de verdad); nada que ya conste arriba sin cambios; ni lo que diga
-BAKO sobre sí mismo (qué modelo usa, dónde se ejecuta). Tampoco nombre, edad, ciudad habitual,
-empleador o rutina laboral de Borja — viven en su perfil base y se actualizan por su propio cauce
-("ya no trabajo en X", "me he mudado a Y"), no como conocimiento nuevo.
+BAKO sobre sí mismo (qué modelo usa, dónde se ejecuta). Tampoco estos campos CUANDO SON DEL PROPIO
+BORJA — de las demás personas sí se guardan en su ficha, que para eso está la caja "persona":
+${CAMPOS_DE_PERFIL}. Esos ocho tienen su propia ficha de perfil y su propio cauce de actualización
+("ya no trabajo en X", "me he mudado a Y", "nací el 12/03/1990"). Ojo: la rutina, los hábitos y los horarios de Borja SÍ son conocimiento y se
+guardan en la caja "conocimiento" con categoria "rutina".
 
 Responde ÚNICAMENTE con un array JSON, sin texto alrededor:
 [
@@ -95,6 +104,18 @@ interface Operacion {
   ubicacion?: string; trabajo?: string; notas?: string[]; conexiones?: string[];
   categoria?: string; clave?: string; valor?: string; detalles?: string[]; importancia?: string;
   contenido?: string; tipo?: string; tags?: string[];
+}
+
+/**
+ * Texto libre que escribe el clasificador por su cuenta, sin que nadie lo revise.
+ * `relacion` y `cumpleaños` ya se validaban (lista blanca y regex); estos campos
+ * entraban crudos y el panel los pinta, así que se recortan y se les quitan los
+ * ángulos: el escapado del panel es la defensa buena, esto es la de repuesto.
+ */
+function textoLibre(v: unknown, max: number): string | undefined {
+  if (typeof v !== 'string') return undefined;
+  const limpio = v.replace(/[<>]/g, '').trim().slice(0, max);
+  return limpio || undefined;
 }
 
 /** Solo los campos con valor real — para no pisar datos buenos con cadenas vacías. */
@@ -155,10 +176,10 @@ async function aplicarPersona(op: Operacion, origen: string, conversacion: strin
 
   const campos = soloConValor({
     relacion:    RELACIONES.includes(String(op.relacion)) ? op.relacion : undefined,
-    descripcion: op.descripcion,
+    descripcion: textoLibre(op.descripcion, 300),
     cumpleaños:  /^\d{2}-\d{2}$/.test(String(op.cumpleaños ?? '')) ? op.cumpleaños : undefined,
-    ubicacion:   op.ubicacion,
-    trabajo:     op.trabajo,
+    ubicacion:   textoLibre(op.ubicacion, 120),
+    trabajo:     textoLibre(op.trabajo, 120),
   });
 
   if (existente) {
@@ -283,7 +304,13 @@ async function aplicarRecuerdo(op: Operacion, privado: boolean): Promise<string 
 export async function learnFromConversation(
   userMessage: string,
   assistantResponse: string,
-  forzarProveedor?: boolean, // solo para pruebas; en producción decide la regla de privacidad
+  opts: {
+    // Lo que el llamador sabe y aquí no se puede deducir: el gate de /text mira
+    // también el historial de la conversación, y este clasificador solo ve el
+    // turno suelto. Suma al cálculo de abajo, nunca resta.
+    sensible?: boolean;
+    forzarProveedor?: boolean; // solo para pruebas; en producción decide la regla de privacidad
+  } = {},
 ): Promise<void> {
   try {
     // Clasificar es una tarea de razonamiento estructurado que el modelo local
@@ -292,8 +319,13 @@ export async function learnFromConversation(
     // completa, incluida la conexión con Julen. Así que se clasifica en la nube
     // —salvo que el turno toque contenido sensible, que por el invariante §3.3
     // no sale de local aunque eso signifique aprender menos de él.
-    const sensible = isSensitive(`${userMessage}\n${assistantResponse}`);
-    const alaNube  = forzarProveedor ?? !sensible;
+    // El OR es lo importante: `isSensitive` es léxico y solo ve este turno, así
+    // que "¿cuánto te dije que cobraba?" → "2.400 € netos, señor" no dispara
+    // ninguna palabra del patrón. Si la ruta ya decidió que el turno era sensible
+    // —porque lo era el historial— esa decisión manda, o la cifra que el gate
+    // acababa de retener saldría a Groq por la puerta de atrás del aprendizaje.
+    const sensible = opts.sensible === true || isSensitive(`${userMessage}\n${assistantResponse}`);
+    const alaNube  = opts.forzarProveedor ?? !sensible;
     if (sensible) console.log('🧠 Clasificador: turno sensible → solo local');
 
     const snap = await loQueYaSabe(alaNube);

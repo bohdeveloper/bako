@@ -6,11 +6,13 @@
  * ejecuta una acción — no hace falta una segunda llamada de extracción de JSON por
  * cada intención, ni un patrón nuevo por cada forma de pedir lo mismo.
  *
- * Acciones soportadas (las mismas 6 de antes, ahora como herramientas):
+ * Herramientas registradas:
  *  - Crear/actualizar tarea en Notion
  *  - Crear evento en Google Calendar (destructiva: pide confirmación)
  *  - Crear/cerrar issue sincronizado (Notion + GitHub)
  *  - Actualizar siguiente acción de un proyecto
+ *  - Consultar el cerebro (solo lectura, añadida en B1)
+ *  - Olvidar una persona o un conocimiento (destructivas, añadidas en B2)
  */
 
 import { askClaudeWithTools, describeRuntime, isOllamaAvailableCached, AskClaudeOptions } from '../llm/claude';
@@ -263,12 +265,24 @@ const TOOL_SCHEMAS = TOOLS.map(t => ({
   function: { name: t.name, description: t.description, parameters: t.parameters },
 }));
 
-const TOOL_INSTRUCTIONS = `Tienes herramientas para actuar de verdad sobre Notion y Google Calendar
-(crear tareas, cambiar su estado, crear eventos, gestionar issues, actualizar el siguiente paso de un
-proyecto). Úsalas SOLO cuando el señor pida explícitamente crear, actualizar, agendar o cerrar algo —
-nunca para responder preguntas, dar información o conversar con normalidad. Si falta un dato
-imprescindible para una herramienta, pregúntalo en texto en vez de inventarlo o de rellenarlo con un
-valor de ejemplo.`;
+// Dos familias de herramientas con reglas opuestas, y hay que decirlo explícito:
+// las de acción solo se usan si el señor pide hacer algo, pero `consultar_cerebro`
+// existe precisamente para responder preguntas. La versión anterior decía "nunca
+// para responder preguntas, dar información o conversar" a secas, lo que dejaba a
+// `consultar_cerebro` contradicha por su propia instrucción de sistema.
+const TOOL_INSTRUCTIONS = `Tienes dos tipos de herramientas:
+
+1) ACCIÓN sobre Notion y Google Calendar (crear tareas, cambiar su estado, crear eventos, gestionar
+issues, actualizar el siguiente paso de un proyecto). Úsalas SOLO cuando el señor pida explícitamente
+crear, actualizar, agendar o cerrar algo — nunca para conversar ni para dar información.
+
+2) MEMORIA sobre tu propio conocimiento. \`consultar_cerebro\` sí es para responder: úsala cuando el
+señor pregunte qué sabes de alguien o de algo, o cuando necesites un dato sobre una persona que no
+esté ya en el contexto de arriba. \`olvidar_persona\` y \`olvidar_conocimiento\` solo si pide
+explícitamente que olvides algo.
+
+Si falta un dato imprescindible para una herramienta, pregúntalo en texto en vez de inventarlo o de
+rellenarlo con un valor de ejemplo.`;
 
 // ─── Confirmación de acciones destructivas ────────────────────────────────────
 // Mismo criterio que ya se usaba para enviar un email por Telegram, extendido a
@@ -358,6 +372,12 @@ export interface AgentTurnResult {
   text:      string;
   voice:     string;
   toolUsed?: string; // nombre de la herramienta ejecutada, si hubo una — para que el llamador decida si extraer memorias de este turno
+  // Un turno con herramienta no enseñaba nada, y eso valía para `crear_tarea`
+  // (donde el texto es un acuse de recibo, sin nada que aprender) pero no para
+  // `consultar_cerebro`: preguntar "¿qué sabes de Ibon?" también es conversación
+  // y el señor suele corregir o ampliar en la misma frase. Las de solo lectura
+  // no escriben nada, así que su turno se aprende como cualquier otro.
+  toolReadOnly?: boolean;
   awaitingConfirmation?: boolean; // el texto es una pregunta de confirmación: quien pueda (Telegram) que muestre botones
 }
 
@@ -467,7 +487,7 @@ export async function runAgentTurn(
 
   try {
     const text = await tool.run(result.toolCall.arguments);
-    return { text, voice: stripMarkdown(text), toolUsed: tool.name };
+    return { text, voice: stripMarkdown(text), toolUsed: tool.name, toolReadOnly: tool.soloLectura === true };
   } catch (err) {
     const text = `❌ ${(err as Error).message}`;
     return { text, voice: `No pude ejecutar esa acción. ${(err as Error).message}` };

@@ -259,6 +259,61 @@ Fases, en orden — **todas cerradas el 15/09/2026**:
 - Riesgo aceptado y no resuelto: `loQueYaSabe` (B1) sigue mandando la lista de nombres de Persona
   entera a Groq en turnos no sensibles, sin el mismo recorte que ya aplica a las claves de
   conocimiento — documentado ahí, no es nuevo de B2
+- Tercera ronda de `/code-review` (16/09/2026), 7 hallazgos, todos corregidos salvo dos que pasan
+  a pendientes (abajo). El grueso era **el gate de sensibilidad de §3.3, que solo cubría una de
+  las tres puertas del Desktop**: `/text` lo evaluaba únicamente sobre el mensaje, así que un turno
+  sensible resuelto en local se iba a Groq en el historial del siguiente turno inocuo — ahora el
+  gate mira también `conversationHistory`; y `/stream` seguía con `useCloud:true` fijo y sin gate,
+  una vía de escape abierta en el mismo router (corregido, aunque hoy no lo use ningún cliente).
+  Además: el clasificador del cerebro excluía los campos de perfil sin decir "de Borja", y las
+  etiquetas desnudas ("nombre", "ubicación") coincidían con los campos de la caja `persona`, así
+  que "Ibon se ha mudado a Bilbao" corría el riesgo de no guardarse en ninguna parte; `edadDesde`
+  aceptaba fechas imposibles porque `new Date(1990,1,31)` desborda a marzo en vez de dar NaN, y un
+  31/02 mal tecleado salía como una edad creíble (ahora se valida el ida y vuelta, y
+  `updateProfileField` rechaza la fecha inválida en origen)
+- [x] **Cauce de escritura de `fecha_nacimiento`** (16/09/2026) — B2.4 añadió la línea `Edad: N
+  años` derivada de la fecha, pero **ningún camino sabía escribir esa fecha**: el clasificador la
+  excluía por ser campo de perfil y `detectProfileUpdate` solo cubría empleador y ubicación, así
+  que "nací el 12/03/1990" no se guardaba en ninguna caja y la línea era inalcanzable. Patrón
+  añadido (solo formato numérico: "nací el 12 de marzo de 1990" sigue sin recogerse)
+- [x] **Los turnos de solo lectura vuelven a enseñar** (16/09/2026) — `learnFromConversation` se
+  saltaba con cualquier `toolUsed`, criterio correcto para `crear_tarea` (su texto es un acuse de
+  recibo) pero no para `consultar_cerebro`: preguntar "¿qué sabes de Ibon?" es conversación, y el
+  señor corrige o amplía en la misma frase. `AgentTurnResult` expone ahora `toolReadOnly` y los
+  cuatro llamadores (PWA/Desktop ×2, Telegram ×2) aprenden de esos turnos
+- Riesgo aceptado y no resuelto: **en `/voice` el audio crudo sale a la nube siempre**, antes de
+  que el gate pueda opinar — para saber si lo dictado es sensible hay que transcribirlo, y
+  transcribir es Groq Whisper. El gate protege el turno del LLM y lo que se aprende de él, no la
+  transcripción. El mensaje de error decía "no he mandado nada a la nube", que era falso ahí:
+  corregido el texto. Cerrarlo de verdad exige Whisper local → pendiente abajo
+- [ ] **Whisper local para cerrar el gate de voz** — mientras no exista, dictar "mi nómina de
+  Inetum" manda el audio a Groq aunque el turno se resuelva en Ollama
+- [ ] **Segunda pasada del LLM tras una herramienta de solo lectura** — hoy `tool.run()` se
+  devuelve tal cual como respuesta hablada, así que `consultar_cerebro` hace que BAKO recite un
+  volcado de datos en vez de contestar como mayordomo. Afecta a la voz más que al texto
+- `/security-review` (16/09/2026): 3 hallazgos, 1 descartado como falso positivo (el índice del
+  cerebro saliendo a la nube, que ya estaba anotado arriba como riesgo aceptado y no lo introduce
+  esta rama). Los otros dos, corregidos:
+  - [x] **La puerta de atrás del aprendizaje** (Alta) — el gate por historial que se acababa de
+    añadir a `/text` se evaporaba en `learnFromConversation`, que recalculaba la sensibilidad solo
+    sobre el turno suelto: "¿cuánto te dije que cobraba?" → "2.400 € netos, señor" no dispara
+    ninguna palabra de `isSensitive`, así que la cifra que el gate acababa de retener salía a Groq
+    por detrás, con embedding incluido. El llamador pasa ahora su decisión (`{ sensible }`) y el
+    clasificador la suma con OR — quien sabe más endurece el gate, nunca lo rebaja
+  - [x] **XSS almacenado en el panel** (Media) — `ubicacion` y `trabajo` se interpolaban sin
+    escapar en el `innerHTML` de la tarjeta de persona (`meta`), justo los dos campos que el
+    clasificador de B1 empezó a escribir solo desde texto libre de conversación: "trabaja en
+    `<img src=x onerror=...>`" creaba la ficha, y el payload se ejecutaba en la sesión del
+    superadmin al abrir Personas, con el JWT de 30 días en `localStorage` a tiro. Escapados en
+    origen; `escHtml` cubre ahora también comillas (los `value="..."` de los tres formularios de
+    edición eran rompibles) y tolera no-strings; y `brain.ts` recorta y filtra ángulos en los
+    campos de texto libre como defensa de repuesto
+- [x] **Gate de sensibilidad en la voz de Telegram** (16/09/2026) — encontrado al verificar un
+  hallazgo colateral. El manejador de texto tenía el gate desde siempre; el de voz **no tenía
+  ninguno**: dictar "mi nómina de Inetum" por Telegram iba a Groq sin más y encima quedaba en la
+  sesión, así que volvía a salir en cada turno posterior. Replicado el mismo gate, sin sesión ni
+  aprendizaje en la rama sensible. Con esto las cinco puertas (Telegram texto y voz, Desktop
+  `/text`, `/voice` y `/stream`) tienen por fin el mismo criterio
 
 ### B3 — Curiosidad: las preguntas sólidas
 

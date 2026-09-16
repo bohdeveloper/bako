@@ -9,7 +9,8 @@ import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import axios from 'axios';
 import FormData from 'form-data';
-import { isOllamaAvailableCached, classifyQueryComplexity } from '../llm/claude';
+import { isOllamaAvailableCached, classifyQueryComplexity, PrivacyError } from '../llm/claude';
+import { isSensitive } from '../tools/privacy';
 import { generateVoiceBuffer, cleanForVoice, VOCES_DISPONIBLES, getCurrentVoiceKey, setVoice } from '../tools/tts';
 import { getMemoriesSection, getDynamicProfileSection, getPeopleSection, getProjectsSection, getKnowledgeSection, getTasksSection, buildSystemPrompt } from '../tools/telegram';
 import { getAmbientContext } from '../tools/context';
@@ -183,6 +184,11 @@ router.post('/transcribe', upload.single('audio'), async (req: Request, res: Res
   // auth handled by router.use(requireAuth)
   if (!req.file) { res.status(400).json({ error: 'Se requiere campo "audio"' }); return; }
   try {
+    // Límite conocido del gate de este endpoint: para saber si lo dictado es
+    // sensible hay que transcribirlo, y transcribir es Groq Whisper. El audio
+    // crudo sale a la nube SIEMPRE, antes de que  pueda opinar —
+    // lo que el gate protege aquí es el turno del LLM y lo que se aprende de él,
+    // no la transcripción. Cerrarlo del todo exige un Whisper local (plan.md).
     const transcription = await transcribeAudio(req.file.buffer);
     if (!transcription.trim()) { res.status(400).json({ error: 'No se detectó habla' }); return; }
     res.json({ transcription });
@@ -203,6 +209,11 @@ router.post('/voice', llmLimiter, upload.single('audio'), async (req: Request, r
   }, 25_000);
 
   try {
+    // Límite conocido del gate de este endpoint: para saber si lo dictado es
+    // sensible hay que transcribirlo, y transcribir es Groq Whisper. El audio
+    // crudo sale a la nube SIEMPRE, antes de que `isSensitive` pueda opinar —
+    // lo que el gate protege aquí es el turno del LLM y lo que se aprende de él,
+    // no la transcripción. Cerrarlo del todo exige un Whisper local (plan.md).
     const transcription = await transcribeAudio(req.file.buffer);
     if (!transcription.trim()) { res.status(400).json({ error: 'No se detectó habla' }); return; }
 
@@ -216,21 +227,29 @@ router.post('/voice', llmLimiter, upload.single('audio'), async (req: Request, r
     // Antes este endpoint ignoraba la elección del cliente y solo miraba
     // PREFER_LOCAL, así que el botón no gobernaba la voz.
     const clientUseCloud = parseBoolField(req.body?.useCloud);
-    const useCloud = !ollamaOk
-      ? true
-      : clientUseCloud ?? !PREFER_LOCAL;
+    // Invariante §3.3 — hasta el 15/09/2026 este gate solo existía en Telegram:
+    // por la PWA y el Desktop, "mi nómina de Inetum" se iba a Groq sin más. El
+    // cuidado que pone el clasificador de B1 en no filtrar lo sensible era casi
+    // decorativo aquí, porque el turno entero ya había salido a la nube antes.
+    const sensible = isSensitive(transcription);
+    if (sensible && !ollamaOk) {
+      res.status(503).json({ error: '🔒 He detectado contenido sensible y Ollama no está disponible. Enciende el PC o reformula el mensaje sin datos confidenciales.' });
+      return;
+    }
+    const useCloud = sensible ? false : (!ollamaOk ? true : clientUseCloud ?? !PREFER_LOCAL);
     const confirmKey = `desktop:${req.authUser!.userId}`;
-    const turn = await runAgentTurn(transcription, confirmKey, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud });
+    const turn = await runAgentTurn(transcription, confirmKey, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud, private: sensible });
     // Aprender de la conversación, en segundo plano. Hasta el 06/09/2026 esto
     // solo pasaba en Telegram: todo lo hablado por la PWA o el Desktop no le
     // enseñaba nada a BAKO.
-    if (!turn.toolUsed) learnFromConversation(transcription, turn.text).catch(() => {});
+    if (!turn.toolUsed || turn.toolReadOnly) learnFromConversation(transcription, turn.text, { sensible }).catch(() => {});
     const audioBuffer  = await safeVoiceBuffer(turn.voice);
     res.json({ transcription, response: turn.text, audio: audioBuffer?.toString('base64') });
 
   } catch (err) {
     console.error('❌ Desktop /voice:', (err as Error).message);
     if (res.headersSent) return;
+    if (err instanceof PrivacyError) { res.status(503).json({ error: '🔒 Ollama se desconectó a mitad del mensaje sensible. No se lo he pasado a ningún modelo de la nube (el audio sí pasó por la transcripción).' }); return; }
     if (isRateLimit(err))        { res.status(429).json({ error: 'Rate limit de Groq alcanzado.', rateLimited: true }); return; }
     if (isContextTooLarge(err))  { res.status(413).json({ error: 'Contexto demasiado grande. Intenta de nuevo.' }); return; }
     res.status(500).json({ error: (err as Error).message });
@@ -274,15 +293,27 @@ router.post('/text', llmLimiter, validateMessage, async (req: Request, res: Resp
     ]);
 
     // Sin túnel solo hay Groq y se ignora lo que pida el cliente. Con túnel manda
-    // la elección explícita del badge; si no la hay, decide PREFER_LOCAL.
-    const useCloud = !ollamaOk
-      ? true
-      : parseBoolField(clientUseCloud) ?? !PREFER_LOCAL;
-    console.log(`🔵 Desktop /text: '${complexity}' → ${useCloud ? 'Groq ☁️' : 'Ollama 🏠'} + prompt ${useMinimalPrompt ? 'minimal' : 'full'} (${systemPrompt.length} chars)`);
+    // la elección explícita del badge; si no la hay, decide PREFER_LOCAL. El
+    // contenido sensible (invariante §3.3) manda sobre todo lo anterior: se queda
+    // en local o no se procesa — el mismo gate que ya tenía Telegram.
+    // El historial cuenta para el gate tanto como el mensaje: un turno sensible
+    // resuelto en local viajaría igualmente a Groq dentro del contexto del
+    // siguiente turno inocuo, que es justo lo que se quiso evitar.
+    const sensible = isSensitive(message) ||
+      conversationHistory.some(h => typeof h?.content === 'string' && isSensitive(h.content));
+    if (sensible && !ollamaOk) {
+      res.status(503).json({ error: '🔒 He detectado contenido sensible y Ollama no está disponible. Enciende el PC o reformula el mensaje sin datos confidenciales.' });
+      return;
+    }
+    const useCloud = sensible ? false : (!ollamaOk ? true : parseBoolField(clientUseCloud) ?? !PREFER_LOCAL);
+    console.log(`🔵 Desktop /text: '${complexity}' → ${sensible ? 'Ollama 🔒 (sensible)' : useCloud ? 'Groq ☁️' : 'Ollama 🏠'} + prompt ${useMinimalPrompt ? 'minimal' : 'full'} (${systemPrompt.length} chars)`);
     const confirmKey = `desktop:${req.authUser!.userId}`;
-    const turn = await runAgentTurn(message, confirmKey, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud, conversationHistory });
+    const turn = await runAgentTurn(message, confirmKey, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud, private: sensible, conversationHistory });
     console.log(`🔵 Desktop /text: respuesta LLM OK (${turn.text.length} chars, herramienta: ${turn.toolUsed ?? 'ninguna'})`);
-    if (!turn.toolUsed) learnFromConversation(message, turn.text).catch(() => {});
+    // El clasificador no ve el historial, así que hay que pasarle la decisión ya
+    // tomada: si no, recalcularía la sensibilidad sobre el turno suelto y mandaría
+    // a Groq justo lo que este endpoint acaba de retener en local.
+    if (!turn.toolUsed || turn.toolReadOnly) learnFromConversation(message, turn.text, { sensible }).catch(() => {});
     const audioBuffer  = await safeVoiceBuffer(turn.voice);
     res.json({ response: turn.text, audio: audioBuffer?.toString('base64') });
 
@@ -290,6 +321,7 @@ router.post('/text', llmLimiter, validateMessage, async (req: Request, res: Resp
     const e = err as any;
     console.error('❌ Desktop /text:', e?.response?.status, e?.response?.data ?? e?.message);
     if (res.headersSent) return;
+    if (err instanceof PrivacyError) { res.status(503).json({ error: '🔒 Ollama se desconectó a mitad del mensaje sensible. No he mandado nada a la nube.' }); return; }
     if (isRateLimit(err))        { res.status(429).json({ error: 'Rate limit de Groq alcanzado.', rateLimited: true }); return; }
     if (isContextTooLarge(err))  { res.status(413).json({ error: 'Contexto demasiado grande. Intenta de nuevo.' }); return; }
     res.status(500).json({ error: (err as Error).message });
@@ -309,9 +341,18 @@ router.post('/stream', llmLimiter, validateMessage, async (req: Request, res: Re
     // fragmentos de `tool_calls` a través de los deltas del SSE del proveedor
     // (Groq y Ollama lo soportan, pero duplica la complejidad); mientras nadie
     // lo consuma no compensa. Si se retoma este endpoint, hacerlo entonces.
+    // El gate de sensibilidad (invariante §3.3) también aquí: aunque hoy ningún
+    // cliente consuma este endpoint, sigue montado en el mismo router y con la
+    // misma sesión, así que un `useCloud: true` fijo era una vía de escape a
+    // Groq para exactamente lo que /text y /voice se molestan en retener.
+    const sensible = isSensitive(message);
+    if (sensible && !(await getCachedOllamaStatus())) {
+      res.status(503).json({ error: '🔒 He detectado contenido sensible y Ollama no está disponible. Enciende el PC o reformula el mensaje sin datos confidenciales.' });
+      return;
+    }
     const confirmKey   = `desktop:${req.authUser!.userId}`;
     const systemPrompt = await getFullSystemPrompt(message, true);
-    const turn         = await runAgentTurn(message, confirmKey, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud: true });
+    const turn         = await runAgentTurn(message, confirmKey, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud: !sensible, private: sensible });
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');

@@ -1977,9 +1977,13 @@
     const relLabel  = isSelf ? 'Propietario' : (REL_LABELS[p.relacion] || p.relacion);
     const relClass  = isSelf ? 'rel-self' : `rel-${p.relacion}`;
 
-    const cumple = p.cumpleaños ? p.cumpleaños : '';
-    const loc    = p.ubicacion  ? p.ubicacion  : '';
-    const work   = p.trabajo    ? p.trabajo    : '';
+    // Escapados aquí y no en la plantilla: `meta` se interpola sin escHtml en el
+    // innerHTML de abajo, y desde que el clasificador escribe fichas solo (B1)
+    // `ubicacion` y `trabajo` llegan de texto libre de conversación, no de un
+    // humano tecleando en el panel.
+    const cumple = p.cumpleaños ? escHtml(p.cumpleaños) : '';
+    const loc    = p.ubicacion  ? escHtml(p.ubicacion)  : '';
+    const work   = p.trabajo    ? escHtml(p.trabajo)    : '';
     const meta   = [cumple, loc, work].filter(Boolean).join(' · ');
 
     const notesHtml = (p.notas || []).map(n => `<span class="person-note-tag">${escHtml(n)}</span>`).join('');
@@ -2558,7 +2562,11 @@
   }
 
   function escHtml(s) {
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    // Las comillas importan tanto como los ángulos: estos valores también se
+    // interpolan en value="..." de los formularios de edición, y sin escapar
+    // la comilla se sale del atributo y se inyecta otro (onfocus, autofocus...).
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                          .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
   function toggleMemEdit(m, item) {

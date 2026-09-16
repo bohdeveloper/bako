@@ -893,17 +893,16 @@ async function handleCommand(chatId: number, command: string, originalText = '')
       const { ProfileOverride } = await import('../memory/ProfileOverride');
       const overrides = await ProfileOverride.find();
       const overrideMap = Object.fromEntries(overrides.map(o => [o.key, o]));
-      const { BAKO_PROFILE: profile } = await import('../knowledge/profile');
-
       let text = `👤 *Perfil dinámico — campos actualizables:*\n\n`;
-      for (const [key, meta] of Object.entries(PROFILE_FIELDS)) {
+      for (const key of Object.keys(PROFILE_FIELDS)) {
         const override = overrideMap[key];
-        const baseVal = meta.path.reduce((a: any, k) => a?.[k], profile as any) ?? '—';
         if (override) {
           const fecha = new Date(override.updatedAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-          text += `🔄 \`${key}\`\n   _${override.value}_ _(actualizado ${fecha})_\n`;
+          text += `🔄 \`${key}\`\n   _${override.value}_ _(guardado ${fecha})_\n`;
         } else {
-          text += `📌 \`${key}\`\n   _${baseVal}_ _(perfil base)_\n`;
+          // Tras el reset de B2 ya no hay valor base en el código al que caer, así
+          // que un campo sin override es sencillamente un dato que BAKO no tiene.
+          text += `📌 \`${key}\`\n   _sin dato_\n`;
         }
       }
       text += `\n_Para actualizar: /perfil [campo] [nuevo valor]_\n_Ejemplo: /perfil identidad.empleador NuevaEmpresa S.L._`;
@@ -1326,6 +1325,35 @@ export function startTelegramBot(): void {
         return;
       }
 
+      // Mismo gate que el manejador de texto (invariante §3.3). Hasta el
+      // 16/09/2026 la voz de Telegram no lo tenía: dictar "mi nómina de Inetum"
+      // se iba a Groq sin más, y encima `appendToSession` lo dejaba en el
+      // historial, así que viajaba otra vez en cada turno siguiente. El audio ya
+      // ha pasado por Whisper para llegar hasta aquí — mismo límite que /voice
+      // del Desktop, documentado en plan.md.
+      if (isSensitive(transcription)) {
+        if (!(await isOllamaAvailable())) {
+          await bot.sendMessage(
+            chatId,
+            '⚠️ He detectado contenido sensible en tu mensaje.\n\n🔒 Para procesarlo necesito Ollama local, pero no está disponible.\n\nEnciende tu PC y asegúrate de que Ollama está corriendo, o reformula el mensaje sin datos confidenciales.'
+          );
+          return;
+        }
+        await bot.sendMessage(chatId, '🔒 Contenido sensible detectado — procesando solo en local...');
+        const [memoriesSection, dynProfile] = await Promise.all([
+          getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, transcription),
+          getDynamicProfileSection(),
+        ]);
+        const response = await askClaude(transcription, {
+          systemPrompt: buildSystemPrompt('', memoriesSection, dynProfile),
+          private: true,
+        });
+        await sendVoiceReply(chatId, response);
+        // Ni sesión ni aprendizaje: lo que no sale de local tampoco se queda en
+        // el historial, que es lo que lo sacaría fuera en el turno siguiente.
+        return;
+      }
+
       if (/calendario|agenda|cita|reuni[oó]n|evento|gmail|correo|email|mail/i.test(transcription)) {
         invalidateCalendarCache();
       }
@@ -1348,7 +1376,7 @@ export function startTelegramBot(): void {
       const response = turn.text;
       await sendAgentTurn(chatId, turn);
       appendToSession(chatId, transcription, response);
-      if (!turn.toolUsed) learnFromConversation(transcription, response).catch(() => {});
+      if (!turn.toolUsed || turn.toolReadOnly) learnFromConversation(transcription, response).catch(() => {});
       const detectedMood = detectMoodFromText(transcription);
       if (detectedMood) { currentMood = detectedMood; moodMessageCount = 0; }
       else autoShiftMood();
@@ -1603,7 +1631,7 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
       const response = turn.text;
       await sendAgentTurn(chatId, turn);
       appendToSession(chatId, text, response);
-      if (!turn.toolUsed) learnFromConversation(text, response).catch(() => {});
+      if (!turn.toolUsed || turn.toolReadOnly) learnFromConversation(text, response).catch(() => {});
       const detectedMoodText = detectMoodFromText(text);
       if (detectedMoodText) { currentMood = detectedMoodText; moodMessageCount = 0; }
       else autoShiftMood();
