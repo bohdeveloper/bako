@@ -171,9 +171,9 @@ export async function getKnowledgeSection(charBudget = Infinity): Promise<string
   }
 }
 
-export async function getMemoriesSection(technicalLimit = 5, personalLimit = 44, charBudget = 1800, query?: string): Promise<string> {
+export async function getMemoriesSection(technicalLimit = 5, personalLimit = 44, charBudget = 1800, query?: string, privado = false): Promise<string> {
   try {
-    const memories = await getMemories(technicalLimit, personalLimit, query);
+    const memories = await getMemories(technicalLimit, personalLimit, query, privado);
     const full = formatMemoriesForPrompt(memories);
     if (full.length <= charBudget) return full;
     // Truncar en el último salto de línea dentro del presupuesto
@@ -924,6 +924,8 @@ async function handleCommand(chatId: number, command: string, originalText = '')
         `✅ *${result.label}* actualizado:\n_"${result.prev}"_ → _"${result.current}"_`,
         { parse_mode: 'Markdown' }
       );
+    } else if (result.reason === 'invalid_value') {
+      await bot.sendMessage(chatId, `⚠️ *${result.label}*: "${value}" no es una fecha válida. Formato: DD/MM/AAAA.`, { parse_mode: 'Markdown' });
     } else {
       const validKeys = Object.keys(PROFILE_FIELDS).map(k => `\`${k}\``).join(' · ');
       await bot.sendMessage(chatId, `⚠️ Campo no reconocido. Campos disponibles:\n${validKeys}`, { parse_mode: 'Markdown' });
@@ -1143,8 +1145,12 @@ export function startTelegramBot(): void {
         return;
       }
       await bot.sendMessage(chatId, '🔒 Procesando en modo privado (solo local)...');
+      // privado:true también en la búsqueda semántica — hasta el 16/09/2026 este
+      // comando decía "solo local" pero, si el modelo de embeddings de Ollama
+      // fallaba, `getMemories` se lo pasaba a Cloudflare igualmente porque nadie
+      // le decía que no podía.
       const [memoriesSection, dynProfile] = await Promise.all([
-        getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, text),
+        getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, text, true),
         getDynamicProfileSection(),
       ]);
       const response = await askClaude(text, {
@@ -1340,8 +1346,12 @@ export function startTelegramBot(): void {
           return;
         }
         await bot.sendMessage(chatId, '🔒 Contenido sensible detectado — procesando solo en local...');
+        // privado:true igual que en la llamada al chat: sin esto, un fallo del
+        // modelo de embeddings de Ollama (independiente del chat, que ya
+        // comprobó `isOllamaAvailable`) mandaba la transcripción sensible a
+        // Cloudflare para embeberla — hallazgo de /code-review 16/09/2026.
         const [memoriesSection, dynProfile] = await Promise.all([
-          getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, transcription),
+          getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, transcription, true),
           getDynamicProfileSection(),
         ]);
         const response = await askClaude(transcription, {
@@ -1412,6 +1422,34 @@ export function startTelegramBot(): void {
         return;
       }
 
+      // Actualización de perfil en lenguaje natural. Va ANTES que la corrección
+      // genérica de abajo a propósito: su regex de "en realidad ..." incluye
+      // "vivo", "nací", "mi" entre los disparadores, así que "en realidad nací el
+      // 12/03/1990" o "en realidad vivo en Bilbao" caían siempre en el cajón de
+      // memoria suelta y el patrón estricto de aquí (mucho más específico) nunca
+      // llegaba a probarse — encontrado en /code-review 16/09/2026.
+      const profileUpdate = await detectProfileUpdate(text);
+      if (profileUpdate) {
+        const result = await updateProfileField(profileUpdate.key, profileUpdate.value, 'conversation');
+        if (result.ok) {
+          const reply = `✅ Perfil actualizado — ${result.label}: _"${result.current}"_`;
+          await bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
+          await sendVoiceReply(chatId, `Perfil actualizado, señor. ${result.label} registrado como ${result.current}.`);
+          return;
+        }
+        // Antes un ok:false aquí no avisaba de nada y seguía probando el resto de
+        // manejadores: el señor decía "nací el 31/02/1990" y BAKO ni confirmaba ni
+        // se quejaba, así que parecía guardado sin haberlo estado — encontrado en
+        // /code-review 16/09/2026. Solo puede llegar por fecha inválida (el propio
+        // `detectProfileUpdate` solo apunta a campos que existen).
+        if (result.reason === 'invalid_value') {
+          const reply = `⚠️ Esa fecha no me cuadra, señor. Deme el día, mes y año reales de nacimiento.`;
+          await bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
+          await sendVoiceReply(chatId, 'Esa fecha no me cuadra, señor. Deme el día, mes y año reales de nacimiento.');
+          return;
+        }
+      }
+
       // Corrección de datos personales: "eso está mal", "te corrijo", "en realidad", etc.
       const correctionMatch = text.match(
         /^(?:bako[,.]?\s*)?(?:eso\s+est[aá](?:s)?\s+(?:mal|incorrecto)|est[aá]s\s+equivocado|te\s+corrijo[,:]?|dato\s+incorrecto[,:]?|correcci[oó]n[,:]?|(?:no[,.]\s*)?en\s+realidad\s+(?:tengo|soy|tenemos|me\s+llamo|vivo|cumplo|mi|nací))[,.]?\s*(.+)$/i
@@ -1432,18 +1470,6 @@ export function startTelegramBot(): void {
       if (intentCommand) {
         await handleCommand(chatId, intentCommand, text);
         return;
-      }
-
-      // Actualización de perfil en lenguaje natural
-      const profileUpdate = await detectProfileUpdate(text);
-      if (profileUpdate) {
-        const result = await updateProfileField(profileUpdate.key, profileUpdate.value, 'conversation');
-        if (result.ok) {
-          const reply = `✅ Perfil actualizado — ${result.label}: _"${result.current}"_`;
-          await bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
-          await sendVoiceReply(chatId, `Perfil actualizado, señor. ${result.label} registrado como ${result.current}.`);
-          return;
-        }
       }
 
       // Recordatorios: "recuérdame en X [que] mensaje"
@@ -1581,8 +1607,11 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
           return;
         }
         await bot.sendMessage(chatId, '🔒 Contenido sensible detectado — procesando solo en local...');
+        // Mismo motivo que en la rama de voz: `isOllamaAvailable()` solo prueba
+        // el chat, no el modelo de embeddings — sin `privado:true` aquí, un fallo
+        // de éste mandaba el texto sensible a Cloudflare igualmente.
         const [memoriesSection, dynProfile] = await Promise.all([
-          getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, text),
+          getMemoriesSection(llmMode === 'groq' ? 20 : 5, 44, 1800, text, true),
           getDynamicProfileSection(),
         ]);
         const response = await askClaude(text, {

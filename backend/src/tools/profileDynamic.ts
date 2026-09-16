@@ -93,14 +93,18 @@ export async function updateProfileField(
   key: string,
   newValue: string,
   source: 'manual' | 'conversation' | 'bako_suggestion' = 'manual'
-): Promise<{ ok: boolean; label: string; prev: string; current: string }> {
+// `reason` distingue "no existe ese campo" de "campo válido, valor rechazado":
+// antes ambos casos devolvían el mismo ok:false y el /perfil manual acababa
+// diciendo "campo no reconocido" ante una fecha de nacimiento perfectamente
+// reconocida pero imposible (31/02) — encontrado en /code-review 16/09/2026.
+): Promise<{ ok: boolean; label: string; prev: string; current: string; reason?: 'unknown_field' | 'invalid_value' }> {
   const meta = PROFILE_FIELDS[key];
-  if (!meta) return { ok: false, label: key, prev: '', current: '' };
+  if (!meta) return { ok: false, label: key, prev: '', current: '', reason: 'unknown_field' };
   // La fecha de nacimiento alimenta un cálculo, no solo una línea de texto: si no
   // es una fecha real, rechazarla aquí en vez de dejar que `edadDesde` calle y el
   // perfil se quede con un valor del que nunca saldrá la edad.
   if (key === 'identidad.fecha_nacimiento' && !edadDesde(newValue)) {
-    return { ok: false, label: meta.label, prev: '', current: '' };
+    return { ok: false, label: meta.label, prev: '', current: '', reason: 'invalid_value' };
   }
 
   const existing = await ProfileOverride.findOne({ key });

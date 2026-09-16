@@ -287,10 +287,37 @@ Fases, en orden — **todas cerradas el 15/09/2026**:
   transcripción. El mensaje de error decía "no he mandado nada a la nube", que era falso ahí:
   corregido el texto. Cerrarlo de verdad exige Whisper local → pendiente abajo
 - [ ] **Whisper local para cerrar el gate de voz** — mientras no exista, dictar "mi nómina de
-  Inetum" manda el audio a Groq aunque el turno se resuelva en Ollama
-- [ ] **Segunda pasada del LLM tras una herramienta de solo lectura** — hoy `tool.run()` se
-  devuelve tal cual como respuesta hablada, así que `consultar_cerebro` hace que BAKO recite un
-  volcado de datos en vez de contestar como mayordomo. Afecta a la voz más que al texto
+  Inetum" manda el audio a Groq aunque el turno se resuelva en Ollama. Pendiente a propósito: exige
+  decidir infraestructura nueva en la única máquina (motor de Whisper local, contención de VRAM con
+  Ollama qwen3:8b que ya deja ~6,2 GB de 8 GB ocupados con `keep_alive`, y una ruta nueva en el
+  túnel Cloudflare autenticado) — decisión del señor, no algo para resolver sin consultar
+- [x] **Segunda pasada del LLM tras una herramienta de solo lectura** (16/09/2026) — `consultar_cerebro`
+  recitaba su volcado de datos tal cual ("PERSONA Ibon: relación: amigo · vive en Bilbao") en vez de
+  contestar como mayordomo. Añadida `redactarRespuestaLectura` en `agent.ts`: una segunda llamada,
+  con el mismo proveedor y prompt de sistema mínimo (no el de ~16k chars con memorias/personas/
+  proyectos — hubiera doblado tokens y latencia sin necesidad), que redacta la respuesta a partir
+  del dato crudo sin poder inventar nada que no esté en él. El propio dato manda sobre el gate: si
+  `consultarCerebro` devuelve algo sensible aunque la pregunta no lo pareciera ("¿qué sabes de
+  Ibon?" no dispara `isSensitive`, pero sus notas guardadas sí pueden hacerlo), la redacción se
+  fuerza a local igual — hallazgo de la propia ronda de `/code-review` sobre este cambio
+- Encontrado de paso al revisar lo anterior, **una fuga real del invariante §3.3 ya en producción**:
+  `getMemories`/`getMemoriesSection` nunca sabían de privacidad, así que las cinco puertas que
+  "procesan solo en local" ante contenido sensible seguían embebiendo ese mismo texto por la puerta
+  de atrás — `isOllamaAvailable`/`getCachedOllamaStatus` solo comprueban el modelo de chat, nunca el
+  de embeddings (`nomic-embed-text`), y si éste fallaba con Ollama arriba, `generateEmbedding` caía
+  a Cloudflare igual. Corregido enhebrando `privado` por las tres capas (`generateEmbedding` ya lo
+  aceptaba desde antes) y pasándolo en las cinco ramas sensibles (Telegram texto/voz/`/privado`,
+  Desktop `/text`/`/voice`/`/stream` vía `getFullSystemPrompt`)
+- Dos hallazgos más de la misma ronda, también corregidos: `updateProfileField` devolvía el mismo
+  `ok:false` para "campo inexistente" y para "campo válido, fecha imposible", así que `/perfil
+  identidad.fecha_nacimiento 31/02/1990` respondía "campo no reconocido" (factualmente falso) y el
+  manejador de texto libre de Telegram ni confirmaba ni se quejaba ante la misma fecha imposible, así
+  que parecía guardada sin haberlo estado — ahora `reason` distingue los dos casos y ambos avisan; y
+  la detección de perfil en lenguaje natural corría DESPUÉS de la corrección genérica de texto libre,
+  cuyo disparador "en realidad ..." incluye "nací"/"vivo"/"mi", así que "en realidad nací el
+  12/03/1990" o "en realidad vivo en Bilbao" siempre caían como memoria suelta y el patrón estricto
+  del perfil nunca llegaba a probarse — reordenado
+- `/code-review` y `/security-review` sin hallazgos tras las correcciones anteriores
 - `/security-review` (16/09/2026): 3 hallazgos, 1 descartado como falso positivo (el índice del
   cerebro saliendo a la nube, que ya estaba anotado arriba como riesgo aceptado y no lo introduce
   esta rama). Los otros dos, corregidos:

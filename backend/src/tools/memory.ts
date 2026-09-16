@@ -52,11 +52,17 @@ export async function getMemories(
   technicalLimit = 2,
   _personalLimit = 44,  // ignorado — ahora usamos tiers o semántica
   query?: string,       // 7b-C: si se pasa, usa búsqueda semántica en lugar de tiers
+  // §3.3: hasta el 16/09/2026 esta función no sabía de privacidad — un turno
+  // sensible ("mi nómina de Inetum") con Ollama arriba pero su modelo de
+  // embeddings caído se embebía igual vía Cloudflare, porque `generateEmbedding`
+  // solo corta ese fallback si alguien le pasa `privado:true` explícitamente.
+  // Encontrado en /code-review al revisar el gate de voz de Telegram.
+  privado = false,
 ): Promise<IMemory[]> {
   // ── 7b-C: búsqueda semántica cuando hay query y embeddings suficientes ───────
   if (query) {
     try {
-      const { vector, dim } = await generateEmbedding(query);
+      const { vector, dim } = await generateEmbedding(query, { privado });
       const candidates = await Memory.find({ embeddingDim: dim }).lean() as any[];
       if (candidates.length >= 10) {
         const scored = candidates

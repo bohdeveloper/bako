@@ -161,10 +161,15 @@ async function getMinimalSystemPrompt(message = '', clientLocation?: string): Pr
   return prompt;
 }
 
-async function getFullSystemPrompt(message = '', compact = false, clientLocation?: string): Promise<string> {
+// `privado` (invariante §3.3) llega ya calculado por el llamador: hasta el
+// 16/09/2026 esta función no lo pedía, así que un turno sensible con Ollama
+// arriba pero su modelo de embeddings caído mandaba igual el mensaje a
+// Cloudflare para embeberlo — `isOllamaAvailable`/`getCachedOllamaStatus` solo
+// comprueban el chat, nunca ese modelo. Hallazgo de /code-review 16/09/2026.
+async function getFullSystemPrompt(message = '', compact = false, clientLocation?: string, privado = false): Promise<string> {
   const location = clientLocation || await getCurrentLocation();
   const [memories, dynProfile, ambientCtx, emailCtx, people, projects, knowledge, tasks] = await Promise.all([
-    getMemoriesSection(compact ? 2 : 5, 44, compact ? 700 : 1800, message),
+    getMemoriesSection(compact ? 2 : 5, 44, compact ? 700 : 1800, message, privado),
     getDynamicProfileSection(),
     getAmbientContext(location),
     getEmailContext(message),
@@ -218,20 +223,23 @@ router.post('/voice', llmLimiter, upload.single('audio'), async (req: Request, r
     if (!transcription.trim()) { res.status(400).json({ error: 'No se detectó habla' }); return; }
 
     const clientLocation = req.body?.location;
+    // Invariante §3.3 — hasta el 15/09/2026 este gate solo existía en Telegram:
+    // por la PWA y el Desktop, "mi nómina de Inetum" se iba a Groq sin más. El
+    // cuidado que pone el clasificador de B1 en no filtrar lo sensible era casi
+    // decorativo aquí, porque el turno entero ya había salido a la nube antes.
+    // Se calcula ANTES del prompt (es una regex síncrona, no cuesta nada) para
+    // poder pasárselo a `getFullSystemPrompt` y que la búsqueda semántica de
+    // memorias respete el mismo gate que el turno del chat.
+    const sensible = isSensitive(transcription);
     const [ollamaOk, systemPrompt] = await Promise.all([
       getCachedOllamaStatus(),
-      getFullSystemPrompt(transcription, true, clientLocation), // always compact — full exceeds Groq 6000 TPM
+      getFullSystemPrompt(transcription, true, clientLocation, sensible), // always compact — full exceeds Groq 6000 TPM
     ]);
     // Misma regla que /text: sin túnel solo hay Groq; con túnel manda la elección
     // explícita del cliente (el badge) y, si no la hay, decide LLM_PREFER_LOCAL.
     // Antes este endpoint ignoraba la elección del cliente y solo miraba
     // PREFER_LOCAL, así que el botón no gobernaba la voz.
     const clientUseCloud = parseBoolField(req.body?.useCloud);
-    // Invariante §3.3 — hasta el 15/09/2026 este gate solo existía en Telegram:
-    // por la PWA y el Desktop, "mi nómina de Inetum" se iba a Groq sin más. El
-    // cuidado que pone el clasificador de B1 en no filtrar lo sensible era casi
-    // decorativo aquí, porque el turno entero ya había salido a la nube antes.
-    const sensible = isSensitive(transcription);
     if (sensible && !ollamaOk) {
       res.status(503).json({ error: '🔒 He detectado contenido sensible y Ollama no está disponible. Enciende el PC o reformula el mensaje sin datos confidenciales.' });
       return;
@@ -282,6 +290,16 @@ router.post('/text', llmLimiter, validateMessage, async (req: Request, res: Resp
     const complexity       = classifyQueryComplexity(message);
     const useMinimalPrompt = complexity === 'simple';
 
+    // El contenido sensible (invariante §3.3) manda sobre todo lo demás: se queda
+    // en local o no se procesa — el mismo gate que ya tenía Telegram. El
+    // historial cuenta tanto como el mensaje: un turno sensible resuelto en local
+    // viajaría igualmente a Groq dentro del contexto del siguiente turno inocuo,
+    // que es justo lo que se quiso evitar. Se calcula ANTES del prompt (regex
+    // síncrona sobre datos que ya están en `req.body`) para podérselo pasar a
+    // `getFullSystemPrompt` y que la búsqueda semántica respete el mismo gate.
+    const sensible = isSensitive(message) ||
+      conversationHistory.some(h => typeof h?.content === 'string' && isSensitive(h.content));
+
     // El sondeo de Ollama tarda hasta 6 s si el túnel está caído, así que va en
     // paralelo con la construcción del prompt (que también consulta Mongo) en vez
     // de sumarse a ella.
@@ -289,18 +307,11 @@ router.post('/text', llmLimiter, validateMessage, async (req: Request, res: Resp
       getCachedOllamaStatus(),
       useMinimalPrompt
         ? getMinimalSystemPrompt(message, clientLocation)
-        : getFullSystemPrompt(message, true, clientLocation), // always compact — full (18104 chars) always exceeds Groq 6000 TPM
+        : getFullSystemPrompt(message, true, clientLocation, sensible), // always compact — full (18104 chars) always exceeds Groq 6000 TPM
     ]);
 
     // Sin túnel solo hay Groq y se ignora lo que pida el cliente. Con túnel manda
-    // la elección explícita del badge; si no la hay, decide PREFER_LOCAL. El
-    // contenido sensible (invariante §3.3) manda sobre todo lo anterior: se queda
-    // en local o no se procesa — el mismo gate que ya tenía Telegram.
-    // El historial cuenta para el gate tanto como el mensaje: un turno sensible
-    // resuelto en local viajaría igualmente a Groq dentro del contexto del
-    // siguiente turno inocuo, que es justo lo que se quiso evitar.
-    const sensible = isSensitive(message) ||
-      conversationHistory.some(h => typeof h?.content === 'string' && isSensitive(h.content));
+    // la elección explícita del badge; si no la hay, decide PREFER_LOCAL.
     if (sensible && !ollamaOk) {
       res.status(503).json({ error: '🔒 He detectado contenido sensible y Ollama no está disponible. Enciende el PC o reformula el mensaje sin datos confidenciales.' });
       return;
@@ -351,7 +362,7 @@ router.post('/stream', llmLimiter, validateMessage, async (req: Request, res: Re
       return;
     }
     const confirmKey   = `desktop:${req.authUser!.userId}`;
-    const systemPrompt = await getFullSystemPrompt(message, true);
+    const systemPrompt = await getFullSystemPrompt(message, true, undefined, sensible);
     const turn         = await runAgentTurn(message, confirmKey, { systemPrompt, temperature: 0.4, maxTokens: 400, useCloud: !sensible, private: sensible });
 
     res.setHeader('Content-Type', 'text/event-stream');

@@ -15,13 +15,15 @@
  *  - Olvidar una persona o un conocimiento (destructivas, añadidas en B2)
  */
 
-import { askClaudeWithTools, describeRuntime, isOllamaAvailableCached, AskClaudeOptions } from '../llm/claude';
+import { askClaude, askClaudeWithTools, describeRuntime, isOllamaAvailableCached, AskClaudeOptions } from '../llm/claude';
 import { createNotionTask, updateNotionTaskStatus, findNotionTaskByName, updateNotionProjectSiguienteAccion, normalizeEstadoTarea } from './notion';
 import { createCalendarEvent } from './calendar';
 import { createIssueSync, closeIssueSync } from './issueSync';
 import { invalidateCalendarCache } from './context';
 import { consultarCerebro, olvidarPersona, olvidarConocimiento } from './brain';
+import { isSensitive } from './privacy';
 import { nowInSpain } from './time';
+import { BAKO_PROFILE } from '../knowledge/profile';
 
 function fechaContexto(): string {
   return nowInSpain().toLocaleString('es-ES', {
@@ -33,6 +35,45 @@ function fechaContexto(): string {
 
 function stripMarkdown(text: string): string {
   return text.replace(/\*|_/g, '');
+}
+
+// Prompt mínimo para la redacción de abajo — a propósito NO es `options.systemPrompt`
+// (~16k chars con memorias, personas, proyectos y tareas): esa carga tiene sentido
+// cuando el modelo tiene que decidir qué hacer, pero aquí solo tiene que convertir
+// un dato ya resuelto en una frase. Duplicarla habría doblado tokens/latencia en
+// cada `consultar_cerebro` sin ganar nada — hallazgo de /code-review 16/09/2026.
+const REDACCION_SYSTEM_PROMPT = `Eres BAKO, mayordomo personal. ${Object.values(BAKO_PROFILE.instrucciones_para_bako).join(' ')}`;
+
+/**
+ * Pendiente cerrado (16/09/2026): una herramienta de solo lectura devolvía su
+ * volcado de datos tal cual como respuesta hablada — `consultar_cerebro` hacía
+ * que BAKO recitara "PERSONA Ibon: relación: amigo · vive en Bilbao" en vez de
+ * contestar como un mayordomo. Una segunda pasada, con el mismo proveedor y el
+ * mismo gate de privacidad que ya decidió la llamada de arriba (`options.private`
+ * / `options.useCloud` vienen ya calculados por el llamador), redacta la
+ * respuesta a partir del dato crudo, sin poder inventar nada que no esté en él.
+ */
+async function redactarRespuestaLectura(pregunta: string, datosCrudos: string, options: AskClaudeOptions): Promise<string> {
+  const prompt = `El señor preguntó: "${pregunta}"\n\n`
+    + `Esto es lo que consta tal cual en tu memoria (puede estar vacío o decir que no hay nada):\n${datosCrudos}\n\n`
+    + `Respóndele como mayordomo, en un párrafo breve y natural, usando SOLO estos datos — no inventes ni añadas `
+    + `nada que no esté aquí. Si no hay nada relevante, dilo con naturalidad, sin recitar el aviso de arriba.`;
+  try {
+    return await askClaude(prompt, {
+      systemPrompt: REDACCION_SYSTEM_PROMPT,
+      useCloud:     options.useCloud,
+      private:      options.private,
+      temperature:  options.temperature,
+      maxTokens:    300,
+    });
+  } catch {
+    // Si la redacción falla (p. ej. Ollama se cae justo entre las dos llamadas de
+    // un turno privado), se devuelve el volcado crudo tal cual: es un degradado
+    // de estilo, no de privacidad — `askClaude` con `private:true` solo intenta
+    // Ollama y nunca ha tocado la nube en este punto, así que lo peor que pasa
+    // aquí es que la respuesta suene menos a mayordomo, no que algo se filtre.
+    return datosCrudos;
+  }
 }
 
 // Los nombres de tarea/proyecto/issue vienen de extracción libre del LLM o de lo
@@ -486,7 +527,19 @@ export async function runAgentTurn(
   }
 
   try {
-    const text = await tool.run(result.toolCall.arguments);
+    const rawText = await tool.run(result.toolCall.arguments);
+    let text = rawText;
+    if (tool.soloLectura) {
+      // `options.private` es el gate sobre el MENSAJE del señor ("¿qué sabes de
+      // Ibon?" no dispara isSensitive), pero `consultarCerebro` puede devolver
+      // notas guardadas sobre esa persona que sí lo sean — brain.ts ya protege su
+      // propia búsqueda semántica con este mismo criterio (`privado` en
+      // consultarCerebro). Sin este OR, la redacción de abajo mandaría ese texto
+      // a Groq aunque el propio dato ya se hubiera juzgado sensible antes de
+      // llegar aquí. Hallazgo de /code-review 16/09/2026.
+      const privado = options.private || isSensitive(rawText);
+      text = await redactarRespuestaLectura(userText, rawText, { ...options, private: privado, useCloud: privado ? false : options.useCloud });
+    }
     return { text, voice: stripMarkdown(text), toolUsed: tool.name, toolReadOnly: tool.soloLectura === true };
   } catch (err) {
     const text = `❌ ${(err as Error).message}`;
