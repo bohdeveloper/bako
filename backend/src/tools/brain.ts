@@ -19,7 +19,7 @@
  * propia y en background, es más seguro y no interrumpe.
  */
 
-import { Person } from '../memory/Person';
+import { Person, IPerson } from '../memory/Person';
 import { KnowledgeEntry, KnowledgeCategory } from '../memory/KnowledgeEntry';
 import { askClaude } from '../llm/claude';
 import { deduplicateAndSave, searchMemories } from './memory';
@@ -145,7 +145,12 @@ function nombreApareceEnTexto(nombre: string, texto: string): boolean {
   return normalizar(texto).includes(normalizar(nombre));
 }
 
-async function aplicarPersona(op: Operacion, origen: string, conversacion: string): Promise<string | null> {
+// B3: además del log para consola, el llamador necesita el documento para
+// poder calcular sus huecos y disparar la curiosidad — solo sobre la ficha que
+// de verdad cambió en este turno, nunca sobre una que ya estaba al día.
+interface ResultadoPersona { log: string; persona: IPerson; creado: boolean }
+
+async function aplicarPersona(op: Operacion, origen: string, conversacion: string): Promise<ResultadoPersona | null> {
   const nombre = op.nombre?.trim();
   if (!nombre) return null;
 
@@ -205,10 +210,10 @@ async function aplicarPersona(op: Operacion, origen: string, conversacion: strin
     // así que se avisa: el dato se guardó pero BAKO no lo usará. No se reactiva
     // sola porque desactivarla fue una decisión deliberada desde el panel.
     const oculta = existente.activo ? '' : ' ⚠️ (ficha desactivada: no se usará)';
-    return `👤 Persona actualizada: ${nombre} (${Object.keys(campos).join(', ') || 'notas'})${oculta}`;
+    return { log: `👤 Persona actualizada: ${nombre} (${Object.keys(campos).join(', ') || 'notas'})${oculta}`, persona: existente, creado: false };
   }
 
-  await Person.create({
+  const persona = await Person.create({
     nombre,
     ...campos,
     notas:      op.notas ?? [],
@@ -216,7 +221,91 @@ async function aplicarPersona(op: Operacion, origen: string, conversacion: strin
     fuente:     'conversacion',
     origen,
   });
-  return `👤 Persona creada: ${nombre}`;
+  return { log: `👤 Persona creada: ${nombre}`, persona, creado: true };
+}
+
+// ─── Curiosidad (B3, 17/09/2026) ───────────────────────────────────────────────
+// Decisión del señor: nada de escaneo periódico ni de presupuesto por
+// conversación — BAKO pregunta EN EL MOMENTO en que aprende o completa algo de
+// verdad sobre alguien, "estilo niño aprendiendo": 2-3 preguntas curiosas sobre
+// los huecos de esa ficha en concreto, nunca un formulario de campo en campo.
+
+const CAMPOS_PERSONA: Array<{ campo: string; hueco: (p: IPerson) => boolean; pista: string }> = [
+  { campo: 'relacion',    hueco: p => p.relacion === 'conocido', pista: 'qué relación tiene con el señor (familia, pareja, amistad, trabajo...)' },
+  { campo: 'descripcion', hueco: p => !p.descripcion,            pista: 'quién es o a qué se dedica, en una frase' },
+  { campo: 'ubicacion',   hueco: p => !p.ubicacion,               pista: 'dónde vive' },
+  { campo: 'trabajo',     hueco: p => !p.trabajo,                 pista: 'en qué trabaja' },
+  { campo: 'cumpleaños',  hueco: p => !p.cumpleaños,              pista: 'cuándo es su cumpleaños' },
+];
+
+/** Huecos reales de una ficha: vacíos y que todavía no se han preguntado nunca. */
+function huecosDePersona(p: IPerson): Array<{ campo: string; pista: string }> {
+  return CAMPOS_PERSONA.filter(c => c.hueco(p) && !p.preguntasHechas?.includes(c.campo));
+}
+
+/**
+ * Redacta 2-3 preguntas naturales sobre los huecos de `persona` y las manda
+ * como mensaje aparte (no en el turno en curso, para no añadirle latencia a
+ * cada mensaje) por el mismo canal que ya usan los avisos de los crons —
+ * llega a Telegram y a la cola de `Notification` que consultan PWA/Desktop.
+ * Mismo proveedor que decidió el turno (invariante §3.3): si fue sensible, no
+ * se llama a esta función en absoluto (ver `learnFromConversation`).
+ */
+async function preguntarPorHuecos(persona: IPerson, alaNube: boolean): Promise<void> {
+  if (!persona.activo) return; // ficha desactivada a mano — nadie quiere que BAKO pregunte por ella
+  const huecos = huecosDePersona(persona).slice(0, 3);
+  if (!huecos.length) return;
+
+  const conocido = [
+    persona.relacion !== 'conocido' && `relación: ${persona.relacion}`,
+    persona.descripcion && `descripción: ${persona.descripcion}`,
+    persona.ubicacion && `vive en ${persona.ubicacion}`,
+    persona.trabajo && `trabaja en ${persona.trabajo}`,
+  ].filter(Boolean).join(' · ') || 'nada más todavía';
+
+  const prompt = `Acabas de aprender o actualizar algo sobre "${persona.nombre}". Lo que ya sabes de `
+    + `${persona.nombre}: ${conocido}. Sientes curiosidad genuina por completar el resto — como un niño `
+    + `que acaba de conocer a alguien nuevo y quiere saberlo todo, pero sin agobiar. Escribe UN mensaje `
+    + `breve y cálido para el señor con ${huecos.length} pregunta${huecos.length > 1 ? 's' : ''} sobre: `
+    + `${huecos.map(h => h.pista).join('; ')}. Una sola frase de entrada + las preguntas, nada de listas `
+    + `ni de markdown, trato de "señor".`;
+
+  // `alaNube` es la decisión del TURNO, no de estos datos: si un turno sensible
+  // anterior dejó algo delicado guardado en `descripcion`/`ubicacion`/`trabajo`
+  // de esta misma ficha, ese texto viaja ahora dentro de `conocido` — y aunque
+  // el turno actual no dispare `isSensitive`, el dato sí puede hacerlo. Mismo
+  // criterio que ya aplica `consultar_cerebro` en `agent.ts` (hallazgo de
+  // /code-review 17/09/2026): el contenido manda sobre el turno, nunca al
+  // revés.
+  const local = !alaNube || isSensitive(conocido);
+  try {
+    const texto = await askClaude(prompt, {
+      maxTokens: 200, temperature: 0.7,
+      ...(local ? { private: true } : { useCloud: true }),
+    });
+    const mensaje = texto.trim();
+    // Una generación vacía/degenerada no es una pregunta real: si se marcara
+    // igual como preguntado, el hueco quedaría cerrado para siempre sin que el
+    // señor haya visto nada — hallazgo de /code-review 17/09/2026.
+    if (!mensaje) { console.warn('🧠 Curiosidad: el modelo devolvió una respuesta vacía, se descarta'); return; }
+    // Enviar ANTES de marcar como preguntado: si `sendSystemMessage` falla (bot
+    // caído, Telegram sin responder...), el hueco debe seguir abierto para la
+    // próxima oportunidad — marcarlo antes rompería "no insistir sin haber
+    // preguntado de verdad" (hallazgo de /code-review 17/09/2026).
+    const { sendSystemMessage } = await import('./telegram');
+    await sendSystemMessage(`🧠 ${mensaje}`, mensaje);
+    // `$addToSet`/`updateOne` en vez de reasignar el array en memoria y hacer
+    // `persona.save()`: este documento se cargó antes de la llamada al LLM (que
+    // puede tardar), así que un segundo turno sobre la misma ficha en paralelo
+    // pisaría este guardado y borraría huecos ya marcados — hallazgo de
+    // /code-review 17/09/2026.
+    await Person.updateOne(
+      { _id: persona._id },
+      { $addToSet: { preguntasHechas: { $each: huecos.map(h => h.campo) } } }
+    );
+  } catch (err) {
+    console.warn('🧠 Curiosidad: no se pudo redactar/enviar la pregunta:', (err as Error).message);
+  }
 }
 
 async function aplicarConocimiento(op: Operacion, origen: string): Promise<string | null> {
@@ -366,17 +455,46 @@ export async function learnFromConversation(
 
     const origen       = userMessage.slice(0, 300);
     const conversacion = `${userMessage}\n${assistantResponse}`;
+    // B3: como mucho una ficha de Persona se lleva la curiosidad de este turno
+    // — la creada manda sobre la actualizada ("preguntas encadenadas: nombre
+    // nuevo antes que algo aleatorio" de plan.md), y entre varias creadas, la
+    // primera que proponga el clasificador.
+    // Se guarda el _id, no el documento: si el clasificador propone dos
+    // operaciones sobre la misma persona en el mismo turno (crear + actualizar,
+    // p. ej.), el documento en memoria de la primera queda obsoleto en cuanto la
+    // segunda toca Mongo — hallazgo de /code-review 17/09/2026. Releer justo
+    // antes de preguntar garantiza los huecos reales, sin importar cuántas
+    // operaciones tocaran la ficha durante el bucle.
+    let candidatoId: unknown;
+    let candidatoCreado = false; // para que un segundo "crear" no desplace al primero
     for (const op of ops) {
       try {
-        let resultado: string | null = null;
-        if      (op.caja === 'persona')      resultado = await aplicarPersona(op, origen, conversacion);
-        else if (op.caja === 'conocimiento') resultado = await aplicarConocimiento(op, origen);
-        else if (op.caja === 'recuerdo')     resultado = await aplicarRecuerdo(op, sensible);
-        else if (op.contenido)               resultado = await aplicarRecuerdo(op, sensible); // sin caja → recuerdo
-        if (resultado) console.log(`🧠 ${resultado}`);
+        if (op.caja === 'persona') {
+          const resultado = await aplicarPersona(op, origen, conversacion);
+          if (resultado) {
+            console.log(`🧠 ${resultado.log}`);
+            if (!candidatoId || (resultado.creado && !candidatoCreado)) {
+              candidatoId     = resultado.persona._id;
+              candidatoCreado = resultado.creado;
+            }
+          }
+        } else if (op.caja === 'conocimiento') {
+          const resultado = await aplicarConocimiento(op, origen);
+          if (resultado) console.log(`🧠 ${resultado}`);
+        } else if (op.caja === 'recuerdo' || op.contenido) { // sin caja reconocida → recuerdo
+          const resultado = await aplicarRecuerdo(op, sensible);
+          if (resultado) console.log(`🧠 ${resultado}`);
+        }
       } catch (err) {
         console.warn(`🧠 Clasificador: falló una operación (${op.caja}):`, (err as Error).message);
       }
+    }
+
+    // Nunca sobre un turno sensible: ni la pregunta se redacta ni el mensaje
+    // sale — invariante §3.3, igual que el resto de este clasificador.
+    if (candidatoId && !sensible) {
+      const persona = await Person.findById(candidatoId);
+      if (persona) await preguntarPorHuecos(persona, alaNube);
     }
   } catch (err) {
     console.warn('🧠 Clasificador falló:', (err as Error).message);

@@ -17,6 +17,11 @@ export interface IPerson extends Document {
   orden:       number;            // posición manual en el panel de admin
   fuente:      'manual' | 'conversacion'; // cómo NACIÓ la ficha (no cambia al actualizarla)
   origen:      string;            // frase del último cambio, para poder revisarlo después
+  // B3 (17/09/2026): campos por los que la curiosidad de BAKO ya preguntó una
+  // vez ("relacion", "ubicacion"...) — conteste o no el señor, no se repite.
+  // Sin este registro, un hueco que sigue vacío volvería a preguntarse cada vez
+  // que se toca la ficha, que es justo el interrogatorio que el plan quiere evitar.
+  preguntasHechas: string[];
   createdAt:   Date;
   updatedAt:   Date;
 }
@@ -38,6 +43,7 @@ const PersonSchema = new Schema<IPerson>(
     // metido a mano, y no hay forma de revisar de dónde salió si es erróneo.
     fuente:      { type: String, enum: ['manual','conversacion'], default: 'manual' },
     origen:      { type: String, default: '' },
+    preguntasHechas: [String],
   },
   { timestamps: true }
 );

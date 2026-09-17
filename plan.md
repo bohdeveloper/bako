@@ -347,13 +347,33 @@ Fases, en orden — **todas cerradas el 15/09/2026**:
 Aquí es donde BAKO deja de ser pasivo. El riesgo a evitar es el interrogatorio: una pregunta buena y
 oportuna vale más que diez seguidas.
 
-- [ ] Detectar **huecos**: qué no sabe y debería (una persona mencionada que no está en `Person`, un
-  proyecto sin estado, un dato caducado)
-- [ ] Presupuesto de preguntas — como máximo una por conversación, y solo si aporta
-- [ ] Momento: al cerrar una conversación o en el briefing, nunca interrumpiendo una petición
-- [ ] Registro de lo ya preguntado, incluido lo que Borja **no quiso contestar**, para no insistir
-- [ ] Preguntas encadenadas: si aparece un nombre nuevo, preguntar por esa persona antes que por algo
-  aleatorio
+**Decisión del señor (17/09/2026) que sustituye el planteamiento original de este bloque** (escaneo
+periódico + presupuesto de una pregunta): el disparador no es un cron ni un cierre de conversación,
+es **reactivo** — justo cuando el clasificador de B1 crea o completa de verdad una Persona o un
+Conocimiento, aprovechando que el tema ya está sobre la mesa ("cuando se le corrija o se le dé
+información sobre alguien o algo"). Y no es una pregunta, son **2-3, estilo niño aprendiendo**: BAKO
+se interesa por los huecos de esa ficha concreta, en un único mensaje cálido, no un formulario.
+
+- [x] **B3.1 — Huecos de Persona** (17/09/2026) — `huecosDePersona()` en `brain.ts`: relación aún en
+  "conocido" (el cajón por defecto), o descripción/ubicación/trabajo/cumpleaños vacíos. Un campo
+  preguntado una vez no se vuelve a preguntar nunca (`preguntasHechas` en el propio documento
+  `Person`) — así se cumple "no insistir" sin necesitar un registro de rechazos aparte: si el señor
+  no contesta, el hueco sigue vacío pero BAKO no vuelve a tocarlo
+- [x] **B3.2 — Disparo y prioridad** (17/09/2026) — enganchado al final de `learnFromConversation`,
+  sobre la operación de `persona` más relevante del turno (creada > actualizada con cambio real),
+  nunca más de una ficha por turno — cubre "preguntas encadenadas: nombre nuevo antes que algo
+  aleatorio" sin necesitar cola ni prioridad explícita, porque solo hay un candidato por turno
+- [x] **B3.3 — Redacción y entrega** (17/09/2026) — un LLM redacta 2-3 preguntas naturales sobre los
+  huecos (máx. 3, elegidos por `huecosDePersona`), en el mismo proveedor que decidió el turno
+  (nube/local, invariante §3.3 — se salta entero si el turno fue sensible). Sale por
+  `sendSystemMessage()`, el mismo canal que ya usan los crons: llega a Telegram y a la cola de
+  `Notification` que consultan PWA/Desktop. Es un mensaje aparte, segundos después de la respuesta
+  normal — no se mete en el turno en curso para no añadirle latencia a cada mensaje
+- [ ] **Pendiente, alcance recortado a propósito**: huecos de `KnowledgeEntry` (solo tiene un hueco
+  genérico razonable — `detalles` vacío — demasiado pobre para 2-3 preguntas con sentido; se deja
+  para cuando haga falta de verdad) y el "dato caducado" del planteamiento original (nada estructural
+  que lo señale sin heurísticas frágiles). `Project` queda fuera: desde B2 es un espejo puro de
+  Notion (`projectSync.ts`), Notion ya obliga a tener estado
 
 ### B4 — Conexiones y deducción
 
