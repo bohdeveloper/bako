@@ -493,16 +493,24 @@ export async function askClaude(prompt: string, options: AskClaudeOptions = {}):
 // Conservador: solo marca simple lo que claramente no necesita contexto de Atlas.
 // Todo lo demás va a Groq con prompt completo.
 // NOTA: no usar \b final con vocales acentuadas — en JS \b falla con chars no-ASCII (á,é,í,ó,ú)
+// "Hola Bako" no colaba en los saludos de abajo (el ancla final `$` no dejaba
+// sitio al vocativo): se clasificaba "complex" y usaba el prompt completo para
+// un simple saludo. No es solo una cuestión de presupuesto de prompt —
+// encontrado el 18/09/2026 al comprobar que ese saludo salía como "¿Qué ha
+// querido decir, señor?". Fuera de la función (que se llama en cada mensaje
+// entrante) para no reconstruir las regex en cada llamada.
+const VOCATIVO = '(?:[\\s,]+bako)?';
+const SIMPLE_PATTERNS = [
+  // saludos puros, con o sin el vocativo "Bako" detrás
+  new RegExp(`^(hola|buenas?|buenos\\s+d[íi]as?|buenas?\\s+(tardes?|noches?))${VOCATIVO}[\\s.!?]*$`, 'i'),
+  new RegExp(`^(c[óo]mo\\s+est[áa]s|qu[ée]\\s+tal)${VOCATIVO}[\\s.!?]*$`, 'i'),
+  // tiempo / clima — sin \b final por vocales acentuadas
+  /\b(va\s+a\s+llover|llover[áa]|llueve|la\s+lluvia|(?:el\s+)?tiempo\s+(?:ahora|hoy|esta?\s+tarde?|esta?\s+ma[ñn]ana?|de\s+ma[ñn]ana?)|qu[ée]\s+tiempo|pron[oó]stico|clima|temperatura|hace\s+(?:fr[íi]o|calor|sol|viento))/i,
+  // hora y fecha
+  /\b(qu[ée]\s+hora\s+es|qu[ée]\s+d[íi]a\s+(?:es|estamos?)|la\s+fecha\s+(?:de\s+)?hoy|fecha\s+actual)/i,
+];
+
 export function classifyQueryComplexity(message: string): 'simple' | 'complex' {
   const msg = message.trim();
-  const simple = [
-    // saludos puros
-    /^(hola|buenas?|buenos\s+d[íi]as?|buenas?\s+(tardes?|noches?))[\s.!?]*$/i,
-    /^(c[óo]mo\s+est[áa]s|qu[ée]\s+tal)[\s.!?]*$/i,
-    // tiempo / clima — sin \b final por vocales acentuadas
-    /\b(va\s+a\s+llover|llover[áa]|llueve|la\s+lluvia|(?:el\s+)?tiempo\s+(?:ahora|hoy|esta?\s+tarde?|esta?\s+ma[ñn]ana?|de\s+ma[ñn]ana?)|qu[ée]\s+tiempo|pron[oó]stico|clima|temperatura|hace\s+(?:fr[íi]o|calor|sol|viento))/i,
-    // hora y fecha
-    /\b(qu[ée]\s+hora\s+es|qu[ée]\s+d[íi]a\s+(?:es|estamos?)|la\s+fecha\s+(?:de\s+)?hoy|fecha\s+actual)/i,
-  ];
-  return simple.some(p => p.test(msg)) ? 'simple' : 'complex';
+  return SIMPLE_PATTERNS.some(p => p.test(msg)) ? 'simple' : 'complex';
 }

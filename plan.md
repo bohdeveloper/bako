@@ -374,6 +374,44 @@ se interesa por los huecos de esa ficha concreta, en un único mensaje cálido, 
   para cuando haga falta de verdad) y el "dato caducado" del planteamiento original (nada estructural
   que lo señale sin heurísticas frágiles). `Project` queda fuera: desde B2 es un espejo puro de
   Notion (`projectSync.ts`), Notion ya obliga a tener estado
+- **Verificación en vivo (18/09/2026) — el señor no vio ninguna pregunta de curiosidad sobre Yaimy.**
+  Sin acceso a los logs de Render ni a la BD de producción desde este entorno (el `mongodb+srv://`
+  de Atlas no resuelve aquí — DNS de tipo SRV bloqueado en la sandbox, confirmado con y sin red
+  restringida), no se pudo confirmar la causa exacta. Repasado el código de arriba a abajo sin
+  encontrar un bug de lógica; la hipótesis más plausible es una interacción con el invariante §3.3:
+  si algún campo ya guardado de Yaimy contiene una palabra de `SENSITIVE_PATTERN` (p. ej. "banco"
+  como empleador), CUALQUIER pregunta de curiosidad posterior sobre ella —aunque sea de un hueco
+  no sensible, como el cumpleaños— hereda `local:true` porque `conocido` (el resumen que se le pasa
+  al LLM) incluye ese campo entero; si Ollama no estaba arriba en ese momento, `askClaude` lanza
+  `PrivacyError`, el `catch` de `preguntarPorHuecos` lo traga en silencio y no queda rastro visible
+  para el señor. Es el comportamiento correcto de cara a la privacidad (nunca se manda a la nube),
+  pero deja la función muda sin avisar. Pendiente confirmar con el señor y, si se confirma, decidir
+  si conviene alguna señal (aunque sea solo en logs) quando la curiosidad se descarta por esto
+
+### Correcciones sueltas (18/09/2026)
+
+Encontradas al verificar en vivo lo entregado hasta ahora — no forman parte de ningún bloque del
+cerebro, van aquí por no abrir una sección nueva para dos líneas.
+
+- [x] **"Hola Bako" salía como "¿Qué ha querido decir, señor?"** — dos causas, corregidas las dos.
+  `classifyQueryComplexity()` (`llm/claude.ts`) anclaba el saludo con `$` justo después de la palabra
+  ("hola", "buenas"...), así que cualquier vocativo detrás ("Bako") lo dejaba fuera de "simple" y
+  usaba el prompt completo para un saludo — regex sacadas de la función a constantes de módulo de
+  paso, para no reconstruirlas en cada mensaje. Pero el problema de fondo estaba en el prompt de
+  sistema (`telegram.ts`): la regla de "mensajes ininteligibles" no distinguía un saludo claro de
+  texto incoherente, y el modelo (sobre todo el local) lo metía en ese cajón. Añadida una regla
+  explícita de saludo, antes de la de ininteligibles
+- [ ] **Solo 2 de los 7 avisos automáticos son los que el señor quiere pausar** (briefing y resumen
+  semanal) — comprobado contra `JOB_DEFS` (`memory/AutoConfig.ts`): además existen `alertas` y
+  `pr_review` (L-V 08:30), `perfil` (lunes 09:00) y `techradar` (lunes 09:30), y `notion_sync` (cada
+  6h, sin aviso al señor). No se han tocado — pausar/activar ya existe como comando
+  (`/automaticos` en Telegram, con botones), y este entorno no pudo conectar directamente a Mongo
+  para hacerlo por script (ver nota de abajo), así que queda para que el señor lo haga con el botón
+  o me diga si quiere que insista con otra vía
+- **Límite de este entorno, no del proyecto**: no hay red hacia el `mongodb+srv://` de Atlas desde
+  aquí (resolución DNS de registros SRV bloqueada, probado con y sin sandbox) — cualquier tarea que
+  necesite tocar la base de datos de producción directamente (sin pasar por un endpoint o comando
+  ya expuesto) no se puede hacer desde esta sesión
 
 ### B4 — Conexiones y deducción
 
