@@ -437,7 +437,7 @@ async function runNotionSyncJob(): Promise<void> {
   console.log('⏰ CRON: Sincronización plan.md → Notion');
   try {
     const result = await syncPlanWithNotion();
-    if (result.updated.length > 0) {
+    if (result.updated.length > 0 && await isJobEnabled('notion_sync_aviso')) {
       const list = result.updated.map(u => `• ${u.nombre}`).join('\n');
       const n = result.updated.length;
       await sendSystemMessage(

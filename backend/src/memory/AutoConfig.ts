@@ -25,6 +25,7 @@ export interface JobDef {
   horario:     string;
   descripcion: string;
   icon:        string;
+  ownSchedule: boolean; // false = no tiene cron propio (se comprueba dentro de otra tarea), no editable
 }
 
 export const JOB_DEFS: JobDef[] = [
@@ -34,6 +35,7 @@ export const JOB_DEFS: JobDef[] = [
     horario:     'L-V 05:45',
     descripcion: 'Buenos días con clima, agenda, noticias y GitHub',
     icon:        '🌅',
+    ownSchedule: true,
   },
   {
     key:         'alertas',
@@ -41,6 +43,7 @@ export const JOB_DEFS: JobDef[] = [
     horario:     'L-V 08:30',
     descripcion: 'Repos sin commits, PRs parados, reuniones tempranas',
     icon:        '🔔',
+    ownSchedule: true,
   },
   {
     key:         'pr_review',
@@ -48,6 +51,7 @@ export const JOB_DEFS: JobDef[] = [
     horario:     'L-V 08:30',
     descripcion: 'Revisión de pull requests activos como senior dev',
     icon:        '🔀',
+    ownSchedule: true,
   },
   {
     key:         'perfil',
@@ -55,6 +59,7 @@ export const JOB_DEFS: JobDef[] = [
     horario:     'Lunes 09:00',
     descripcion: 'Avisa si algún campo del perfil lleva 90+ días sin actualizarse',
     icon:        '👤',
+    ownSchedule: true,
   },
   {
     key:         'techradar',
@@ -62,6 +67,7 @@ export const JOB_DEFS: JobDef[] = [
     horario:     'Lunes 09:30',
     descripcion: 'Top 5 novedades tech relevantes para tu stack',
     icon:        '🛰',
+    ownSchedule: true,
   },
   {
     key:         'resumen_semanal',
@@ -69,6 +75,7 @@ export const JOB_DEFS: JobDef[] = [
     horario:     'Viernes 18:00',
     descripcion: 'Resumen de la semana: repos, tareas, próximos eventos',
     icon:        '📊',
+    ownSchedule: true,
   },
   {
     key:         'notion_sync',
@@ -76,6 +83,15 @@ export const JOB_DEFS: JobDef[] = [
     horario:     'Cada 6h',
     descripcion: 'Revisa plan.md en GitHub y marca en Notion las tareas de BAKO ya completadas',
     icon:        '🔁',
+    ownSchedule: true,
+  },
+  {
+    key:         'notion_sync_aviso',
+    nombre:      'Aviso de sincronización',
+    horario:     'Junto a notion_sync',
+    descripcion: 'Aviso (Telegram, push y panel) cuando se marcan tareas — la sincronización sigue activa aunque se pause este aviso',
+    icon:        '💬',
+    ownSchedule: false, // se comprueba dentro de runNotionSyncJob, no tiene cron propio
   },
 ];
 

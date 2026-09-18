@@ -401,17 +401,32 @@ cerebro, van aquí por no abrir una sección nueva para dos líneas.
   sistema (`telegram.ts`): la regla de "mensajes ininteligibles" no distinguía un saludo claro de
   texto incoherente, y el modelo (sobre todo el local) lo metía en ese cajón. Añadida una regla
   explícita de saludo, antes de la de ininteligibles
-- [ ] **Solo 2 de los 7 avisos automáticos son los que el señor quiere pausar** (briefing y resumen
-  semanal) — comprobado contra `JOB_DEFS` (`memory/AutoConfig.ts`): además existen `alertas` y
-  `pr_review` (L-V 08:30), `perfil` (lunes 09:00) y `techradar` (lunes 09:30), y `notion_sync` (cada
-  6h, sin aviso al señor). No se han tocado — pausar/activar ya existe como comando
-  (`/automaticos` en Telegram, con botones), y este entorno no pudo conectar directamente a Mongo
-  para hacerlo por script (ver nota de abajo), así que queda para que el señor lo haga con el botón
-  o me diga si quiere que insista con otra vía
-- **Límite de este entorno, no del proyecto**: no hay red hacia el `mongodb+srv://` de Atlas desde
-  aquí (resolución DNS de registros SRV bloqueada, probado con y sin sandbox) — cualquier tarea que
-  necesite tocar la base de datos de producción directamente (sin pasar por un endpoint o comando
-  ya expuesto) no se puede hacer desde esta sesión
+- [x] **18/09/2026 — Pausados los 7 avisos automáticos, salvo la sincronización en sí de
+  `notion_sync`.** El señor confirmó que quiere los 7 en pausa (no solo briefing y resumen semanal
+  como se había anotado el mismo día), pero que `notion_sync` debe seguir sincronizando plan.md →
+  Notion cuando se avanza en el plan o se sube algo a git — solo su aviso de Telegram debía callarse.
+  Añadida una `JOB_DEF` nueva y independiente `notion_sync_aviso` (`memory/AutoConfig.ts`) que
+  envuelve el `sendSystemMessage` de `runNotionSyncJob` (`services/ProactivityService.ts`) sin tocar
+  el propio `syncPlanWithNotion()`. Aplicado en Mongo de producción: `briefing`, `alertas`,
+  `pr_review`, `perfil`, `techradar`, `resumen_semanal` y `notion_sync_aviso` → `enabled: false`;
+  `notion_sync` sin tocar (sigue activo). Reversible con `/automaticos` en Telegram (los 7 aparecen
+  ahí, incluido el nuevo) o con el panel `/api/autoconfig/jobs`. `/code-review` sobre el diff
+  encontró dos fallos reales, corregidos antes de cerrar: la descripción de `notion_sync_aviso`
+  decía "mensaje de Telegram" pero `sendSystemMessage` también dispara Web Push y la `Notification`
+  del panel — corregida para reflejar que silencia el aviso completo; y el panel admin dejaba editar
+  un horario para `notion_sync_aviso` que no tiene cron propio (vive dentro de `runNotionSyncJob`) sin
+  que hiciera nada — añadido `ownSchedule: boolean` a `JobDef`, la ruta `PATCH .../schedule` rechaza
+  con 400 si el job no lo tiene, y el panel oculta el botón de editar horario en ese caso. Segunda
+  pasada de `/code-review` limpia, `npm run build` sin errores
+- **Límite de la sandbox anterior, no de esta máquina**: la nota de esta mañana decía que no había
+  red hacia el `mongodb+srv://` de Atlas. Confirmado hoy que sí la hay (`nslookup` resuelve el SRV
+  sin problema), pero el resolver DNS de Node (`dns.resolveSrv`, usado internamente por el driver de
+  Mongo para expandir `mongodb+srv://`) da `ECONNREFUSED` igualmente, con o sin sandbox de Bash —
+  parece un bloqueo específico a consultas SRV salientes de Node, no del sistema. Workaround aplicado
+  hoy: resolver los 3 hosts del shard y el `replicaSet` a mano con `nslookup -type=SRV` / `-type=TXT`
+  y construir una URI `mongodb://` directa (sin SRV) con los mismos hosts, en vez de
+  `mongodb+srv://` — funciona igual, mismo cluster, misma auth. Útil para cualquier próximo script
+  que necesite tocar Mongo de producción desde aquí
 
 ### B4 — Conexiones y deducción
 

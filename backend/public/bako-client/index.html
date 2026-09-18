@@ -4088,7 +4088,7 @@
         const { hour, minute, days } = parseCronExpr(job.cron);
         const hPad = String(hour).padStart(2,'0');
         const mPad = String(minute).padStart(2,'0');
-        const schedLabel = formatSchedule(hour, minute, days);
+        const schedLabel = job.cron ? formatSchedule(hour, minute, days) : job.horario;
 
         const wrapper = document.createElement('div');
         wrapper.innerHTML = `
@@ -4119,7 +4119,7 @@
               </div>
             </div>
             <div class="job-actions">
-              <button class="btn-edit-sched" title="Editar horario">🕐</button>
+              ${job.cron ? '<button class="btn-edit-sched" title="Editar horario">🕐</button>' : ''}
               <label class="toggle-switch" title="${job.enabled ? 'Activo' : 'Inactivo'}">
                 <input type="checkbox" data-key="${job.key}"${job.enabled ? ' checked' : ''}>
                 <span class="toggle-slider"></span>
@@ -4130,13 +4130,16 @@
         const jobDiv = wrapper.firstElementChild;
         el.appendChild(jobDiv);
 
-        // Abrir/cerrar editor de horario
-        jobDiv.querySelector('.btn-edit-sched').addEventListener('click', function() {
-          const editor = document.getElementById(`sched-${job.key}`);
-          const isOpen = editor.style.display !== 'none';
-          editor.style.display = isOpen ? 'none' : 'block';
-          this.classList.toggle('active', !isOpen);
-        });
+        // Abrir/cerrar editor de horario (solo si el job tiene cron propio)
+        const editSchedBtn = jobDiv.querySelector('.btn-edit-sched');
+        if (editSchedBtn) {
+          editSchedBtn.addEventListener('click', function() {
+            const editor = document.getElementById(`sched-${job.key}`);
+            const isOpen = editor.style.display !== 'none';
+            editor.style.display = isOpen ? 'none' : 'block';
+            this.classList.toggle('active', !isOpen);
+          });
+        }
 
         // Day pills — toggle activo
         jobDiv.querySelectorAll('.day-pill').forEach(pill => {

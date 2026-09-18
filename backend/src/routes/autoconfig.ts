@@ -28,7 +28,7 @@ router.get('/jobs', async (_req: Request, res: Response) => {
     const jobs = JOB_DEFS.map(j => ({
       ...j,
       enabled: configMap[j.key] !== undefined ? configMap[j.key] : true,
-      cron:    scheduleMap[j.key] ?? DEFAULT_SCHEDULES[j.key],
+      cron:    j.ownSchedule ? (scheduleMap[j.key] ?? DEFAULT_SCHEDULES[j.key]) : undefined,
     }));
     res.json({ jobs });
   } catch (err) {
@@ -56,11 +56,16 @@ router.patch('/jobs/:key/schedule', async (req: Request, res: Response) => {
   const key          = req.params.key as string;
   const { cron: cronExpr } = req.body as { cron: string };
 
-  if (!JOB_DEFS.find(j => j.key === key)) {
+  const job = JOB_DEFS.find(j => j.key === key);
+  if (!job) {
     res.status(404).json({ error: 'Job no encontrado' }); return;
   }
   if (!cronExpr || typeof cronExpr !== 'string') {
     res.status(400).json({ error: 'Falta el campo cron' }); return;
+  }
+  if (!job.ownSchedule) {
+    res.status(400).json({ error: 'Este aviso no tiene cron propio (se comprueba dentro de otra tarea) — su horario no se puede editar' });
+    return;
   }
 
   try {

@@ -250,6 +250,14 @@ No se reabren sin decisión explícita del usuario.
 14. **`\b` está prohibido en las regex de clasificación en español.** En JavaScript no reconoce
     caracteres no ASCII: "¿Lloverá mañana?" se clasificaba como compleja por la `á` final y agotaba
     la cuota de Groq. Usar clases explícitas o lookarounds con acentos.
+15. **Silenciar un aviso no detiene la función que lo genera** (decidido el 18/09/2026). Pausar los 7
+    `JOB_DEFS` de `AutoConfig` frena la tarea entera (útil para briefing/alertas/perfil/etc., que no
+    hacen nada más que avisar). `notion_sync` es distinto: sincroniza plan.md → Notion aunque nadie
+    lo vea, así que su aviso (Telegram + Web Push + `Notification` del panel, las tres cosas que
+    dispara `sendSystemMessage`) se controla con una `JOB_DEF` propia (`notion_sync_aviso`) que
+    envuelve solo esa llamada, nunca el `isJobEnabled('notion_sync')` que guarda la sincronización en
+    sí. Cualquier aviso futuro que vaya pegado a una tarea con efecto propio (no solo informar) debe
+    separar "tarea" de "aviso" del mismo modo.
 
 ---
 
