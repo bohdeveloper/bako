@@ -67,6 +67,15 @@ CHANNELS        = 1
 MAX_DURATION    = 15
 REVIEW_TIMEOUT  = 10
 MIN_REQUEST_GAP = 3
+# Fase 9 — VAD por amplitud para las grabaciones disparadas por wake word: hasta
+# ahora, tras "Bako", la grabación duraba SIEMPRE los MAX_DURATION segundos
+# completos (no había ningún release de botón que la parara), así que el modo
+# manos libres esperaba 15s por cada turno aunque el señor hablara 2. El
+# push-to-talk manual (mantener pulsado el botón/atajo) NO se toca — sigue
+# parando solo al soltar, este auto-stop es exclusivo de la ruta de wake word.
+VAD_SILENCE_RMS      = int(os.getenv('BAKO_VAD_SILENCE_RMS', '300'))
+VAD_SILENCE_DURATION = float(os.getenv('BAKO_VAD_SILENCE_SECS', '1.2'))
+VAD_MIN_SPEECH_TIME  = 0.3  # segundos mínimos de habla antes de permitir el auto-stop
 THEME_FILE      = os.path.join(os.path.expanduser('~'), '.bako_theme')
 TOKEN_FILE      = os.path.join(os.path.expanduser('~'), '.bako_token')
 USER_FILE       = os.path.join(os.path.expanduser('~'), '.bako_user')
@@ -245,8 +254,8 @@ class BakoDesktopApp:
         self.root.minsize(420, 520)
 
         # ── Estado ────────────────────────────────────────────────────────────
-        self.is_recording      = False
-        self.audio_frames      = []
+        self.is_recording       = False
+        self.audio_frames       = []
         self.lock              = threading.Lock()
         self.last_request_time = 0.0
         self.cooldown_until    = 0.0
@@ -1975,13 +1984,23 @@ class BakoDesktopApp:
             return
         if self._cooling_down() or self.is_recording:
             return
+        self._begin_recording(via_wake=False)
+
+    def _begin_recording(self, via_wake: bool):
+        # `via_wake` viaja como argumento explícito de ESTA llamada, no como un
+        # flag de instancia compartido: la primera versión (`self.
+        # _recording_via_wake`) tenía una ventana de carrera real — si una
+        # pulsación manual del botón/atajo llegaba en los 300ms entre "wake
+        # word detectado" y el disparo diferido, esa pulsación manual robaba el
+        # flag y heredaba el auto-stop por silencio, justo lo que el push-to-
+        # talk manual no debe hacer nunca. Hallazgo de /code-review 28/09/2026.
         with self.lock:
             self.is_recording = True
             self.audio_frames = []
         self.root.after(0, lambda: self._mic_btn.config(
             bg='#0d2b0d', text='🔴  Grabando…', fg=self.t['green']))
         self._set_status('🎤 Grabando…', self.t['green'])
-        threading.Thread(target=self._record_loop, daemon=True).start()
+        threading.Thread(target=self._record_loop, args=(via_wake,), daemon=True).start()
 
     def _on_mic_release(self, event=None):
         if not self._is_active:
@@ -1990,12 +2009,25 @@ class BakoDesktopApp:
             self.root.after(0, lambda: self._mic_btn.config(
                 bg=self.t['btn'], text='🎤', fg=self.t['text']))
 
-    def _record_loop(self):
+    def _record_loop(self, via_wake: bool = False):
+        # Fase 9: el push-to-talk manual (botón/atajo) para SOLO al soltar —
+        # no se toca. El auto-stop por silencio es exclusivo de `via_wake`:
+        # antes, tras "Bako", la grabación duraba SIEMPRE los MAX_DURATION
+        # segundos completos porque nada la paraba antes.
+        speech_detected = False
+        last_voice_time = time.time()
+
         def cb(indata, frames, t, status):
+            nonlocal speech_detected, last_voice_time
             with self.lock:
                 if not self.is_recording:
                     raise sd.CallbackAbort
                 self.audio_frames.append(indata.copy())
+            if via_wake:
+                rms = float(np.sqrt(np.mean(indata.astype('float64') ** 2)))
+                if rms >= VAD_SILENCE_RMS:
+                    speech_detected = True
+                    last_voice_time = time.time()
         try:
             with sd.InputStream(samplerate=SAMPLE_RATE, channels=CHANNELS,
                                 dtype='int16', blocksize=1024, callback=cb):
@@ -2004,13 +2036,24 @@ class BakoDesktopApp:
                     with self.lock:
                         if not self.is_recording:
                             break
-                    if time.time() - start >= MAX_DURATION:
+                    now = time.time()
+                    if now - start >= MAX_DURATION:
+                        with self.lock:
+                            self.is_recording = False
+                        break
+                    if (via_wake and speech_detected
+                            and now - start >= VAD_MIN_SPEECH_TIME
+                            and now - last_voice_time >= VAD_SILENCE_DURATION):
                         with self.lock:
                             self.is_recording = False
                         break
                     time.sleep(0.05)
         except Exception:
             pass
+
+        if via_wake:
+            self.root.after(0, lambda: self._mic_btn.config(
+                bg=self.t['btn'], text='🎤', fg=self.t['text']))
 
         frames = self.audio_frames[:]
         if not frames:
@@ -2405,8 +2448,16 @@ class BakoDesktopApp:
         if self.is_recording or self._is_active:
             return
         self._set_status('🔔 Wake word detectado…', self.t.get('accent', '#14b8a6'))
-        # Pequeña pausa antes de grabar para que el usuario empiece a hablar
-        self.root.after(300, self._on_mic_press)
+        # Pequeña pausa antes de grabar para que el usuario empiece a hablar.
+        # `_begin_wake_recording` vuelve a comprobar el estado 300ms después,
+        # por si algo cambió mientras tanto (p. ej. una pulsación manual ya
+        # empezó a grabar) — no reutiliza `_on_mic_press` a propósito.
+        self.root.after(300, self._begin_wake_recording)
+
+    def _begin_wake_recording(self):
+        if self.is_recording or self._is_active:
+            return
+        self._begin_recording(via_wake=True)
 
 
 # ── Punto de entrada ───────────────────────────────────────────────────────────

@@ -27,9 +27,9 @@ cabecera móvil, GPU nueva en marcha). Seguridad cerrada del todo.
 | Fase 6 — Redes sociales | ⛔ Diferida (APIs de pago) |
 | Fase 7 — Panel de administración | ✅ |
 | Fase 7b — Memoria cognitiva (A/B/C/D) | ✅ |
-| Fase 7c — Rate limits de Groq | ⏳ 3 de 4 pasos |
+| Fase 7c — Rate limits de Groq | ⏳ 3 de 4 (4º diferido a propósito, sin evidencia de que haga falta) |
 | Fase 8 — Automatización sin n8n | ✅ |
-| Fase 9 — Wake word y modo conversación | ⏳ PWA escritorio sí; móvil y Desktop pendientes |
+| Fase 9 — Wake word y modo conversación | ✅ Cerrado 28/09/2026 (escritorio, móvil y Desktop) |
 | **Seguridad** — hardening y retirada de secretos | ✅ Historial purgado y credenciales rotadas (30/08/2026) |
 | **Tooling** — Spec-Driven + grafo `codebase-memory-mcp` | ✅ 14/08/2026 |
 | **LLM local** — GPU de 8 GB y Ollama por defecto | ✅ 05/09/2026 |
@@ -642,8 +642,16 @@ en cada consulta. Correcto con 100 registros, insostenible con 10.000.
 
 ### 🟠 P2 · Importante — cerrar Horizonte 1 (mayordomo funcional completo)
 
-- [ ] Verificar en producción la capa de Notion adaptada a "Centro de Mando" (commit `fa05fb4`):
-  crear y cerrar una tarea de prueba desde Telegram y comprobar prioridad P1..P4 y "Fecha objetivo"
+- [x] **Verificada en producción la capa de Notion "Centro de Mando"** (28/09/2026, commit `fa05fb4`).
+  Sin acceso a Telegram desde este entorno para probar el comando real, se verificó la capa que ese
+  comando usa por debajo, contra el Notion de producción de verdad: script
+  `backend/src/scripts/_verify_p2_notion.ts` crea una tarea con prioridad "alta" (se normaliza a
+  `P1 · Crítico`) y "Fecha objetivo" `2026-12-31`, la relee con `findNotionTaskByName` y confirma que
+  ambos campos se guardaron bien, la mueve `Por hacer → En curso → Hecho` con
+  `updateNotionTaskStatus`, y archiva la página de prueba al terminar — sin dejar basura en el Centro
+  de Mando real. Las 5 comprobaciones pasaron a la primera. Sigue pendiente, si el señor quiere el
+  100% del camino (incluida la interpretación del texto de Telegram), mandar él mismo un mensaje real
+  al bot — eso esta sesión no puede probarlo
 - ➡️ ~~Confirmación explícita antes de acciones irreversibles (Gap 2)~~ — **movido a B0**: con
   tool-calling deja de ser un parche, la propia herramienta declara si es destructiva
 - [x] **Voz TTS persistida y elegible desde PWA/Desktop** (30/08/2026) — antes solo se cambiaba con
@@ -713,22 +721,49 @@ en cada consulta. Correcto con 100 registros, insostenible con 10.000.
     de `#volumePopover` que ya no aplicaba
 - ➡️ ~~Perfil dinámico v2 (proyectos y rutina fuera de `profile.ts`, Gap 5)~~ — **movido a B2**, que
   vacía el fichero entero a la BD en vez de campo a campo
-- [ ] **Fase 9 — Desktop, VAD por amplitud** en `_record_loop` (Python) para auto-stop tras silencio;
-  hoy sigue en push-to-talk después de la palabra de activación
-- [ ] **Fase 9 — Móvil, wake word sin clics (WebAudio VAD).** `SpeechRecognition(continuous:true)`
-  provoca un clic del sistema en cada reinicio (~5 s), así que está desactivado por detección de UA
-  1. `getUserMedia` abre el micro una sola vez (un único clic de activación)
-  2. `AudioContext` + `AnalyserNode` monitorizan el volumen sin `SpeechRecognition`
-  3. Al superar el umbral de amplitud, lanzar `SpeechRecognition` una vez para capturar la frase
-  4. Si aparece "bako" → modo conversación; si no → volver a escuchar volumen
-  - Trade-off: falsos positivos en entornos ruidosos. La detección exacta exigiría un modelo ONNX en
-    JS (TensorFlow.js + openwakeword), alta complejidad
-  - Con la pantalla bloqueada es imposible en una PWA (el SO congela el JS): requeriría app nativa
+- [x] **Fase 9 — Desktop, VAD por amplitud** en `_record_loop` (Python), 28/09/2026. Antes, tras el
+  wake word, la grabación duraba SIEMPRE los `MAX_DURATION` (15s) completos — no había ningún release
+  de botón que la parara en la ruta manos libres. Nuevo parámetro `via_wake` (pasado explícito por
+  argumento al hilo, nunca por un flag de instancia compartido — ver hallazgo de `/code-review` más
+  abajo): cuando la grabación la disparó el wake word, `_record_loop` calcula el RMS de cada chunk y
+  para sola tras `BAKO_VAD_SILENCE_SECS` (1,2s por defecto) de silencio sostenido una vez detectada
+  habla real. El push-to-talk manual (botón/atajo) **no se toca** — sigue parando solo al soltar
+  - Hallazgo de `/code-review`: la primera versión guardaba `via_wake` en `self._recording_via_wake`,
+    un flag de instancia con una ventana de carrera real — una pulsación manual del botón/atajo
+    llegando en los 300ms entre "wake word detectado" y el disparo diferido robaba el flag y heredaba
+    el auto-stop, justo lo que el push-to-talk manual no debía hacer nunca. Corregido extrayendo
+    `_begin_recording(via_wake)` y pasando el booleano explícito en cada llamada (`_on_mic_press` con
+    `False`, el disparo diferido del wake word con `True`), sin flag compartido de por medio
+- [x] **Fase 9 — Móvil, wake word sin clics (WebAudio VAD)**, 28/09/2026. `SpeechRecognition(
+  continuous:true)` provocaba un clic del sistema en cada reinicio (~5s) en Chrome Android, así que
+  antes se ocultaba el botón entero por detección de UA. Implementado tal cual lo definía este mismo
+  punto del plan: `getUserMedia` una sola vez (un único permiso) + `AudioContext`/`AnalyserNode`
+  vigilan el volumen sin `SpeechRecognition`; solo al superar `VAD_THRESHOLD` se lanza
+  `SpeechRecognition` una vez para comprobar si lo dicho era "bako" — si no, vuelve a vigilar volumen
+  - Tres hallazgos de `/code-review` corregidos: (1) `onend` solo reanudaba la vigilancia de volumen
+    si `wakeTriggering` seguía a `true`, pero la propia rama "no era bako" ya lo ponía a `false`
+    antes — el wake word móvil se quedaba sordo tras el primer ruido ambiental que no fuera la
+    palabra; unificado en un único `finish()` con guarda `settled` para no reanudar dos veces; (2)
+    desactivar el wake word mientras `captureMobilePhrase` tenía un reconocedor en vuelo podía dejar
+    `inConversation:true` huérfano si ese reconocedor disparaba tarde — `stopMobileWakeWord()` aborta
+    ahora también `wakeRecognizer`; (3) `startMobileWakeWord()` no releía `wakeWordActive` tras los
+    `await` de `getUserMedia`/`AudioContext.resume()` — desactivar el toggle justo durante el permiso
+    dejaba el micrófono escuchando igualmente pese a la UI ya apagada; corregido con una
+    recomprobación tras cada `await`
+  - Trade-off aceptado, documentado desde el planteamiento original: falsos positivos en entornos
+    ruidosos (la detección exacta exigiría un modelo ONNX en JS, alta complejidad), y con la pantalla
+    bloqueada sigue siendo imposible en una PWA (el SO congela el JS) — límite de la plataforma, no de
+    esta implementación
+  - `npm run build` limpio, sintaxis JS y Python verificadas, tres rondas de `/code-review` sin
+    hallazgos pendientes tras las correcciones
 
 ### 🟡 P3 · Deseable — pulido opcional
 
-- [ ] Fase 7c, paso 4 — **cache de respuestas frecuentes** (opcional): briefing y agenda cacheados
-  5 min en MongoDB, ~20 % menos tokens. Implementar solo si vuelven a aparecer 429 en uso normal
+- [ ] Fase 7c, paso 4 — **cache de respuestas frecuentes** (opcional, sin empezar a propósito): briefing
+  y agenda cacheados 5 min en MongoDB, ~20 % menos tokens. Revisado el 28/09/2026 al cerrar los demás
+  cabos sueltos de Horizonte 1: no hay evidencia de 429 recurrentes en uso normal desde el incidente de
+  Groq de abajo, así que sigue sin implementarse — la propia condición de este punto dice hacerlo
+  "solo si vuelven a aparecer", y añadir la caché ahora sería complejidad sin necesidad real
 - [x] **Incidente (30/08/2026): Groq retiró `llama-3.3-70b-versatile`** — descubierto al verificar la
   rotación de credenciales (BAKO respondía 404 `model_not_found` en todo, sin relación con Google/Mongo).
   Groq ya no ofrece ningún modelo Llama; el catálogo actual es `openai/gpt-oss-120b` (elegido, 131k
@@ -737,7 +772,9 @@ en cada consulta. Correcto con 100 registros, insostenible con 10.000.
 - [ ] Revisar periódicamente el catálogo de Groq **y** la cadena de OpenRouter: los modelos gratuitos
   cambian sin aviso y devuelven 404; consultar `GET /openai/v1/models` de Groq y
   `/api/v1/models` de OpenRouter cuando ocurra
-- [ ] Fase 9 — modelo de wake word propio: ~30 grabaciones de "Bako" → ONNX, sustituye a `hey_jarvis`
+- [ ] Fase 9 — modelo de wake word propio: ~30 grabaciones de "Bako" → ONNX, sustituye a `hey_jarvis`.
+  **Bloqueado en el señor**: exige que grabe él mismo las ~30 muestras de voz — no es algo que se
+  pueda resolver sin su participación directa
 - [ ] Widget de chat público en bohdeveloper.com (diferido desde la Fase 7)
 - ➡️ ~~Edición de perfil ampliada en el panel admin~~ — **movido a B2/B6**: con el perfil en la BD,
   editarlo deja de ser una tarea aparte
@@ -751,25 +788,36 @@ en cada consulta. Correcto con 100 registros, insostenible con 10.000.
 
 ---
 
-## Fase 7c — Rate limits de Groq ⏳ (pasos ya cerrados, pendiente en P3 arriba)
+## Fase 7c — Rate limits de Groq ⏳ (3 de 4 pasos — el 4º diferido a propósito, ver P3)
 
 - [x] Paso 1 — routing por complejidad con regex determinista (07/06/2026)
 - [x] Paso 2 — fallback multi-proveedor Groq → OpenRouter → re-throw del 429 (07/06/2026)
 - [x] Paso 3 — prompt siempre compact en los endpoints desktop + captura del 413 (08/06/2026)
+- Paso 4 (cache de respuestas frecuentes) — condicionado a que reaparezcan 429 en uso normal;
+  revisado el 28/09/2026, sin implementar por no haber evidencia de que haga falta
 
-## Fase 9 — Wake word y modo conversación ⏳ (pasos ya cerrados, pendiente en P2/P3 arriba)
+## Fase 9 — Wake word y modo conversación ✅ 28/09/2026 (móvil y Desktop cerrados)
 
 - [x] PWA escritorio — botón 👂, `SpeechRecognition(continuous:true)` detecta "bako", modo
   conversación con VAD nativa del navegador, timeout de 20 s (09/06/2026)
 - [x] Desktop — OpenWakeWord opt-in (`BAKO_WAKE_WORD=1`), modelo `hey_jarvis` como placeholder
   fonético (08/06/2026)
+- [x] Desktop — VAD por amplitud en `_record_loop` para auto-stop tras silencio en grabaciones
+  disparadas por wake word (28/09/2026, detalle en P3 arriba)
+- [x] Móvil — wake word sin clics vía WebAudio VAD (`getUserMedia` + `AnalyserNode`), sin el clic de
+  sistema que provocaba `SpeechRecognition(continuous:true)` en Chrome Android (28/09/2026, detalle
+  en P3 arriba)
+- Pendiente y bloqueado en el señor: modelo de wake word propio para "Bako" (exige sus grabaciones de
+  voz), ver P3
 
 ---
 
-## Horizonte 1 — Cerrar BAKO como asistente completo
+## Horizonte 1 — Cerrar BAKO como asistente completo ✅ 28/09/2026
 
-Lo que queda del horizonte son los pendientes de arriba (7c paso 4, Fase 9 móvil/Desktop, Fase 6
-diferida). Cuando esos se cierren, el horizonte está completo.
+Cerrado. Quedan solo dos puntos deliberadamente diferidos, ninguno bloqueante: 7c paso 4 (caché de
+respuestas, condicionado a que reaparezcan 429 en uso normal) y Fase 6 (redes sociales, bloqueada por
+APIs de pago — invariante de coste $0). El resto (verificación de Notion en producción, wake word
+móvil y Desktop) se cerró el 28/09/2026.
 
 ## Horizonte 2 — BAKO inteligente (~1-2 años)
 

@@ -4398,10 +4398,17 @@
     setTimeout(() => { autoconfFb.textContent = ''; autoconfFb.className = 'admin-feedback'; }, 3000);
   }
 
-  // ── Wake Word + Modo Conversación (Web Speech API — Chrome/Edge, no móvil) ──
-  // Flujo: wake word ("bako") → conversation loop con SpeechRecognition(continuous:false)
-  // El browser detecta el fin de frase automáticamente; al terminar BAKO vuelve a escuchar.
-  // En móvil SpeechRecognition continua genera clics constantes → se oculta el botón.
+  // ── Wake Word + Modo Conversación (Web Speech API — Chrome/Edge) ────────────
+  // Escritorio: wake word ("bako") → conversation loop con
+  // SpeechRecognition(continuous:false); el browser detecta el fin de frase.
+  // Móvil (Fase 9, 28/09/2026): SpeechRecognition(continuous:true) provoca un
+  // clic de sistema en cada reinicio automático (~5s) en Chrome Android —
+  // inaceptable como escucha de fondo. En su lugar, WebAudio VAD: un único
+  // getUserMedia (un solo permiso) + AnalyserNode vigilan el VOLUMEN sin
+  // SpeechRecognition; solo al superar un umbral se lanza SpeechRecognition
+  // UNA VEZ para comprobar si lo dicho era "bako". Con la pantalla bloqueada
+  // sigue siendo imposible (el SO congela el JS de la PWA) — límite conocido,
+  // no de esta implementación.
   (function() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const HAS_SR = !!SpeechRecognition;
@@ -4419,15 +4426,132 @@
 
     const wakeBtn = document.getElementById('btnWakeWord');
 
-    // En móvil el reconocedor continuo no funciona bien — ocultar y salir
-    if (IS_MOBILE && wakeBtn) { wakeBtn.style.display = 'none'; return; }
-
     function updateWakeBtn() {
       if (!wakeBtn) return;
       wakeBtn.classList.toggle('active', wakeWordActive);
       wakeBtn.title = wakeWordActive
         ? 'Wake word activo — di "Bako" (toca para desactivar)'
         : 'Activar wake word — di "Bako"';
+    }
+
+    // ── Móvil (Fase 9): wake word por volumen, sin SpeechRecognition continuo ──
+    let mobileVadStream   = null;
+    let mobileVadCtx      = null;
+    let mobileVadAnalyser = null;
+    let mobileVadRaf      = null;
+    let mobileVadActive   = false;
+    const VAD_THRESHOLD    = 30;   // 0-255 (getByteFrequencyData) — ajustable si hay falsos positivos
+    const VAD_RESUME_DELAY = 1200; // ms de pausa tras una captura fallida antes de volver a vigilar volumen
+
+    function watchVolume() {
+      if (!mobileVadActive || !mobileVadAnalyser) return;
+      const data = new Uint8Array(mobileVadAnalyser.frequencyBinCount);
+      mobileVadAnalyser.getByteFrequencyData(data);
+      const avg = data.reduce((a, b) => a + b, 0) / data.length;
+      if (avg > VAD_THRESHOLD && !inConversation && !wakeTriggering) {
+        captureMobilePhrase();
+        return; // no seguir vigilando mientras se captura la frase
+      }
+      mobileVadRaf = requestAnimationFrame(watchVolume);
+    }
+
+    // Se superó el umbral de volumen: lanza SpeechRecognition UNA VEZ (no
+    // continuo) para comprobar si lo dicho era "bako" — el único momento en
+    // que este modo usa reconocimiento de voz de verdad.
+    function captureMobilePhrase() {
+      wakeTriggering = true;
+      let settled = false; // evita que onerror + onend reanuden el volumen dos veces
+      // `finish()` es el único punto que reanuda la vigilancia de volumen — antes
+      // `onend` solo reanudaba si `wakeTriggering` seguía a true, pero la propia
+      // rama "no era bako" de `onresult` ya lo ponía a false primero, así que el
+      // wake word móvil se quedaba sordo tras el primer ruido ambiental que no
+      // fuera la palabra — hallazgo de /code-review 28/09/2026.
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        wakeTriggering = false;
+        if (mobileVadActive && !inConversation) {
+          setTimeout(() => { mobileVadRaf = requestAnimationFrame(watchVolume); }, VAD_RESUME_DELAY);
+        }
+      };
+
+      const recog = new SpeechRecognition();
+      wakeRecognizer = recog;
+      recog.lang            = 'es-ES';
+      recog.continuous      = false;
+      recog.interimResults  = false;
+      recog.maxAlternatives = 3;
+
+      recog.onresult = (e) => {
+        const last = e.results[e.results.length - 1];
+        const dicho = Array.from(last).some(alt => WAKE_REGEX.test(alt.transcript));
+        if (dicho) {
+          console.log('🔔 Wake word móvil:', last[0].transcript);
+          settled = true; // no reanudar volumen — entramos en conversación
+          wakeTriggering = false;
+          inConversation = true;
+          setStatus('🔔 ¡Bako! Habla ahora…', 'ok');
+          setTimeout(startConversationListen, 300);
+        }
+        // si no coincide, no se toca nada aquí — `onend` llama a `finish()`
+      };
+      recog.onend = finish;
+      recog.onerror = (e) => {
+        if (e.error !== 'no-speech' && e.error !== 'aborted') console.warn('Wake word móvil error:', e.error);
+        finish(); // por si el navegador no dispara `onend` tras un error
+      };
+      try { recog.start(); } catch { finish(); }
+    }
+
+    async function startMobileWakeWord() {
+      if (mobileVadActive) return;
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch {
+        setStatus('⚠️ Sin permiso de micrófono', 'error');
+        wakeWordActive = false;
+        localStorage.setItem('bako_wake_word', '0');
+        updateWakeBtn();
+        return;
+      }
+      // Recomprobar tras cada `await`: si el señor desactivó el wake word
+      // mientras esperábamos el permiso (o el resume del AudioContext), seguir
+      // adelante dejaría el micrófono escuchando indefinidamente pese al
+      // toggle ya apagado en la UI — hallazgo de /code-review 28/09/2026.
+      if (!wakeWordActive) { try { stream.getTracks().forEach(t => t.stop()); } catch {} return; }
+      mobileVadStream = stream;
+      mobileVadCtx = new (window.AudioContext || window.webkitAudioContext)();
+      try { await mobileVadCtx.resume(); } catch {}
+      if (!wakeWordActive) {
+        try { mobileVadStream.getTracks().forEach(t => t.stop()); } catch {}
+        try { mobileVadCtx.close(); } catch {}
+        mobileVadStream = null; mobileVadCtx = null;
+        return;
+      }
+      const source = mobileVadCtx.createMediaStreamSource(mobileVadStream);
+      mobileVadAnalyser = mobileVadCtx.createAnalyser();
+      mobileVadAnalyser.fftSize = 512;
+      source.connect(mobileVadAnalyser);
+      mobileVadActive = true;
+      setStatus('👂 Escuchando "Bako"…', 'ok');
+      watchVolume();
+    }
+
+    function stopMobileWakeWord() {
+      mobileVadActive = false;
+      if (mobileVadRaf) cancelAnimationFrame(mobileVadRaf);
+      mobileVadRaf = null;
+      // Aborta también una captura en vuelo (`captureMobilePhrase`): sin esto,
+      // un `onresult` tardío tras desactivar podía dejar `inConversation:true`
+      // huérfano (nada lo apagaría después) y bloquear el wake word para
+      // siempre hasta recargar la página — hallazgo de /code-review 28/09/2026.
+      try { wakeRecognizer && wakeRecognizer.abort(); } catch {}
+      wakeRecognizer = null;
+      wakeTriggering = false;
+      try { mobileVadStream && mobileVadStream.getTracks().forEach(t => t.stop()); } catch {}
+      try { mobileVadCtx && mobileVadCtx.close(); } catch {}
+      mobileVadStream = null; mobileVadCtx = null; mobileVadAnalyser = null;
     }
 
     // ── Modo conversación ─────────────────────────────────────────────────────
@@ -4437,10 +4561,13 @@
       clearTimeout(convIdleTimer);
       try { convRecognizer && convRecognizer.abort(); } catch {}
       convRecognizer = null;
-      if (wakeWordActive) {
+      if (!wakeWordActive) return;
+      setStatus('👂 Escuchando "Bako"…', 'ok');
+      if (IS_MOBILE) {
+        setTimeout(() => { mobileVadRaf = requestAnimationFrame(watchVolume); }, 500);
+      } else {
         clearTimeout(wakeRestartTimer);
         wakeRestartTimer = setTimeout(startWakeWord, 500);
-        setStatus('👂 Escuchando "Bako"…', 'ok');
       }
     }
 
@@ -4493,10 +4620,14 @@
     window.resumeWakeWord = function() {
       if (!wakeWordActive || !HAS_SR || wakeTriggering) return;
       if (reviewPanel && reviewPanel.classList.contains('visible')) return;
-      clearTimeout(wakeRestartTimer);
       if (inConversation) {
         setTimeout(startConversationListen, 400);
+        return;
+      }
+      if (IS_MOBILE) {
+        if (mobileVadActive) setTimeout(() => { mobileVadRaf = requestAnimationFrame(watchVolume); }, 400);
       } else {
+        clearTimeout(wakeRestartTimer);
         wakeRestartTimer = setTimeout(startWakeWord, 400);
       }
     };
@@ -4554,12 +4685,16 @@
       updateWakeBtn();
       if (wakeWordActive) {
         setStatus('👂 Escuchando "Bako"…', 'ok');
-        startWakeWord();
+        if (IS_MOBILE) startMobileWakeWord(); else startWakeWord();
       } else {
         clearTimeout(wakeRestartTimer);
         clearTimeout(convIdleTimer);
         inConversation = false;
-        try { wakeRecognizer && wakeRecognizer.abort(); } catch {}
+        if (IS_MOBILE) {
+          stopMobileWakeWord();
+        } else {
+          try { wakeRecognizer && wakeRecognizer.abort(); } catch {}
+        }
         try { convRecognizer && convRecognizer.abort(); } catch {}
         wakeRecognizer = null;
         convRecognizer = null;
@@ -4569,12 +4704,15 @@
 
     if (wakeBtn) wakeBtn.addEventListener('click', toggleWakeWord);
 
-    // Restaurar estado persistido
+    // Restaurar estado persistido. En móvil, `getUserMedia` puede fallar sin un
+    // permiso ya concedido — `startMobileWakeWord` lo gestiona solo (revierte
+    // `wakeWordActive` y avisa) si hiciera falta, igual que un fallo de
+    // `SpeechRecognition` en escritorio.
     if (localStorage.getItem('bako_wake_word') === '1' && HAS_SR) {
       wakeWordActive = true;
       updateWakeBtn();
       setStatus('👂 Escuchando "Bako"…', 'ok');
-      setTimeout(startWakeWord, 800);
+      setTimeout(() => { if (IS_MOBILE) startMobileWakeWord(); else startWakeWord(); }, 800);
     }
   })();
 
