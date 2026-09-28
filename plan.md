@@ -33,7 +33,7 @@ cabecera móvil, GPU nueva en marcha). Seguridad cerrada del todo.
 | **Seguridad** — hardening y retirada de secretos | ✅ Historial purgado y credenciales rotadas (30/08/2026) |
 | **Tooling** — Spec-Driven + grafo `codebase-memory-mcp` | ✅ 14/08/2026 |
 | **LLM local** — GPU de 8 GB y Ollama por defecto | ✅ 05/09/2026 |
-| **🧠 El cerebro de BAKO** — de perfil hardcodeado a memoria viva | 🔜 **Prioridad 1**, sin empezar |
+| **🧠 El cerebro de BAKO** — de perfil hardcodeado a memoria viva | ⏳ B0-B4 cerrados (28/09/2026); quedan B5 (recuperación a escala) y B6 (panel) |
 | Horizonte 2 — Multi-agente y fine-tuning | ❌ No empezado (después del cerebro) |
 | Horizonte 3 — Identidad propia (visión, dispositivos, casa) | ❌ No empezado |
 | Horizonte 4 — Presencia física (robótica) | ❌ No empezado en este repo — prerequisito de aprendizaje en marcha, ver nota en Horizonte 4 |
@@ -428,17 +428,66 @@ cerebro, van aquí por no abrir una sección nueva para dos líneas.
   `mongodb+srv://` — funciona igual, mismo cluster, misma auth. Útil para cualquier próximo script
   que necesite tocar Mongo de producción desde aquí
 
-### B4 — Conexiones y deducción
+### B4 — Conexiones y deducción ✅ 28/09/2026
 
-- [ ] Relaciones tipadas entre las piezas: Persona ↔ Proyecto ↔ Conocimiento (hoy `conexiones` es un
-  array de nombres sueltos en `Person`, sin nada al otro lado)
-- [ ] Deducir en vez de repetir: "Yaimy trabaja en LAE, que está en Galicia" + "planean mudarse a
-  Galicia" → la mudanza depende del trabajo de Yaimy. Y poder explicarlo si se le pregunta
-- [ ] Distinguir lo **dicho** de lo **deducido**, con nivel de confianza, y no presentar una
-  deducción como un hecho
-- [ ] Contradicciones: hoy la regla es "usa el más reciente sin mencionar el conflicto". Debería
-  detectarlas y **preguntar** (enlaza con B3)
-- [ ] Caducidad: un dato de hace dos años no vale lo mismo que uno de ayer
+Las cinco fases del bloque, todas cerradas el 28/09/2026:
+
+- [x] **B4.1 — Relaciones tipadas.** Nuevo modelo `Relation` (`memory/Relation.ts`): aristas tipadas
+  entre Persona↔Proyecto↔Conocimiento (`origenTipo/origenId`, `destinoTipo/destinoId`, `relacion` en
+  texto libre breve), con `dicha`/`confianza`/`explicacion` para distinguir un hecho de una deducción
+  desde el propio esquema (B4.3). `Person.conexiones` no se toca — sigue sirviendo para la prosa
+  simple del prompt —, esto es el grafo real que permite consultar y deducir. El clasificador de
+  `brain.ts` (B1) gana una cuarta caja, "relacion", solo para conexiones que el señor dijo de verdad:
+  `resolverEntidad()` resuelve el nombre propuesto contra lo que YA EXISTE (nunca crea una entidad
+  nueva por esta vía) y exige que el nombre aparezca en lo dicho — mismo guardarraíl que ya usaba
+  `aplicarPersona` contra nombres inventados —, salvo para "conocimiento" (se identifica como
+  "categoria/clave", un formato que no se dice así en una frase hablada; se exige en su lugar que una
+  palabra real de la clave aparezca en el texto)
+- [x] **B4.2 — Deducción.** `deducirConexiones()`: tras aplicar lo DICHO del turno, mira el vecindario
+  de 1 salto de la persona tocada (mismo alcance acotado que la curiosidad de B3, a propósito) y le
+  pregunta al LLM si hay algo razonable que deducir que no conste ya. Guardarraíles: nunca inventa una
+  entidad nueva (mismo `resolverEntidad`, sin exigir mención literal — una deducción por definición
+  conecta cosas no dichas juntas, pero deben existir ya) y cualquier propuesta por debajo de confianza
+  0,5 se descarta como ruido
+- [x] **B4.3 — Distinguir lo dicho de lo deducido.** `consultarCerebro()` presenta las relaciones
+  DICHAS como hecho ("RELACIÓN: X — trabaja en — Y") y las DEDUCIDAS con etiqueta de confianza
+  (alta/media/baja) y la explicación de por qué se dedujo, nunca igualadas. `redactarRespuestaLectura`
+  (agent.ts) recibe la instrucción explícita de transmitir una "POSIBLE CONEXIÓN" como deducción propia
+  ("podría ser que...") y no como hecho comprobado, para que la redacción final no borre la distinción
+  que ya trae el dato crudo. Invariante nuevo en `spec.md` §3.16
+- [x] **B4.4 — Contradicciones.** `aplicarPersona`/`aplicarConocimiento` detectan cuándo un campo
+  factual (relación, ubicación, trabajo, cumpleaños; o el valor de un Conocimiento) cambia de un valor
+  real a otro distinto — no de vacío a lleno, eso sigue siendo un hueco de B3. El valor nuevo se sigue
+  aplicando (no se bloquea nada), pero ahora se pregunta en vez de callarlo: un único mensaje por turno
+  (`preguntarPorContradiccion`), con prioridad sobre la curiosidad de B3 si las dos aplican a la vez —
+  nunca las dos preguntas en el mismo turno
+- [x] **B4.5 — Caducidad.** `antiguedadAviso()`: cualquier dato con más de un año o más de dos años sin
+  confirmarse (por `updatedAt`) lleva un aviso al presentarse desde `consultarCerebro`. Reconfirmar una
+  relación ya dicha en una conversación posterior refresca `updatedAt` sin generar ruido en el log —
+  mencionar algo de nuevo "limpia" el aviso de caducidad de forma natural
+- **Cascada de olvido**: `olvidarPersona`/`olvidarConocimiento` (B2.5) ahora desactivan también las
+  relaciones que mencionan a la entidad olvidada (`apagarRelacionesDe`) — hallazgo de `/code-review`:
+  sin esto, una persona "olvidada" seguía resurgiendo por la puerta de atrás del grafo de relaciones
+- Alcance recortado a propósito, igual que B3: la deducción solo corre sobre la persona candidata del
+  turno (mismo criterio de "una ficha por turno" que ya usa la curiosidad), no sobre cada entidad
+  tocada — se amplía si hace falta de verdad
+- Riesgo aceptado y no resuelto: sin índice único en `Relation`, dos turnos casi simultáneos sobre la
+  misma conexión podrían crear una fila duplicada antes de que termine el primer guardado — condición
+  de carrera de baja probabilidad en un asistente de un único usuario, documentada aquí en vez de
+  añadir upsert atómico por ahora
+- Cuatro rondas de `/code-review` corrigieron: el paso de deducción no comprobaba la sensibilidad del
+  propio vecindario de relaciones recuperado (solo la del turno, invariante §3.3); el valor por
+  defecto "conocido" de `Person.relacion` se marcaba como contradicción al completarse (debía tratarse
+  como hueco de B3, no como hecho previo); el guardarraíl de mención se saltaba del todo para
+  relaciones DICHAS hacia "conocimiento" (podían fijarse como hecho con confianza 1 sin que el señor
+  las mencionara); el filtro "ya es un hecho dicho" de la deducción no comprobaba la etiqueta de
+  relación, así que una relación dicha entre dos entidades bloqueaba TODAS las deducciones futuras
+  sobre ese mismo par; las operaciones "relacion" podían procesarse antes que la persona que crean en
+  el mismo turno (resuelto con dos pasadas: primero persona/conocimiento/recuerdo, luego relacion);
+  una deducción podía pisar en silencio una Relation curada a mano (`fuente:'manual'`) si el panel
+  llega a permitirlo en el futuro; y tres copias sueltas de la misma búsqueda de Persona por
+  nombre/alias se unificaron en `personasPorNombre()`. `/security-review` sin hallazgos, `npm run
+  build` limpio
 
 ### B5 — Recuperación a escala
 

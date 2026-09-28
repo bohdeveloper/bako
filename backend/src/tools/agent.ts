@@ -57,7 +57,9 @@ async function redactarRespuestaLectura(pregunta: string, datosCrudos: string, o
   const prompt = `El señor preguntó: "${pregunta}"\n\n`
     + `Esto es lo que consta tal cual en tu memoria (puede estar vacío o decir que no hay nada):\n${datosCrudos}\n\n`
     + `Respóndele como mayordomo, en un párrafo breve y natural, usando SOLO estos datos — no inventes ni añadas `
-    + `nada que no esté aquí. Si no hay nada relevante, dilo con naturalidad, sin recitar el aviso de arriba.`;
+    + `nada que no esté aquí. Si algo aparece como "POSIBLE CONEXIÓN" o "no confirmada", transmítelo como una `
+    + `deducción tuya (p. ej. "podría ser que...", "no lo confirmaste, pero..."), nunca como un hecho comprobado. `
+    + `Si no hay nada relevante, dilo con naturalidad, sin recitar el aviso de arriba.`;
   try {
     return await askClaude(prompt, {
       systemPrompt: REDACCION_SYSTEM_PROMPT,
@@ -236,7 +238,7 @@ const TOOLS: ToolDef[] = [
   },
   {
     name:        'consultar_cerebro',
-    description: 'Consulta lo que BAKO tiene guardado sobre una persona, un tema o un asunto concreto (personas, conocimiento personal y recuerdos). Úsala cuando el señor pregunte "¿qué sabes de X?" o cuando necesites datos sobre alguien que no aparezcan ya en el contexto.',
+    description: 'Consulta lo que BAKO tiene guardado sobre una persona, un tema o un asunto concreto (personas, conocimiento personal, recuerdos y sus conexiones con otras personas o proyectos, dichas o deducidas). Úsala cuando el señor pregunte "¿qué sabes de X?" o cuando necesites datos sobre alguien que no aparezcan ya en el contexto.',
     label:       'consultar lo que sé sobre eso',
     parameters: {
       type: 'object',

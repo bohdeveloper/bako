@@ -258,6 +258,14 @@ No se reabren sin decisión explícita del usuario.
     envuelve solo esa llamada, nunca el `isJobEnabled('notion_sync')` que guarda la sincronización en
     sí. Cualquier aviso futuro que vaya pegado a una tarea con efecto propio (no solo informar) debe
     separar "tarea" de "aviso" del mismo modo.
+16. **Una deducción nunca se presenta como un hecho confirmado** (decidido el 28/09/2026, B4). El
+    grafo de relaciones (`memory/Relation.ts`) distingue `dicha` (el señor lo dijo, confianza fija en
+    1) de deducida por BAKO (`confianza` 0-1 + `explicacion` de por qué). Tanto la consulta cruda
+    (`consultarCerebro`) como la redacción final de mayordomo (`redactarRespuestaLectura`) deben
+    conservar esa distinción — una "POSIBLE CONEXIÓN" se transmite con matiz ("podría ser que...", con
+    su nivel de confianza), nunca igualada a algo dicho explícitamente. El mismo criterio de §3.3
+    aplica al propio paso de deducción: si el vecindario de relaciones ya guardadas de una entidad es
+    sensible, se fuerza a local aunque el turno en curso no lo pareciera.
 
 ---
 

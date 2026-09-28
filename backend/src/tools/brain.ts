@@ -20,7 +20,9 @@
  */
 
 import { Person, IPerson } from '../memory/Person';
+import { Project } from '../memory/Project';
 import { KnowledgeEntry, KnowledgeCategory } from '../memory/KnowledgeEntry';
+import { Relation, RelationEntityType, confianzaLabel } from '../memory/Relation';
 import { askClaude } from '../llm/claude';
 import { deduplicateAndSave, searchMemories } from './memory';
 import { isSensitive } from './privacy';
@@ -74,6 +76,11 @@ CAJAS:
   verdad no encaja en ninguna (un habito o entrenamiento es "rutina", una meta es "objetivos").
 - "recuerdo": lo que no encaje en las dos anteriores — observaciones, estados de ánimo, decisiones
   puntuales, bloqueos en proyectos.
+- "relacion": una conexión explícita y REAL entre dos piezas del cerebro — el señor la dijo, no la
+  inventes. Persona-persona, persona-proyecto o persona-conocimiento. Campos: origenTipo y
+  destinoTipo (persona|proyecto|conocimiento), origenNombre y destinoNombre (para "conocimiento" usa
+  "categoria/clave"), y relacion con una etiqueta breve ("trabaja en", "es pareja de", "vive con",
+  "depende de"...).
 
 YA EXISTEN estas personas: ${snap.personas.length ? snap.personas.join(', ') : '(ninguna)'}
 YA EXISTE este conocimiento (categoria/clave): ${snap.claves.length ? snap.claves.join(', ') : '(ninguno)'}
@@ -93,7 +100,8 @@ Responde ÚNICAMENTE con un array JSON, sin texto alrededor:
 [
   {"caja":"persona","accion":"crear|actualizar","nombre":"...","relacion":"...","ubicacion":"...","trabajo":"","descripcion":"","cumpleaños":"","notas":[],"conexiones":[]},
   {"caja":"conocimiento","accion":"crear|actualizar","categoria":"...","clave":"...","valor":"...","detalles":[],"importancia":"alta|media|baja"},
-  {"caja":"recuerdo","contenido":"...","tipo":"fact|preference|project_update|decision|feeling","importancia":"high|medium|low","tags":["..."]}
+  {"caja":"recuerdo","contenido":"...","tipo":"fact|preference|project_update|decision|feeling","importancia":"high|medium|low","tags":["..."]},
+  {"caja":"relacion","origenTipo":"persona|proyecto|conocimiento","origenNombre":"...","destinoTipo":"persona|proyecto|conocimiento","destinoNombre":"...","relacion":"..."}
 ]
 Si no hay nada que merezca guardarse, responde exactamente: []`;
 }
@@ -104,6 +112,20 @@ interface Operacion {
   ubicacion?: string; trabajo?: string; notas?: string[]; conexiones?: string[];
   categoria?: string; clave?: string; valor?: string; detalles?: string[]; importancia?: string;
   contenido?: string; tipo?: string; tags?: string[];
+  // B4: caja "relacion" — conexión tipada entre dos entidades del cerebro
+  origenTipo?: string; origenNombre?: string; destinoTipo?: string; destinoNombre?: string;
+  confianza?: number; explicacion?: string; // solo se usan en la propuesta de deducción (deducirConexiones)
+}
+
+// B4.4: un cambio de un valor real a otro distinto (no de vacío a lleno, eso es
+// completar un hueco de B3) es candidato a contradicción — se guarda igualmente
+// el valor nuevo (no se bloquea nada), pero se avisa en vez de callarlo.
+interface Contradiccion {
+  entidadTipo: 'persona' | 'conocimiento';
+  entidadNombre: string;
+  campo: string;
+  anterior: string;
+  nuevo: string;
 }
 
 /**
@@ -141,6 +163,19 @@ function soloConValor(obj: Record<string, any>): Record<string, any> {
  */
 const normalizar = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
+/**
+ * Busca personas cuyo nombre o alg\u00fan alias coincida (sin may\u00fasculas ni
+ * acentos) con `nombre`, dentro del filtro Mongo dado. Centraliza una
+ * comparaci\u00f3n que se repet\u00eda suelta en tres sitios (`aplicarPersona`,
+ * `resolverEntidad`, `olvidarPersona`) \u2014 cada uno con su propio filtro
+ * (`fuente`/`activo`) pero la misma l\u00f3gica de comparaci\u00f3n.
+ */
+async function personasPorNombre(nombre: string, filtro: Record<string, any> = {}): Promise<IPerson[]> {
+  const target = normalizar(nombre);
+  const candidatas = await Person.find(filtro);
+  return candidatas.filter(p => normalizar(p.nombre) === target || p.alias.some(a => normalizar(a) === target));
+}
+
 function nombreApareceEnTexto(nombre: string, texto: string): boolean {
   return normalizar(texto).includes(normalizar(nombre));
 }
@@ -148,7 +183,12 @@ function nombreApareceEnTexto(nombre: string, texto: string): boolean {
 // B3: además del log para consola, el llamador necesita el documento para
 // poder calcular sus huecos y disparar la curiosidad — solo sobre la ficha que
 // de verdad cambió en este turno, nunca sobre una que ya estaba al día.
-interface ResultadoPersona { log: string; persona: IPerson; creado: boolean }
+interface ResultadoPersona { log: string; persona: IPerson; creado: boolean; contradicciones: Contradiccion[] }
+
+// Campos "factuales" de Persona: cambiar de un valor real a otro distinto es
+// sospechoso de contradicción. `descripcion` y `notas` se excluyen a propósito
+// — se acumulan/refinan con el tiempo, sobrescribirlas no es una contradicción.
+const CAMPOS_CONTRADECIBLES_PERSONA = ['relacion', 'ubicacion', 'trabajo', 'cumpleaños'];
 
 async function aplicarPersona(op: Operacion, origen: string, conversacion: string): Promise<ResultadoPersona | null> {
   const nombre = op.nombre?.trim();
@@ -173,11 +213,7 @@ async function aplicarPersona(op: Operacion, origen: string, conversacion: strin
   // clasificador pise una Memory manual (invariante §7), una ficha creada a
   // mano en el panel no se toca desde la conversación — si de verdad coincide
   // el nombre, mejor un duplicado nuevo que una sobrescritura silenciosa.
-  const target    = normalizar(nombre);
-  const candidatas = await Person.find({ fuente: { $ne: 'manual' } });
-  const existente  = candidatas.find(p =>
-    normalizar(p.nombre) === target || p.alias.some(a => normalizar(a) === target)
-  );
+  const existente = (await personasPorNombre(nombre, { fuente: { $ne: 'manual' } }))[0];
 
   const campos = soloConValor({
     relacion:    RELACIONES.includes(String(op.relacion)) ? op.relacion : undefined,
@@ -188,6 +224,21 @@ async function aplicarPersona(op: Operacion, origen: string, conversacion: strin
   });
 
   if (existente) {
+    // B4.4: capturar ANTES de sobrescribir — un valor real que cambia a otro
+    // distinto (no de vacío a lleno) es candidato a contradicción.
+    const contradicciones: Contradiccion[] = [];
+    for (const campo of CAMPOS_CONTRADECIBLES_PERSONA) {
+      const anterior = (existente as any)[campo];
+      const nuevo    = (campos as any)[campo];
+      // "conocido" es el valor por DEFECTO del esquema (nunca se eligió de
+      // verdad): pasar de ahí a algo concreto es completar un hueco de B3, no
+      // una contradicción — `huecosDePersona` ya trata "conocido" como vacío.
+      if (campo === 'relacion' && anterior === 'conocido') continue;
+      if (anterior && nuevo && anterior !== nuevo) {
+        contradicciones.push({ entidadTipo: 'persona', entidadNombre: nombre, campo, anterior: String(anterior), nuevo: String(nuevo) });
+      }
+    }
+
     // Comparar contra el valor ya guardado, no solo mirar si el clasificador
     // mandó el campo: reenviar el mismo dato sin cambios (habitual si Ibon
     // vuelve a salir en una conversación) no debe pisar la trazabilidad del
@@ -210,7 +261,7 @@ async function aplicarPersona(op: Operacion, origen: string, conversacion: strin
     // así que se avisa: el dato se guardó pero BAKO no lo usará. No se reactiva
     // sola porque desactivarla fue una decisión deliberada desde el panel.
     const oculta = existente.activo ? '' : ' ⚠️ (ficha desactivada: no se usará)';
-    return { log: `👤 Persona actualizada: ${nombre} (${Object.keys(campos).join(', ') || 'notas'})${oculta}`, persona: existente, creado: false };
+    return { log: `👤 Persona actualizada: ${nombre} (${Object.keys(campos).join(', ') || 'notas'})${oculta}`, persona: existente, creado: false, contradicciones };
   }
 
   const persona = await Person.create({
@@ -221,7 +272,7 @@ async function aplicarPersona(op: Operacion, origen: string, conversacion: strin
     fuente:     'conversacion',
     origen,
   });
-  return { log: `👤 Persona creada: ${nombre}`, persona, creado: true };
+  return { log: `👤 Persona creada: ${nombre}`, persona, creado: true, contradicciones: [] };
 }
 
 // ─── Curiosidad (B3, 17/09/2026) ───────────────────────────────────────────────
@@ -308,7 +359,7 @@ async function preguntarPorHuecos(persona: IPerson, alaNube: boolean): Promise<v
   }
 }
 
-async function aplicarConocimiento(op: Operacion, origen: string): Promise<string | null> {
+async function aplicarConocimiento(op: Operacion, origen: string): Promise<{ log: string; contradicciones: Contradiccion[] } | null> {
   // snake_case en minúsculas: el prompt ya se lo pide al clasificador, pero sin
   // normalizar aquí una variación de mayúsculas/formato ("Rutina_Diaria" vs
   // "rutina_diaria") no encontraría la entrada existente y crearía un duplicado
@@ -336,6 +387,15 @@ async function aplicarConocimiento(op: Operacion, origen: string): Promise<strin
     const detallesNuevos = (op.detalles ?? []).filter(d => d && !existente.detalles.includes(d));
     const huboCambio = existente.valor !== valor || existente.importancia !== importancia || detallesNuevos.length > 0;
     if (!huboCambio) return null;
+
+    // B4.4: el propio VALOR cambiando de uno real a otro distinto es la señal —
+    // no se bloquea el guardado (se sigue aplicando lo más reciente), pero se
+    // avisa en vez de callarlo, como pide el plan.
+    const contradicciones: Contradiccion[] = [];
+    if (existente.valor && existente.valor !== valor) {
+      contradicciones.push({ entidadTipo: 'conocimiento', entidadNombre: `${categoria}/${clave}`, campo: 'valor', anterior: existente.valor, nuevo: valor });
+    }
+
     existente.valor       = valor;
     existente.importancia = importancia;
     existente.origen      = origen; // de qué frase salió el último cambio
@@ -345,7 +405,7 @@ async function aplicarConocimiento(op: Operacion, origen: string): Promise<strin
     // una decisión deliberada desde el panel), pero sí se avisa de que el dato
     // se guardó y no se va a usar.
     const oculta = existente.activo ? '' : ' ⚠️ (desactivada: no se usará)';
-    return `📚 Conocimiento actualizado: ${categoria}/${clave}${oculta}`;
+    return { log: `📚 Conocimiento actualizado: ${categoria}/${clave}${oculta}`, contradicciones };
   }
 
   await KnowledgeEntry.create({
@@ -355,7 +415,245 @@ async function aplicarConocimiento(op: Operacion, origen: string): Promise<strin
     fuente: 'conversacion',
     origen,
   });
-  return `📚 Conocimiento nuevo: ${categoria}/${clave}`;
+  return { log: `📚 Conocimiento nuevo: ${categoria}/${clave}`, contradicciones: [] };
+}
+
+// ─── B4: relaciones tipadas, deducción y contradicciones ────────────────────
+
+/**
+ * Resuelve un nombre propuesto por el LLM a una entidad que YA EXISTE en la
+ * base (nunca crea nada nuevo por esta vía). `exigirMencion=true` reutiliza el
+ * mismo guardarraíl que `aplicarPersona` contra nombres inventados — para una
+ * relación DICHA por el señor, el nombre debe aparecer en lo que dijo. Para una
+ * deducción (`deducirConexiones`) se relaja: por definición conecta cosas que
+ * no se nombraron juntas en esta frase, pero deben existir igualmente.
+ */
+async function resolverEntidad(
+  tipo: string | undefined,
+  nombre: string | undefined,
+  conversacion: string,
+  exigirMencion: boolean = true,
+): Promise<{ tipo: RelationEntityType; id: any; nombre: string } | null> {
+  const t = String(tipo ?? '').trim();
+  const n = nombre?.trim();
+  if (!n || (t !== 'persona' && t !== 'proyecto' && t !== 'conocimiento')) return null;
+  // Para persona/proyecto el nombre propuesto debe aparecer tal cual en lo
+  // dicho (mismo guardarraíl que `aplicarPersona`). Para "conocimiento" el
+  // identificador es interno ("categoria/clave") y nunca aparece así en una
+  // frase hablada, así que se exige en su lugar más abajo que al menos una
+  // palabra real de la CLAVE aparezca en el texto — sin esto, una relación
+  // "dicha" (confianza 1) podría apuntar a una entrada de conocimiento que el
+  // señor nunca mencionó en este turno.
+  if (exigirMencion && t !== 'conocimiento' && !nombreApareceEnTexto(n, conversacion)) return null;
+
+  if (t === 'persona') {
+    const p = (await personasPorNombre(n, { activo: true }))[0];
+    return p ? { tipo: 'persona', id: p._id, nombre: p.nombre } : null;
+  }
+  if (t === 'proyecto') {
+    const target = normalizar(n);
+    const pr = (await Project.find({ activo: true })).find(x =>
+      normalizar(x.nombre) === target || normalizar(x.slug) === target);
+    return pr ? { tipo: 'proyecto', id: pr._id, nombre: pr.nombre } : null;
+  }
+  // "conocimiento": el nombre llega como "categoria/clave"
+  const [cat, ...resto] = n.split('/');
+  const clave = resto.join('/').trim().toLowerCase().replace(/\s+/g, '_');
+  if (!clave || !CATEGORIAS.includes(cat.trim() as KnowledgeCategory)) return null;
+  if (exigirMencion) {
+    const palabras = clave.split('_').filter(w => w.length > 2);
+    if (!palabras.some(w => nombreApareceEnTexto(w, conversacion))) return null;
+  }
+  const k = await KnowledgeEntry.findOne({ activo: true, categoria: cat.trim() as KnowledgeCategory, clave });
+  return k ? { tipo: 'conocimiento', id: k._id, nombre: `${k.categoria}/${k.clave}` } : null;
+}
+
+/** B4.1 — aplica una relación DICHA explícitamente por el señor. */
+async function aplicarRelacion(op: Operacion, origen: string, conversacion: string): Promise<string | null> {
+  const [a, b] = await Promise.all([
+    resolverEntidad(op.origenTipo, op.origenNombre, conversacion),
+    resolverEntidad(op.destinoTipo, op.destinoNombre, conversacion),
+  ]);
+  const etiqueta = textoLibre(op.relacion, 80);
+  if (!a || !b || !etiqueta) return null;
+  if (a.tipo === b.tipo && String(a.id) === String(b.id)) return null; // no se relaciona consigo misma
+
+  const existente = await Relation.findOne({
+    origenTipo: a.tipo, origenId: a.id, destinoTipo: b.tipo, destinoId: b.id,
+    relacion: new RegExp(`^${escapeRegex(etiqueta)}$`, 'i'), fuente: { $ne: 'manual' },
+  });
+
+  if (existente) {
+    // Reconfirmar una relación ya dicha antes solo refresca `updatedAt` (para
+    // la caducidad de B4.5) sin generar ruido en el log cada vez que se repite.
+    const yaConfirmada = existente.activo && existente.dicha;
+    existente.activo      = true;
+    existente.dicha       = true;
+    existente.confianza   = 1;
+    existente.explicacion = origen;
+    await existente.save();
+    return yaConfirmada ? null : `🔗 Relación confirmada: ${a.nombre} — ${etiqueta} — ${b.nombre}`;
+  }
+
+  await Relation.create({
+    origenTipo: a.tipo, origenId: a.id, origenNombre: a.nombre,
+    destinoTipo: b.tipo, destinoId: b.id, destinoNombre: b.nombre,
+    relacion: etiqueta, dicha: true, confianza: 1, explicacion: origen, fuente: 'conversacion',
+  });
+  return `🔗 Relación nueva: ${a.nombre} — ${etiqueta} — ${b.nombre}`;
+}
+
+/**
+ * B4.2 — deducción. No todo lo relevante se dice explícitamente: mira el
+ * vecindario de 1 salto de la entidad tocada este turno (sus relaciones
+ * activas) y pregunta al LLM si hay algo razonable que deducir. Guardarraíles:
+ * nunca inventa una entidad nueva (`resolverEntidad` solo encuentra lo que ya
+ * existe), y cualquier propuesta por debajo de confianza 0.5 se descarta para
+ * no llenar el cerebro de ruido. Es un extra, nunca crítico — cualquier fallo
+ * se traga en silencio, igual que `preguntarPorHuecos` de B3.
+ */
+async function deducirConexiones(
+  entidad: { tipo: RelationEntityType; id: any; nombre: string },
+  conversacion: string,
+  alaNube: boolean,
+): Promise<void> {
+  try {
+    const relacionesExistentes = await Relation.find({
+      activo: true,
+      $or: [
+        { origenTipo: entidad.tipo, origenId: entidad.id },
+        { destinoTipo: entidad.tipo, destinoId: entidad.id },
+      ],
+    }).limit(20);
+
+    if (!relacionesExistentes.length) return; // sin vecindario, nada que conectar
+
+    const contexto = relacionesExistentes.map(r =>
+      `${r.origenNombre} (${r.origenTipo}) —${r.relacion}→ ${r.destinoNombre} (${r.destinoTipo})`
+      + (r.dicha ? '' : ` [ya es una deducción, confianza ${r.confianza}]`)
+    ).join('\n');
+
+    const prompt = `Conexiones ya conocidas relacionadas con "${entidad.nombre}":\n${contexto}\n\n`
+      + `Última conversación: "${conversacion.slice(0, 500)}"\n\n`
+      + `¿Se puede DEDUCIR razonablemente alguna conexión NUEVA, no dicha explícitamente, que no conste `
+      + `ya arriba? Solo entre cosas que YA EXISTAN — no inventes personas, proyectos ni datos nuevos. Si `
+      + `no hay nada razonable, responde exactamente []. Si hay algo, responde SOLO un array JSON: `
+      + `[{"origenTipo":"persona|proyecto|conocimiento","origenNombre":"...","destinoTipo":"persona|proyecto|conocimiento","destinoNombre":"...","relacion":"...","confianza":0.0,"explicacion":"por qué se deduce, una frase"}]`;
+
+    // `alaNube` es la decisión del TURNO (isSensitive solo mira el mensaje
+    // suelto), pero `contexto` trae relaciones ya guardadas de OTROS turnos —
+    // que pueden ser sensibles aunque este turno no lo parezca. Mismo criterio
+    // que ya aplica `preguntarPorHuecos`/`preguntarPorContradiccion`: el
+    // contenido manda sobre el turno, nunca al revés (invariante §3.3).
+    const local = !alaNube || isSensitive(contexto);
+    let raw: string;
+    try {
+      raw = await askClaude(prompt, {
+        maxTokens: 400, temperature: 0.2,
+        ...(local ? { private: true } : { useCloud: true }),
+      });
+    } catch { return; }
+
+    const match = raw.match(/\[[\s\S]*\]/);
+    if (!match) return;
+    let propuestas: Operacion[];
+    try { propuestas = JSON.parse(match[0]); } catch { return; }
+    if (!Array.isArray(propuestas) || !propuestas.length) return;
+
+    for (const p of propuestas) {
+      const confianza = typeof p.confianza === 'number' ? Math.max(0, Math.min(1, p.confianza)) : 0;
+      if (confianza < 0.5) continue; // ruido por debajo del umbral, se descarta
+
+      const [a, b] = await Promise.all([
+        resolverEntidad(p.origenTipo, p.origenNombre, conversacion, false),
+        resolverEntidad(p.destinoTipo, p.destinoNombre, conversacion, false),
+      ]);
+      const etiqueta    = textoLibre(p.relacion, 80);
+      const explicacion = textoLibre(p.explicacion, 300) ?? '';
+      if (!a || !b || !etiqueta) continue;
+      if (a.tipo === b.tipo && String(a.id) === String(b.id)) continue;
+
+      // Si esta MISMA etiqueta ya consta como HECHO dicho, no tiene sentido
+      // "deducirla" también — pero dos entidades pueden tener varias relaciones
+      // distintas a la vez ("trabaja en" Y "depende de"), así que el filtro por
+      // `relacion` es imprescindible: sin él, cualquier relación dicha ya
+      // existente entre las mismas dos entidades bloquearía TODAS las demás
+      // deducciones sobre ese mismo par, aunque no tuvieran nada que ver.
+      const yaDicha = await Relation.findOne({
+        origenTipo: a.tipo, origenId: a.id, destinoTipo: b.tipo, destinoId: b.id, activo: true, dicha: true,
+        relacion: new RegExp(`^${escapeRegex(etiqueta)}$`, 'i'),
+      });
+      if (yaDicha) continue;
+
+      // `fuente:'manual'` excluida, igual que en `aplicarRelacion` (invariante
+      // §7): si algún día el panel permite curar una Relation a mano, esta
+      // deducción en segundo plano no debe pisarla en silencio.
+      const existente = await Relation.findOne({
+        origenTipo: a.tipo, origenId: a.id, destinoTipo: b.tipo, destinoId: b.id,
+        relacion: new RegExp(`^${escapeRegex(etiqueta)}$`, 'i'), dicha: false, fuente: { $ne: 'manual' },
+      });
+      if (existente) {
+        existente.confianza   = confianza;
+        existente.explicacion = explicacion || existente.explicacion;
+        existente.activo      = true;
+        await existente.save();
+        continue;
+      }
+
+      await Relation.create({
+        origenTipo: a.tipo, origenId: a.id, origenNombre: a.nombre,
+        destinoTipo: b.tipo, destinoId: b.id, destinoNombre: b.nombre,
+        relacion: etiqueta, dicha: false, confianza, explicacion, fuente: 'conversacion',
+      });
+      console.log(`🧠 Deducción: ${a.nombre} —${etiqueta}→ ${b.nombre} (confianza ${confianza})`);
+    }
+  } catch (err) {
+    console.warn('🧠 Deducción: falló el paso de conexiones:', (err as Error).message);
+  }
+}
+
+/**
+ * B4.4 — pregunta por una posible contradicción en vez de callarla. El valor
+ * nuevo ya se guardó (se sigue usando "el más reciente", como antes); esto
+ * solo añade la pregunta que faltaba. Un único mensaje para hasta 3
+ * contradicciones del turno, mismo estilo que `preguntarPorHuecos` de B3.
+ */
+async function preguntarPorContradiccion(contradicciones: Contradiccion[], alaNube: boolean): Promise<void> {
+  const lote = contradicciones.slice(0, 3);
+  if (!lote.length) return;
+
+  const detalle = lote.map(c =>
+    `sobre ${c.entidadNombre}, tenía anotado que ${c.campo} era "${c.anterior}" y ahora parece que es "${c.nuevo}"`
+  ).join('; ');
+
+  const prompt = `Has detectado un posible cambio o contradicción en lo que sabes: ${detalle}. Pregunta al `
+    + `señor, en un único mensaje breve y natural, si es un cambio real (algo que ha pasado) o si hubo un `
+    + `malentendido — sin sonar a interrogatorio, con la curiosidad de quien quiere tener sus notas al día. `
+    + `Trato de "señor". Nada de listas ni markdown.`;
+
+  // Mismo criterio que `preguntarPorHuecos`: el contenido de la propia
+  // contradicción manda sobre la decisión del turno si resulta sensible.
+  const local = !alaNube || isSensitive(detalle);
+  try {
+    const texto = await askClaude(prompt, {
+      maxTokens: 200, temperature: 0.5,
+      ...(local ? { private: true } : { useCloud: true }),
+    });
+    const mensaje = texto.trim();
+    if (!mensaje) { console.warn('🧠 Contradicción: el modelo devolvió una respuesta vacía, se descarta'); return; }
+    const { sendSystemMessage } = await import('./telegram');
+    await sendSystemMessage(`🧠 ${mensaje}`, mensaje);
+  } catch (err) {
+    console.warn('🧠 Contradicción: no se pudo redactar/enviar la pregunta:', (err as Error).message);
+  }
+}
+
+/** B4.5 — caducidad: un dato de hace dos años no vale lo mismo que uno de ayer. */
+function antiguedadAviso(fecha: Date): string {
+  const dias = (Date.now() - new Date(fecha).getTime()) / 86_400_000;
+  if (dias > 730) return ' [dato de hace más de 2 años, podría estar desactualizado]';
+  if (dias > 365) return ' [dato de hace más de un año]';
+  return '';
 }
 
 const TIPOS_RECUERDO = ['fact', 'preference', 'project_update', 'decision', 'feeling'];
@@ -467,12 +765,23 @@ export async function learnFromConversation(
     // operaciones tocaran la ficha durante el bucle.
     let candidatoId: unknown;
     let candidatoCreado = false; // para que un segundo "crear" no desplace al primero
-    for (const op of ops) {
+    const contradiccionesTurno: Contradiccion[] = []; // B4.4
+
+    // Dos pasadas, no una: nada en el prompt garantiza que el clasificador
+    // devuelva "persona" antes que "relacion" en el mismo turno, y
+    // `resolverEntidad` solo encuentra entidades ya guardadas — si "relacion"
+    // se procesara primero, una persona creada EN ESTE MISMO turno aún no
+    // existiría en Mongo y la relación se descartaría en silencio.
+    const opsRelacion = ops.filter(op => op.caja === 'relacion');
+    const opsResto     = ops.filter(op => op.caja !== 'relacion');
+
+    for (const op of opsResto) {
       try {
         if (op.caja === 'persona') {
           const resultado = await aplicarPersona(op, origen, conversacion);
           if (resultado) {
             console.log(`🧠 ${resultado.log}`);
+            contradiccionesTurno.push(...resultado.contradicciones);
             if (!candidatoId || (resultado.creado && !candidatoCreado)) {
               candidatoId     = resultado.persona._id;
               candidatoCreado = resultado.creado;
@@ -480,7 +789,10 @@ export async function learnFromConversation(
           }
         } else if (op.caja === 'conocimiento') {
           const resultado = await aplicarConocimiento(op, origen);
-          if (resultado) console.log(`🧠 ${resultado}`);
+          if (resultado) {
+            console.log(`🧠 ${resultado.log}`);
+            contradiccionesTurno.push(...resultado.contradicciones);
+          }
         } else if (op.caja === 'recuerdo' || op.contenido) { // sin caja reconocida → recuerdo
           const resultado = await aplicarRecuerdo(op, sensible);
           if (resultado) console.log(`🧠 ${resultado}`);
@@ -489,12 +801,33 @@ export async function learnFromConversation(
         console.warn(`🧠 Clasificador: falló una operación (${op.caja}):`, (err as Error).message);
       }
     }
+    for (const op of opsRelacion) { // B4.1 — después de crear/actualizar personas y conocimiento
+      try {
+        const resultado = await aplicarRelacion(op, origen, conversacion);
+        if (resultado) console.log(`🧠 ${resultado}`);
+      } catch (err) {
+        console.warn('🧠 Clasificador: falló una operación (relacion):', (err as Error).message);
+      }
+    }
 
     // Nunca sobre un turno sensible: ni la pregunta se redacta ni el mensaje
     // sale — invariante §3.3, igual que el resto de este clasificador.
-    if (candidatoId && !sensible) {
-      const persona = await Person.findById(candidatoId);
-      if (persona) await preguntarPorHuecos(persona, alaNube);
+    if (!sensible) {
+      // B4.4 tiene prioridad sobre B3: aclarar una posible contradicción importa
+      // más que completar un hueco, y "una pregunta por turno" sigue aplicando
+      // — nunca las dos cosas en el mismo mensaje.
+      if (contradiccionesTurno.length) {
+        await preguntarPorContradiccion(contradiccionesTurno, alaNube);
+      }
+      if (candidatoId) {
+        const persona = await Person.findById(candidatoId);
+        if (persona) {
+          if (!contradiccionesTurno.length) await preguntarPorHuecos(persona, alaNube);
+          // B4.2: deducir sobre la misma persona que ya centra la curiosidad de
+          // este turno — mismo alcance acotado a propósito que B3.
+          await deducirConexiones({ tipo: 'persona', id: persona._id, nombre: persona.nombre }, conversacion, alaNube);
+        }
+      }
     }
   } catch (err) {
     console.warn('🧠 Clasificador falló:', (err as Error).message);
@@ -516,10 +849,12 @@ export async function consultarCerebro(tema: string): Promise<string> {
   // §3.3: si el propio tema es sensible, la búsqueda semántica no puede
   // arriesgarse a embeberlo en Cloudflare si Ollama no responde.
   const privado = isSensitive(t);
-  const [personas, conocimiento, recuerdos] = await Promise.all([
+  const [personas, conocimiento, recuerdos, relaciones] = await Promise.all([
     Person.find({ activo: true, $or: [{ nombre: rx }, { alias: rx }, { descripcion: rx }, { notas: rx }] }).limit(5),
     KnowledgeEntry.find({ activo: true, $or: [{ clave: rx }, { valor: rx }, { detalles: rx }] }).limit(5),
     searchMemories(t, { privado }).then(r => r.slice(0, 5)).catch(() => []),
+    // B4: el grafo tipado, buscado por nombre de cualquiera de los dos extremos.
+    Relation.find({ activo: true, $or: [{ origenNombre: rx }, { destinoNombre: rx }] }).limit(8),
   ]);
 
   const partes: string[] = [];
@@ -533,14 +868,28 @@ export async function consultarCerebro(tema: string): Promise<string> {
       p.cumpleaños && `cumple el ${p.cumpleaños}`,
       p.notas?.length ? p.notas.join('. ') : '',
     ].filter(Boolean);
-    partes.push(`PERSONA ${p.nombre}: ${campos.join(' · ')}`);
+    partes.push(`PERSONA ${p.nombre}: ${campos.join(' · ')}${antiguedadAviso(p.updatedAt)}`);
   }
   for (const k of conocimiento) {
-    partes.push(`CONOCIMIENTO (${k.categoria}/${k.clave}): ${k.valor}${k.detalles?.length ? ' · ' + k.detalles.join('. ') : ''}`);
+    partes.push(`CONOCIMIENTO (${k.categoria}/${k.clave}): ${k.valor}${k.detalles?.length ? ' · ' + k.detalles.join('. ') : ''}${antiguedadAviso(k.updatedAt)}`);
   }
   for (const m of recuerdos) {
     const fecha = new Date(m.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
     partes.push(`RECUERDO (${fecha}): ${m.content}`);
+  }
+  // B4.3: lo dicho se presenta como hecho; lo deducido, siempre con la etiqueta
+  // de confianza y la explicación — nunca igualado a un hecho confirmado.
+  for (const r of relaciones) {
+    const aviso = antiguedadAviso(r.updatedAt);
+    if (r.dicha) {
+      partes.push(`RELACIÓN: ${r.origenNombre} — ${r.relacion} — ${r.destinoNombre}.${aviso}`);
+    } else {
+      partes.push(
+        `POSIBLE CONEXIÓN (deducción de BAKO, no confirmada, confianza ${confianzaLabel(r.confianza)}): `
+        + `${r.origenNombre} podría estar relacionado con ${r.destinoNombre} vía "${r.relacion}"`
+        + `${r.explicacion ? ` — ${r.explicacion}` : ''}.${aviso}`
+      );
+    }
   }
 
   if (!partes.length) return `No tengo nada guardado sobre "${t}", señor.`;
@@ -548,6 +897,19 @@ export async function consultarCerebro(tema: string): Promise<string> {
 }
 
 // ─── Olvidar ─────────────────────────────────────────────────────────────────
+
+/**
+ * B4: "olvidar" una Persona o Conocimiento debe apagar también las relaciones
+ * del grafo que la mencionan — si no, `consultarCerebro` seguiría enseñando
+ * "RELACIÓN: Ibon — trabaja en — X" después de que el señor pidiera olvidar a
+ * Ibon, contradiciendo directamente lo que acaba de pedir.
+ */
+async function apagarRelacionesDe(tipo: RelationEntityType, id: any): Promise<void> {
+  await Relation.updateMany(
+    { activo: true, $or: [{ origenTipo: tipo, origenId: id }, { destinoTipo: tipo, destinoId: id }] },
+    { $set: { activo: false } }
+  );
+}
 
 /**
  * Borrado hablado — B2.5 del plan. A diferencia de crear/actualizar (que corren
@@ -567,10 +929,7 @@ export async function olvidarPersona(nombre: string): Promise<string> {
   const t = nombre.trim();
   if (!t) return 'No sé a quién quiere que olvide, señor.';
 
-  const target = normalizar(t);
-  const candidatas = (await Person.find({ activo: true })).filter(p =>
-    normalizar(p.nombre) === target || p.alias.some(a => normalizar(a) === target)
-  );
+  const candidatas = await personasPorNombre(t, { activo: true });
   if (!candidatas.length) return `No tengo ninguna ficha activa de "${t}", señor.`;
   // Dos personas con el mismo nombre/alias no deberían existir, pero si pasa,
   // desactivar la primera que devuelva Mongo sería jugársela a qué ficha es la
@@ -586,6 +945,7 @@ export async function olvidarPersona(nombre: string): Promise<string> {
 
   existente.activo = false;
   await existente.save();
+  await apagarRelacionesDe('persona', existente._id);
   return `👤 Persona olvidada: ${existente.nombre}. Sigue en la base de datos por si hace falta recuperarla, pero BAKO no la usará.`;
 }
 
@@ -609,5 +969,6 @@ export async function olvidarConocimiento(tema: string): Promise<string> {
 
   existente.activo = false;
   await existente.save();
+  await apagarRelacionesDe('conocimiento', existente._id);
   return `📚 Conocimiento olvidado: ${existente.categoria}/${existente.clave}. Sigue en la base de datos por si hace falta recuperarlo, pero BAKO no lo usará.`;
 }
