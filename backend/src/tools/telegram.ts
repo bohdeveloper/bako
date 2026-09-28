@@ -927,6 +927,8 @@ async function handleCommand(chatId: number, command: string, originalText = '')
       );
     } else if (result.reason === 'invalid_value') {
       await bot.sendMessage(chatId, `⚠️ *${result.label}*: "${value}" no es una fecha válida. Formato: DD/MM/AAAA.`, { parse_mode: 'Markdown' });
+    } else if (result.reason === 'immutable_field') {
+      await bot.sendMessage(chatId, `🔒 *${result.label}* ya está fijado ("${result.prev}") y no cambia — es un dato inmutable.`, { parse_mode: 'Markdown' });
     } else {
       const validKeys = Object.keys(PROFILE_FIELDS).map(k => `\`${k}\``).join(' · ');
       await bot.sendMessage(chatId, `⚠️ Campo no reconocido. Campos disponibles:\n${validKeys}`, { parse_mode: 'Markdown' });
@@ -1447,6 +1449,14 @@ export function startTelegramBot(): void {
           const reply = `⚠️ Esa fecha no me cuadra, señor. Deme el día, mes y año reales de nacimiento.`;
           await bot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
           await sendVoiceReply(chatId, 'Esa fecha no me cuadra, señor. Deme el día, mes y año reales de nacimiento.');
+          return;
+        }
+        // `immutable_field`: se corta aquí a propósito, igual que `invalid_value`
+        // — la misma frase ("en realidad nací el...") también encaja en el
+        // regex de corrección de más abajo, y dejarla seguir duplicaría la
+        // respuesta (el aviso de bloqueo Y "Corregido, señor, recordaré que...").
+        if (result.reason === 'immutable_field') {
+          await bot.sendMessage(chatId, `🔒 ${result.label} ya está fijado y no cambia, señor.`, { parse_mode: 'Markdown' });
           return;
         }
       }

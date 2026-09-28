@@ -242,7 +242,11 @@ No se reabren sin decisión explícita del usuario.
     inventar) — nada que dependa de un hecho concreto sobre Borja. La identidad mínima vive en
     `ProfileOverride` (`tools/profileDynamic.ts`), y `buildDynamicProfileContext()` avisa
     explícitamente cuando no hay nada sembrado ("modo génesis") en vez de dejar huecos que el LLM
-    rellene inventando.
+    rellene inventando. **Los campos `immutable` (nombre, fecha de nacimiento, sexo…) se pueden
+    sembrar una vez pero nunca reescribir** — hasta el 28/09/2026 (B6) esto no se comprobaba en
+    ningún sitio: ni el `/perfil` de Telegram, ni la detección en conversación, ni el nuevo
+    `PATCH /api/profile` del panel lo impedían. `updateProfileField()` es ahora el único punto que
+    lo aplica (motivo `immutable_field`), protegiendo los tres cauces a la vez.
 11. **Personalidad configurable** con `mayordomo clásico` como preset por defecto (sarcasmo 8,
     ironía 8). El tono se adapta solo mediante el estado de ánimo detectado.
 12. **La voz nunca lleva markdown.** `cleanForVoice` limpia todo antes del TTS.

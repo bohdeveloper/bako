@@ -1,6 +1,7 @@
 import { Memory, IMemory } from '../memory/Memory';
 import { askClaude } from '../llm/claude';
-import { generateEmbedding, cosineSimilarity } from './embeddings';
+import { generateEmbedding } from './embeddings';
+import { buscarMemoriasSimilares } from './vectorSearch';
 
 export async function saveMemory(
   content: string,
@@ -28,30 +29,10 @@ export async function saveMemory(
   return saved;
 }
 
-// ── Tier 1: relaciones sociales — SIEMPRE completas (familia, amigos, pareja)
-const SOCIAL_TAGS = [
-  'familia', 'amigos', 'familia-politica', 'pareja',
-  'suegros', 'cuniada', 'cuniado', 'hermana', 'padre', 'madre', 'padres', 'yaimy',
-  'paula', 'julen', 'ibon', 'sofi', 'nati', 'elena', 'oscar', 'osvaldo',
-];
-
-// ── Tier 2: proyectos clave — siempre garantizados
-const PROJECT_TAGS = [
-  'bako', 'diamadmin', 'unyona', 'kefir', 'ai-personal-os', 'matrix-game',
-  'bohdeveloper', 'ingresos-pasivos', 'robotica', 'busqueda-empleo', 'proyectos',
-];
-
-// ── Tier 3: contexto personal (salud, valores, historia, etc.)
-const PERSONAL_TAGS = [
-  'salud', 'gustos', 'historia', 'motivacion', 'valores', 'objetivos',
-  'finanzas', 'caracter', 'rutina', 'entrenamiento', 'lae', 'correccion',
-  'judicial', 'psicologo', 'hobbies', 'suenos', 'miedos', 'transformacion',
-];
-
 export async function getMemories(
   technicalLimit = 2,
-  _personalLimit = 44,  // ignorado — ahora usamos tiers o semántica
-  query?: string,       // 7b-C: si se pasa, usa búsqueda semántica en lugar de tiers
+  _personalLimit = 44,  // ignorado — ahora usamos búsqueda semántica o el fallback genérico
+  query?: string,       // 7b-C: si se pasa, usa búsqueda semántica
   // §3.3: hasta el 16/09/2026 esta función no sabía de privacidad — un turno
   // sensible ("mi nómina de Inetum") con Ollama arriba pero su modelo de
   // embeddings caído se embebía igual vía Cloudflare, porque `generateEmbedding`
@@ -59,69 +40,64 @@ export async function getMemories(
   // Encontrado en /code-review al revisar el gate de voz de Telegram.
   privado = false,
 ): Promise<IMemory[]> {
-  // ── 7b-C: búsqueda semántica cuando hay query y embeddings suficientes ───────
+  // ── 7b-C + B5: búsqueda semántica cuando hay query — Atlas Vector Search con
+  // fallback automático al coseno en memoria (`buscarMemoriasSimilares`) ───────
   if (query) {
     try {
       const { vector, dim } = await generateEmbedding(query, { privado });
-      const candidates = await Memory.find({ embeddingDim: dim }).lean() as any[];
-      if (candidates.length >= 10) {
-        const scored = candidates
-          .map((m: any) => ({ m, score: cosineSimilarity(vector, m.embedding ?? []) }))
-          .filter(s => s.score > 0.15)
-          .sort((a, b) => b.score - a.score);
-        if (scored.length >= 5) {
-          console.log(`🔍 Memoria semántica: top ${Math.min(scored.length, 15)} de ${candidates.length} candidatas (dim=${dim})`);
-          return scored.slice(0, 15).map(s => s.m as IMemory);
-        }
+      const scored = await buscarMemoriasSimilares(vector, dim, { minScore: 0.15, limit: 15 });
+      if (scored.length >= 5) {
+        medirContexto('semántica', scored.map(s => s.m));
+        return scored.map(s => s.m);
       }
-    } catch { /* fallback a tiers si falla el embedding */ }
+    } catch { /* fallback genérico si falla el embedding */ }
   }
 
-  // ── Fallback: sistema de tiers heurístico ────────────────────────────────────
-  // Tier 1 — familia, amigos, pareja: SIEMPRE primeros (top 20)
-  const social = await Memory.find({ tags: { $in: SOCIAL_TAGS } })
-    .sort({ importance: -1, updatedAt: -1 }).limit(20);
+  // ── B5.3: fallback genérico, SIN listas de nombres propios en el código ──────
+  // Hasta el 28/09/2026 este fallback eran tres listas hardcodeadas
+  // (SOCIAL_TAGS/PROJECT_TAGS/PERSONAL_TAGS) con nombres reales de familia y
+  // amigos escritos a mano — exactamente el invariante §0 que B2 ya había
+  // corregido en `profile.ts` ("el conocimiento vive en la BD, nunca en el
+  // código"), sobrevivía aquí sin que nadie lo hubiera notado. Sin tags que
+  // priorizar, la señal honesta que queda es importancia + recencia.
+  //
+  // `importance` es un enum de texto ('high'|'medium'|'low'): un `.sort({
+  // importance: -1 })` directo ordena ALFABÉTICAMENTE ("medium" > "low" >
+  // "high"), dejando lo de importancia alta al final — justo lo contrario de
+  // lo que pide el comentario. Se traduce a un rango numérico en la propia
+  // agregación para ordenar por el valor real.
+  const fallback = await Memory.aggregate([
+    { $addFields: { _rango: {
+      $switch: {
+        branches: [
+          { case: { $eq: ['$importance', 'high'] },   then: 3 },
+          { case: { $eq: ['$importance', 'medium'] }, then: 2 },
+          { case: { $eq: ['$importance', 'low'] },    then: 1 },
+        ],
+        default: 0,
+      },
+    } } },
+    { $sort: { _rango: -1, updatedAt: -1 } },
+    { $limit: technicalLimit + 25 },
+  ]) as unknown as IMemory[];
+  medirContexto('fallback', fallback);
+  return fallback;
+}
 
-  const socialIds = social.map(m => (m as any)._id);
-
-  // Tier 2 — proyectos clave: top 5
-  const projects = await Memory.find({
-    _id:  { $nin: socialIds },
-    tags: { $in: PROJECT_TAGS },
-  }).sort({ importance: -1, updatedAt: -1 }).limit(5);
-
-  const projectIds = projects.map(m => (m as any)._id);
-
-  // Tier 3 — contexto personal: top 3
-  const personal = await Memory.find({
-    _id:  { $nin: [...socialIds, ...projectIds] },
-    tags: { $in: PERSONAL_TAGS },
-  }).sort({ importance: -1, updatedAt: -1 }).limit(3);
-
-  const personalIds = personal.map(m => (m as any)._id);
-
-  // Tier 4 — técnico: según límite
-  const technical = await Memory.find({
-    _id: { $nin: [...socialIds, ...projectIds, ...personalIds] },
-  }).sort({ updatedAt: -1 }).limit(technicalLimit);
-
-  return [...social, ...projects, ...personal, ...technical];
+/** B5.4 — medir cuánto contexto se gasta por respuesta y por qué vía se sirvió. */
+function medirContexto(via: 'semántica' | 'fallback' | 'búsqueda', memories: IMemory[]): void {
+  const chars = memories.reduce((acc, m) => acc + (m.content?.length ?? 0), 0);
+  console.log(`📏 Contexto de memorias (${via}): ${memories.length} items, ${chars} chars`);
 }
 
 export async function searchMemories(query: string, opts?: { privado?: boolean }): Promise<IMemory[]> {
-  // Búsqueda semántica — si hay embeddings disponibles, usarlos
+  // Búsqueda semántica — Atlas Vector Search con fallback al coseno en memoria
   try {
     const { vector, dim } = await generateEmbedding(query, opts);
-    const candidates = await Memory.find({ embeddingDim: dim }).lean() as any[];
-    if (candidates.length >= 3) {
-      const scored = candidates
-        .map((m: any) => ({ m, score: cosineSimilarity(vector, m.embedding ?? []) }))
-        .filter(s => s.score > 0.3)
-        .sort((a, b) => b.score - a.score);
-      if (scored.length >= 3) {
-        console.log(`🔍 Búsqueda semántica: ${scored.length} candidatas (dim=${dim})`);
-        return scored.slice(0, 20).map(s => s.m);
-      }
+    const scored = await buscarMemoriasSimilares(vector, dim, { minScore: 0.3, limit: 20 });
+    if (scored.length >= 3) {
+      medirContexto('búsqueda', scored.map(s => s.m));
+      return scored.map(s => s.m);
     }
   } catch { /* fallback a keywords */ }
 
@@ -200,11 +176,11 @@ export async function deduplicateAndSave(entry: {
   const privado = opts?.privado ?? false;
   try {
     const { vector, dim } = await generateEmbedding(entry.content, { privado });
-    const candidates = await Memory.find({ embeddingDim: dim, source: { $ne: 'manual' } }).lean() as any[];
-    const similar = candidates
-      .map((m: any) => ({ m, score: cosineSimilarity(vector, m.embedding ?? []) }))
-      .filter(s => s.score >= 0.85)
-      .sort((a, b) => b.score - a.score);
+    // `excluirManual` es un filtro NATIVO de Atlas (campo `source` declarado
+    // como `filter` en el índice) — invariante §7: el clasificador nunca pisa
+    // una memoria curada a mano, sin arriesgarse a que el mejor duplicado
+    // no-manual quede fuera de una ventana de resultados pedida "de más".
+    const similar = await buscarMemoriasSimilares(vector, dim, { minScore: 0.85, limit: 5, excluirManual: true });
 
     if (similar.length > 0) {
       const best = similar[0];

@@ -21,6 +21,7 @@
 
 import { Person, IPerson } from '../memory/Person';
 import { Project } from '../memory/Project';
+import { IMemory } from '../memory/Memory';
 import { KnowledgeEntry, KnowledgeCategory } from '../memory/KnowledgeEntry';
 import { Relation, RelationEntityType, confianzaLabel } from '../memory/Relation';
 import { askClaude } from '../llm/claude';
@@ -854,7 +855,11 @@ export async function consultarCerebro(tema: string): Promise<string> {
     KnowledgeEntry.find({ activo: true, $or: [{ clave: rx }, { valor: rx }, { detalles: rx }] }).limit(5),
     searchMemories(t, { privado }).then(r => r.slice(0, 5)).catch(() => []),
     // B4: el grafo tipado, buscado por nombre de cualquiera de los dos extremos.
-    Relation.find({ activo: true, $or: [{ origenNombre: rx }, { destinoNombre: rx }] }).limit(8),
+    // `sort` por `updatedAt` es imprescindible para B5.2 (recuperación híbrida):
+    // sin él, `.slice(0, 3)` de más abajo elegía vecinos en el orden que Mongo
+    // devolviera de forma arbitraria, no los más recientes/reconfirmados.
+    Relation.find({ activo: true, $or: [{ origenNombre: rx }, { destinoNombre: rx }] })
+      .sort({ updatedAt: -1 }).limit(8),
   ]);
 
   const partes: string[] = [];
@@ -873,7 +878,29 @@ export async function consultarCerebro(tema: string): Promise<string> {
   for (const k of conocimiento) {
     partes.push(`CONOCIMIENTO (${k.categoria}/${k.clave}): ${k.valor}${k.detalles?.length ? ' · ' + k.detalles.join('. ') : ''}${antiguedadAviso(k.updatedAt)}`);
   }
-  for (const m of recuerdos) {
+  // B5.2 — recuperación híbrida: los vecinos del grafo amplían la búsqueda más
+  // allá de la similitud pura. Si "Ibon" tiene una relación con "BAKO", una
+  // pregunta sobre Ibon también rastrea memorias sobre "BAKO" — no solo las que
+  // lo mencionan literalmente o le son semánticamente parecidas. Acotado a los
+  // 3 vecinos más recientes y 2 memorias por vecino para no disparar el coste.
+  const vecinos = [...new Set(relaciones.flatMap(r => [r.origenNombre, r.destinoNombre]))]
+    .filter(nombre => normalizar(nombre) !== normalizar(t))
+    .slice(0, 3);
+  const idsVistos = new Set(recuerdos.map((m: any) => String(m._id)));
+  const recuerdosVecinos: IMemory[] = [];
+  if (vecinos.length) {
+    const extra = (await Promise.all(
+      vecinos.map(v => searchMemories(v, { privado }).then(r => r.slice(0, 2)).catch(() => []))
+    )).flat();
+    for (const m of extra) {
+      const id = String((m as any)._id);
+      if (idsVistos.has(id)) continue;
+      idsVistos.add(id);
+      recuerdosVecinos.push(m);
+    }
+  }
+
+  for (const m of [...recuerdos, ...recuerdosVecinos]) {
     const fecha = new Date(m.createdAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
     partes.push(`RECUERDO (${fecha}): ${m.content}`);
   }

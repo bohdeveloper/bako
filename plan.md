@@ -33,7 +33,7 @@ cabecera móvil, GPU nueva en marcha). Seguridad cerrada del todo.
 | **Seguridad** — hardening y retirada de secretos | ✅ Historial purgado y credenciales rotadas (30/08/2026) |
 | **Tooling** — Spec-Driven + grafo `codebase-memory-mcp` | ✅ 14/08/2026 |
 | **LLM local** — GPU de 8 GB y Ollama por defecto | ✅ 05/09/2026 |
-| **🧠 El cerebro de BAKO** — de perfil hardcodeado a memoria viva | ⏳ B0-B4 cerrados (28/09/2026); quedan B5 (recuperación a escala) y B6 (panel) |
+| **🧠 El cerebro de BAKO** — de perfil hardcodeado a memoria viva | ✅ Cerrado (B0-B6, 28/09/2026) |
 | Horizonte 2 — Multi-agente y fine-tuning | ❌ No empezado (después del cerebro) |
 | Horizonte 3 — Identidad propia (visión, dispositivos, casa) | ❌ No empezado |
 | Horizonte 4 — Presencia física (robótica) | ❌ No empezado en este repo — prerequisito de aprendizaje en marcha, ver nota en Horizonte 4 |
@@ -489,32 +489,77 @@ Las cinco fases del bloque, todas cerradas el 28/09/2026:
   nombre/alias se unificaron en `personasPorNombre()`. `/security-review` sin hallazgos, `npm run
   build` limpio
 
-### B5 — Recuperación a escala
+### B5 — Recuperación a escala ✅ 28/09/2026
 
-Hoy la búsqueda semántica **carga todas las memorias de Mongo y calcula el coseno en Node** en cada
-consulta. Correcto con 100 registros, insostenible con 10.000.
+Hasta ahora la búsqueda semántica cargaba todas las memorias de Mongo y calculaba el coseno en Node
+en cada consulta. Correcto con 100 registros, insostenible con 10.000.
 
-- [ ] MongoDB Atlas Vector Search en lugar del coseno en memoria
-- [ ] Recuperación híbrida: vector + recorrido de relaciones (B4), no solo similitud
-- [ ] Retirar las listas de tags hardcodeadas de `tools/memory.ts` (`SOCIAL_TAGS`, `PROJECT_TAGS`,
-  `PERSONAL_TAGS`, con nombres propios escritos a mano) — deuda del sistema de tiers
-- [ ] Medir: cuánto contexto se gasta por respuesta y si lo recuperado era lo relevante
+- [x] **MongoDB Atlas Vector Search** en vez del coseno en memoria. Nuevo módulo
+  `tools/vectorSearch.ts`: dos índices (`memory_vector_768`/`384`, uno por modelo de embedding —
+  `nomic-embed-text` de Ollama y `bge-small-en-v1.5` de Cloudflare) creados de forma idempotente al
+  arrancar (`ensureVectorSearchIndexes`, sin bloquear ni romper el arranque si el cluster no es
+  Atlas). `buscarMemoriasSimilares()` intenta `$vectorSearch` primero y cae al coseno en memoria sin
+  que el llamador lo note — mismo contrato `{m, score}[]` de antes. Disponible en el plan free M0
+  desde 2023, así que no choca con el invariante de coste $0
+- [x] **Recuperación híbrida** (B5.2): `consultarCerebro` usa los vecinos del grafo de B4 para ampliar
+  la búsqueda de memorias más allá de la similitud pura — si "Ibon" tiene una relación con "BAKO", una
+  pregunta sobre Ibon también rastrea memorias sobre "BAKO", no solo las que lo mencionan
+  literalmente. Acotado a 3 vecinos más recientes (por `updatedAt`) y 2 memorias por vecino
+- [x] **Retiradas las listas de tags hardcodeadas** de `tools/memory.ts` (`SOCIAL_TAGS`,
+  `PROJECT_TAGS`, `PERSONAL_TAGS`) — tenían nombres reales de familia y amigos escritos a mano en un
+  repo público, exactamente el invariante §0 que B2 ya había corregido en `profile.ts`, sobrevivía
+  aquí sin que nadie lo hubiera notado. Encontrada y corregida también su copia gemela en el propio
+  panel (`index.html`, usada solo para un badge visual de "tier") — sustituida por clasificación
+  según `Memory.type` (fact/preference/…), un campo propio de cada memoria, sin nombres
+- [x] **Medir contexto** (B5.4): `medirContexto()` deja constancia en el log de cuántos ítems y
+  caracteres se sirven en cada llamada a `getMemories`/`searchMemories`, y por qué vía (semántica,
+  búsqueda o el fallback genérico)
+- Fallback genérico sin tags: cuando la semántica no tiene suficientes candidatas, se sirve lo más
+  importante y reciente sin favoritismos de nombre — riesgo aceptado y documentado: ya no garantiza
+  que algo sobre familia/amigos sobreviva siempre al recorte si su `importance` es `medium` (el
+  defecto) y hay memorias técnicas más recientes; la continuidad de esos datos vive ahora en `Person`
+  (B1), no en `Memory` suelta
+- Cinco rondas de `/code-review` corrigieron: `getMemories` ordenaba `importance` como texto
+  (alfabético: "medium" > "low" > "high", justo al revés de lo que pedía el comentario) — se traduce a
+  rango numérico en la propia agregación; 0 resultados de Atlas se trataban como "índice sin
+  poblar" y caían al escaneo completo cada vez incluso a escala, derrotando el propósito de la
+  migración — ahora se cachea `queryable` una vez confirmado; `deduplicateAndSave` pedía de más y
+  filtraba `source:'manual'` después en vez de con el filtro nativo de Atlas (arriesgando perder el
+  mejor duplicado no-manual); el operador `$ne` en el prefiltro de `$vectorSearch` se cambió a `$eq`
+  por seguridad de compatibilidad; la consulta de relaciones para vecinos no tenía `sort`, así que
+  "los 3 vecinos más recientes" no lo eran; y el score normalizado de Atlas ((1+coseno)/2, rango
+  [0,1]) se comparaba directamente contra umbrales pensados en coseno crudo ([-1,1]) — el criterio de
+  "es un duplicado" cambiaba según si Atlas estaba listo o no. `/security-review` sin hallazgos
 
-### B6 — El panel como ventana al cerebro
+### B6 — El panel como ventana al cerebro ✅ 28/09/2026
 
-La reorganización va **después de B2**, cuando la forma del cerebro ya sea la definitiva, para no
-maquetar dos veces. Lo que sí se puede hacer desde ya es la limpieza.
-
-- [ ] **Limpieza inmediata** (no depende de nada): quitar "Limpiar memorias importadas" (su trabajo
-  de limpieza puntual ya se hizo en 7b-A) y "Migrar memoria" (migración inicial, cara de reejecutar y
-  sustituida por el clasificador de B1); dejar un solo botón de deduplicación
-- [ ] Reorganizar en pestañas que sigan el cerebro: `Perfil` · `Personas` · `Proyectos` ·
-  `Conocimiento` · `Recuerdos` · `Sistema` (avisos, push, mantenimiento) · `Usuarios`
-- [ ] Hoy la pestaña **Usuarios es un cajón de sastre**: usuarios, mantenimiento de memoria, avisos
-  automáticos, Web Push y cerrar sesión, todo junto
-- [ ] Falta una pestaña de **Perfil**: lo más denso del cerebro (`profile.ts`) no se puede ver ni
-  editar desde ningún sitio
-- [ ] Ver conexiones y deducciones (B4), y de dónde salió cada dato (B1)
+- [x] **Limpieza inmediata**: quitado el botón "Limpiar memorias importadas" y su endpoint
+  (`clean-manual-memories`, ya sin ningún llamador — su trabajo puntual ya se hizo en 7b-A);
+  "Previsualizar deduplicación" y "Deduplicar memoria" se fusionaron en un solo botón que analiza
+  primero y solo pide confirmar si de verdad hay algo que borrar ("Migrar memoria" ya se había
+  quitado en B2.3)
+- [x] **Pestañas reorganizadas** siguiendo el cerebro: `Perfil` · `Personas` · `Proyectos` ·
+  `Conocimiento` · `Recuerdos` (antes "Memorias") · `Sistema` · `Usuarios`. `Sistema` agrupa lo que
+  antes eran botones sueltos en Usuarios (avisos automáticos, estado Web Push, mantenimiento —
+  deduplicar, generar embeddings); `Usuarios` queda solo con gestión de usuarios y cerrar sesión
+- [x] **Pestaña Perfil nueva**: dos endpoints (`routes/profile.ts`, `routes/relations.ts`) para que el
+  panel pueda leer y editar los campos de identidad mínima de B2.2 (antes solo accesibles por
+  `/perfil` en Telegram) y consultar el grafo de B4. Hallazgo de `/code-review`: nada impedía
+  reescribir un campo `immutable` (nombre, fecha de nacimiento, sexo) una vez sembrado — ni por aquí,
+  ni por el `/perfil` de Telegram, ni por la detección en conversación — corregido en el propio
+  `updateProfileField` (protege los tres cauces a la vez) con un motivo `immutable_field` nuevo y
+  mensajes propios en cada uno. Segundo hallazgo: `PROFILE_FIELDS[key]` sin `hasOwnProperty` dejaba
+  que una clave `__proto__` resolviera a `Object.prototype` y reventara con un 500 en vez del 400
+  limpio de cualquier otra clave inválida — corregido
+- [x] **Conexiones y procedencia visibles**: las tarjetas de Personas/Proyectos/Conocimiento muestran
+  ahora sus relaciones del grafo de B4 (verde y sólido si están dichas, violeta y discontinuo con
+  porcentaje de confianza si son deducidas de BAKO) y, cuando la ficha se aprendió hablando, la frase
+  de origen (B1) — antes esa trazabilidad solo existía en la base de datos, invisible desde el panel
+- Riesgo aceptado y documentado: sin índice único en `Relation` (ya anotado en B4), y el grafo de
+  relaciones se cachea una vez por apertura del panel en vez de por cada cambio de pestaña — aceptable
+  a la escala de un único usuario
+- Cuatro rondas de `/code-review` sin hallazgos pendientes tras corregir lo de arriba. `npm run build`
+  limpio, JS del panel verificado sin errores de sintaxis. `/security-review` sin hallazgos
 
 ---
 

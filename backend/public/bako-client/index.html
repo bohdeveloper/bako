@@ -657,11 +657,12 @@
     .mem-badge.high   { background: rgba(239,68,68,0.2);   color: #f87171; }
     .mem-badge.medium { background: rgba(245,158,11,0.2);  color: #fbbf24; }
     .mem-badge.low    { background: rgba(107,114,128,0.2); color: #9ca3af; }
-    .mem-badge.social  { background: rgba(74,158,255,0.2); color: #4a9eff; }
-    .mem-badge.project { background: rgba(245,158,11,0.2); color: #f59e0b; }
-    .mem-badge.personal{ background: rgba(16,185,129,0.2); color: #10b981; }
-    .mem-badge.tech    { background: rgba(139,92,246,0.2); color: #a78bfa; }
     .mem-badge.tag     { background: var(--bg2); color: var(--dim); font-weight: 400; }
+    .mem-badge.fact           { background: rgba(74,158,255,0.2);  color: #4a9eff; }
+    .mem-badge.preference     { background: rgba(239,68,68,0.2);   color: #ef4444; }
+    .mem-badge.project_update { background: rgba(245,158,11,0.2);  color: #f59e0b; }
+    .mem-badge.decision       { background: rgba(16,185,129,0.2);  color: #10b981; }
+    .mem-badge.feeling        { background: rgba(139,92,246,0.2);  color: #a78bfa; }
     .mem-edit-form { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
     .mem-edit-textarea {
       background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
@@ -719,6 +720,11 @@
       font-size: 11px; padding: 2px 8px; border-radius: 10px;
       background: var(--bg2); border: 1px solid var(--border); color: var(--dim);
     }
+    /* B6: grafo de B4 — distingue lo DICHO (hecho) de lo DEDUCIDO por BAKO */
+    .person-relations { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 5px; }
+    .rel-dicha    { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.3); color: #10b981; }
+    .rel-deducida { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(167,139,250,0.12); border: 1px dashed rgba(167,139,250,0.4); color: #a78bfa; }
+    .person-caption { font-size: 11px; color: var(--dim); margin-top: 4px; }
     .rel-badge {
       display: inline-block; font-size: 10px; padding: 2px 7px;
       border-radius: 8px; font-weight: 600; margin-left: 6px;
@@ -1060,18 +1066,45 @@
     <div style="width:28px"></div>
   </div>
 
-  <!-- Tabs -->
+  <!-- Tabs — B6: reorganizadas para seguir el cerebro (Perfil→Personas→Proyectos→
+       Conocimiento→Recuerdos), con Sistema y Usuarios al final -->
   <div class="admin-tabs">
-    <button class="admin-tab-btn active" id="tabBtnUsers"    data-tab="tabUsers">Usuarios</button>
+    <button class="admin-tab-btn active" id="tabBtnProfile"  data-tab="tabProfile">Perfil</button>
     <button class="admin-tab-btn"        id="tabBtnPeople"   data-tab="tabPeople">Personas</button>
     <button class="admin-tab-btn"        id="tabBtnProjects" data-tab="tabProjects">Proyectos</button>
     <button class="admin-tab-btn"        id="tabBtnKnow"     data-tab="tabKnow">Conocimiento</button>
-    <button class="admin-tab-btn"        id="tabBtnMemories" data-tab="tabMemories">Memorias</button>
+    <button class="admin-tab-btn"        id="tabBtnMemories" data-tab="tabMemories">Recuerdos</button>
+    <button class="admin-tab-btn"        id="tabBtnSystem"   data-tab="tabSystem">Sistema</button>
+    <button class="admin-tab-btn"        id="tabBtnUsers"    data-tab="tabUsers">Usuarios</button>
   </div>
   <div class="admin-body">
 
-  <!-- Tab: Usuarios -->
-  <div class="admin-tab-content active" id="tabUsers" data-section="Usuarios">
+  <!-- Tab: Perfil (B6 — nueva) -->
+  <div class="admin-tab-content active" id="tabProfile" data-section="Perfil">
+    <div class="admin-section-title">Identidad</div>
+    <p style="font-size:12px;color:var(--dim);margin:-4px 0 10px">
+      Lo mínimo que BAKO parte de cero (B2). Todo lo demás se aprende hablando — no hay nada más que
+      editar aquí a propósito.
+    </p>
+    <div id="profileFields"><div style="color:var(--dim);font-size:13px">Cargando…</div></div>
+  </div>
+
+  <!-- Tab: Sistema (B6 — agrupa avisos, push y mantenimiento, antes sueltos en Usuarios) -->
+  <div class="admin-tab-content" id="tabSystem" data-section="Sistema">
+    <div class="admin-section-title">Mantenimiento del cerebro</div>
+    <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnDedupe" data-tooltip="Analiza duplicados y pide confirmación antes de eliminar nada" style="width:100%">🧹 Deduplicar memoria</button><button class="mobile-info" data-target="btnDedupe" type="button">ℹ</button></div>
+    <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnEmbedMemories" data-tooltip="Genera vectores de búsqueda semántica para todas las memorias" style="width:100%">🔢 Generar embeddings</button><button class="mobile-info" data-target="btnEmbedMemories" type="button">ℹ</button></div>
+    <div class="admin-feedback" id="seedFeedback"></div>
+
+    <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
+      <div class="admin-section-title">Mensajes automáticos</div>
+      <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnOpenAutoconf" data-tooltip="Gestiona horarios y fuentes de noticias de los avisos automáticos" style="width:100%">⚙️ Configurar avisos automáticos</button><button class="mobile-info" data-target="btnOpenAutoconf" type="button">ℹ</button></div>
+      <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnOpenPush" data-tooltip="Estado VAPID, dispositivos suscritos y herramientas de diagnóstico push" style="width:100%">🔔 Estado Web Push</button><button class="mobile-info" data-target="btnOpenPush" type="button">ℹ</button></div>
+    </div>
+  </div>
+
+  <!-- Tab: Usuarios (B6 — recortada a solo gestión de usuarios) -->
+  <div class="admin-tab-content" id="tabUsers" data-section="Usuarios">
     <div class="admin-section-title">Usuarios activos</div>
     <div id="userList"></div>
     <div class="admin-section-title">Crear usuario</div>
@@ -1087,19 +1120,6 @@
       </select>
       <button class="btn-create-user" id="btnCreateUser">Crear usuario</button>
       <div class="admin-feedback" id="adminFeedback"></div>
-    </div>
-    <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
-      <div class="admin-section-title">Datos estructurados</div>
-      <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnDedupePreview" data-tooltip="Muestra grupos de memorias duplicadas sin eliminar nada" style="width:100%">Previsualizar deduplicación</button><button class="mobile-info" data-target="btnDedupePreview" type="button">ℹ</button></div>
-      <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnDedupe" data-tooltip="Elimina permanentemente los duplicados detectados" style="width:100%">Deduplicar memoria</button><button class="mobile-info" data-target="btnDedupe" type="button">ℹ</button></div>
-      <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnEmbedMemories" data-tooltip="Genera vectores de búsqueda semántica para todas las memorias" style="width:100%">Generar embeddings</button><button class="mobile-info" data-target="btnEmbedMemories" type="button">ℹ</button></div>
-      <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnCleanManual" data-tooltip="Elimina TODAS las memorias importadas manualmente (source=manual)" style="width:100%;border-color:#ef4444;color:#ef4444">Limpiar memorias importadas</button><button class="mobile-info" data-target="btnCleanManual" type="button" style="color:#ef4444">ℹ</button></div>
-      <div class="admin-feedback" id="seedFeedback"></div>
-    </div>
-    <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
-      <div class="admin-section-title">Mensajes automáticos</div>
-      <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnOpenAutoconf" data-tooltip="Gestiona horarios y fuentes de noticias de los avisos automáticos" style="width:100%">⚙️ Configurar avisos automáticos</button><button class="mobile-info" data-target="btnOpenAutoconf" type="button">ℹ</button></div>
-      <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnOpenPush" data-tooltip="Estado VAPID, dispositivos suscritos y herramientas de diagnóstico push" style="width:100%">🔔 Estado Web Push</button><button class="mobile-info" data-target="btnOpenPush" type="button">ℹ</button></div>
     </div>
     <button class="logout-btn" id="logoutBtn">Cerrar sesión</button>
   </div>
@@ -1248,10 +1268,11 @@
       <input class="mem-search" id="memSearch" type="text" placeholder="Buscar en memorias…">
       <select class="mem-filter" id="memFilterTier">
         <option value="">Todos</option>
-        <option value="social">Social</option>
-        <option value="project">Proyectos</option>
-        <option value="personal">Personal</option>
-        <option value="tech">Técnico</option>
+        <option value="fact">📌 Hecho</option>
+        <option value="preference">❤️ Preferencia</option>
+        <option value="project_update">🚀 Proyecto</option>
+        <option value="decision">✅ Decisión</option>
+        <option value="feeling">😊 Sentimiento</option>
       </select>
       <select class="mem-filter" id="memFilterImp">
         <option value="">Importancia</option>
@@ -1636,36 +1657,32 @@
   loginUserEl.addEventListener('keydown', e => { if (e.key === 'Enter') loginPassEl.focus(); });
   logoutBtn.addEventListener('click', doLogout);
 
-  document.getElementById('btnDedupePreview').addEventListener('click', async () => {
-    const btn = document.getElementById('btnDedupePreview');
+  // B6: un solo botón — antes había "Previsualizar" y "Deduplicar" por separado.
+  // Ahora siempre analiza primero y solo pide confirmar si de verdad hay algo
+  // que borrar; si no hay duplicados, lo dice y no hace falta nada más.
+  document.getElementById('btnDedupe').addEventListener('click', async () => {
+    const btn = document.getElementById('btnDedupe');
     const fb  = document.getElementById('seedFeedback');
     btn.disabled = true; btn.textContent = '⏳ Analizando duplicados…';
     fb.textContent = ''; fb.className = 'admin-feedback';
     try {
-      const res  = await fetch(`${BAKO_URL}/api/agent/deduplicate-memories`, { method:'POST', headers: authHeaders(), body: JSON.stringify({ dry_run: true }) });
-      const data = await res.json();
-      if (res.ok) {
-        fb.innerHTML = `<b>Vista previa (sin cambios):</b><br>
-          📊 Total memorias: ${data.memorias_total}<br>
-          🔀 Grupos detectados: ${data.grupos_detectados}<br>
-          🗑️ A eliminar: ${data.total_eliminaciones}<br>
-          ✅ Resultado: ${data.memorias_resultado} memorias<br>
-          <small style="color:var(--dim)">(Usa "Deduplicar memoria" para ejecutar)</small>`;
-        fb.className = 'admin-feedback ok';
-      } else {
-        fb.textContent = (data.error || 'Error') + (data.detail ? ': ' + data.detail : ''); fb.className = 'admin-feedback err';
+      const previewRes = await fetch(`${BAKO_URL}/api/agent/deduplicate-memories`, { method:'POST', headers: authHeaders(), body: JSON.stringify({ dry_run: true }) });
+      const preview = await previewRes.json();
+      if (!previewRes.ok) {
+        fb.textContent = (preview.error || 'Error') + (preview.detail ? ': ' + preview.detail : ''); fb.className = 'admin-feedback err';
+        return;
       }
-    } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
-    finally { btn.disabled = false; btn.textContent = '🔍 Previsualizar deduplicación'; }
-  });
+      if (preview.total_eliminaciones === 0) {
+        fb.textContent = `✓ Sin duplicados — ${preview.memorias_total} memorias, todas distintas`;
+        fb.className = 'admin-feedback ok';
+        return;
+      }
+      const seguro = confirm(
+        `${preview.grupos_detectados} grupo(s) duplicado(s) detectado(s) — se eliminarían ${preview.total_eliminaciones} de ${preview.memorias_total} memorias.\n¿Eliminar ahora?`
+      );
+      if (!seguro) { fb.textContent = 'Cancelado — no se ha eliminado nada'; fb.className = 'admin-feedback'; return; }
 
-  document.getElementById('btnDedupe').addEventListener('click', async () => {
-    const btn = document.getElementById('btnDedupe');
-    const fb  = document.getElementById('seedFeedback');
-    if (!confirm('¿Seguro? Este proceso eliminará memorias duplicadas permanentemente.')) return;
-    btn.disabled = true; btn.textContent = '⏳ Deduplicando…';
-    fb.textContent = ''; fb.className = 'admin-feedback';
-    try {
+      btn.textContent = '⏳ Deduplicando…';
       const res  = await fetch(`${BAKO_URL}/api/agent/deduplicate-memories`, { method:'POST', headers: authHeaders(), body: JSON.stringify({ dry_run: false }) });
       const data = await res.json();
       if (res.ok) {
@@ -1698,36 +1715,17 @@
     finally { btn.disabled = false; btn.textContent = '🔢 Generar embeddings'; }
   });
 
-  document.getElementById('btnCleanManual').addEventListener('click', async () => {
-    const btn = document.getElementById('btnCleanManual');
-    const fb  = document.getElementById('seedFeedback');
-    if (!confirm('⚠️ Esto eliminará TODAS las memorias importadas (source=manual).\nLas memorias extraídas de conversaciones se conservan.\n¿Continuar?')) return;
-    btn.disabled = true; btn.textContent = '⏳ Eliminando memorias manuales…';
-    fb.textContent = ''; fb.className = 'admin-feedback';
-    try {
-      const res  = await fetch(`${BAKO_URL}/api/agent/clean-manual-memories`, { method:'POST', headers: authHeaders() });
-      const data = await res.json();
-      if (res.ok) {
-        fb.textContent = `✓ ${data.deleted} memorias manuales eliminadas · ${data.memorias_antes} → ${data.memorias_despues} memorias totales`;
-        fb.className = 'admin-feedback ok';
-      } else {
-        fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
-      }
-    } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
-    finally { btn.disabled = false; btn.textContent = '🗑️ Limpiar memorias importadas'; }
-  });
-
   // ── Admin panel ───────────────────────────────────────────────────────────
   function openAdmin() {
     const headerEl = document.querySelector('.header');
     adminPanel.style.top = headerEl ? headerEl.getBoundingClientRect().height + 'px' : '0';
     adminPanel.classList.add('visible');
     adminOverlay.classList.add('visible');
+    _relationsCargadas = false; // refresca el grafo una vez por apertura del panel
     loadUsers();
+    loadProfile();
     if (window.innerWidth >= 768) {
-      loadPeople();
-      loadProjects();
-      loadKnowledge();
+      loadRelations().then(() => { loadPeople(); loadProjects(); loadKnowledge(); });
       loadMemories();
     }
   }
@@ -1812,6 +1810,93 @@
     setTimeout(() => { adminFeedback.textContent = ''; adminFeedback.className = 'admin-feedback'; }, 3000);
   }
 
+  // ── Perfil (B6 — nueva pestaña) ───────────────────────────────────────────
+  async function loadProfile() {
+    const box = document.getElementById('profileFields');
+    box.innerHTML = '<div style="color:var(--dim);font-size:13px">Cargando…</div>';
+    try {
+      const res  = await fetch(`${BAKO_URL}/api/profile`, { headers: authHeaders() });
+      const data = await res.json();
+      renderProfileFields(data.fields || []);
+    } catch {
+      box.innerHTML = '<div style="color:var(--red)">Error al cargar el perfil</div>';
+    }
+  }
+
+  function renderProfileFields(fields) {
+    const box = document.getElementById('profileFields');
+    box.innerHTML = '';
+    fields.forEach(f => {
+      // Inmutable + ya sembrado → solo lectura (B2.2: nombre, fecha de
+      // nacimiento… no cambian). Inmutable pero AÚN vacío sigue editable una
+      // vez, para poder sembrarlo desde el panel en modo génesis.
+      const soloLectura = f.immutable && f.value;
+      const row = document.createElement('div');
+      row.className = 'person-form-row';
+      row.style.marginBottom = '10px';
+      row.innerHTML = `
+        <div style="flex:1">
+          <label style="display:block;font-size:12px;color:var(--dim);margin-bottom:4px">${escHtml(f.label)}${f.immutable ? ' 🔒' : ''}</label>
+          <input class="admin-input pf-input" data-key="${escHtml(f.key)}" type="text" value="${escHtml(f.value)}" placeholder="${escHtml(f.example)}" ${soloLectura ? 'disabled' : ''} style="width:100%">
+        </div>
+        ${soloLectura ? '' : `<button class="btn-mem-save pf-save" data-key="${escHtml(f.key)}" style="align-self:flex-end;height:38px">Guardar</button>`}
+      `;
+      box.appendChild(row);
+    });
+    box.querySelectorAll('.pf-save').forEach(btn => btn.addEventListener('click', async () => {
+      const key   = btn.dataset.key;
+      const input = box.querySelector(`.pf-input[data-key="${key}"]`);
+      const value = input.value.trim();
+      if (!value) return;
+      btn.disabled = true;
+      const original = btn.textContent;
+      try {
+        const res  = await fetch(`${BAKO_URL}/api/profile/${encodeURIComponent(key)}`, {
+          method: 'PATCH', headers: authHeaders(), body: JSON.stringify({ value }),
+        });
+        const data = await res.json();
+        if (res.ok) { btn.textContent = '✓ Guardado'; setTimeout(() => { btn.textContent = original; }, 1500); }
+        else { alert(data.error || 'Error'); }
+      } catch { alert('Error de conexión'); }
+      finally { btn.disabled = false; }
+    }));
+  }
+
+  // ── Relaciones (B4/B6) — grafo compartido por Personas/Proyectos/Conocimiento ──
+  let _allRelations   = [];
+  let _relationsCargadas = false; // evita repetir el fetch al cambiar de pestaña
+  async function loadRelations() {
+    if (_relationsCargadas) return;
+    try {
+      const res  = await fetch(`${BAKO_URL}/api/relations`, { headers: authHeaders() });
+      const data = await res.json();
+      _allRelations = data.relations || [];
+      _relationsCargadas = true;
+    } catch { _allRelations = []; }
+  }
+  function relacionesDe(nombre) {
+    const n = (nombre || '').toLowerCase();
+    if (!n) return [];
+    return _allRelations.filter(r =>
+      (r.origenNombre || '').toLowerCase() === n || (r.destinoNombre || '').toLowerCase() === n);
+  }
+  // B4.3: lo dicho se enseña como hecho (verde); lo deducido, siempre marcado
+  // como tal con su confianza — nunca igualado a algo confirmado.
+  function relacionesHtml(nombre) {
+    const rels = relacionesDe(nombre);
+    if (!rels.length) return '';
+    const items = rels.map(r => {
+      const esOrigen = (r.origenNombre || '').toLowerCase() === (nombre || '').toLowerCase();
+      const otro     = esOrigen ? r.destinoNombre : r.origenNombre;
+      if (r.dicha) {
+        return `<span class="rel-dicha">🔗 ${escHtml(r.relacion)} ${escHtml(otro)}</span>`;
+      }
+      const confPct = Math.round((r.confianza || 0) * 100);
+      return `<span class="rel-deducida" title="${escHtml(r.explicacion || '')}">🤔 ¿${escHtml(r.relacion)} ${escHtml(otro)}? (${confPct}%)</span>`;
+    }).join('');
+    return `<div class="person-relations">${items}</div>`;
+  }
+
   // ── Tabs del panel admin ──────────────────────────────────────────────────
   document.querySelectorAll('.admin-tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1819,10 +1904,11 @@
       document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById(btn.dataset.tab).classList.add('active');
+      if (btn.dataset.tab === 'tabProfile')   loadProfile();
       if (btn.dataset.tab === 'tabMemories')  loadMemories();
-      if (btn.dataset.tab === 'tabPeople')    loadPeople();
-      if (btn.dataset.tab === 'tabProjects')  loadProjects();
-      if (btn.dataset.tab === 'tabKnow')      loadKnowledge();
+      if (btn.dataset.tab === 'tabPeople')    loadRelations().then(loadPeople);
+      if (btn.dataset.tab === 'tabProjects')  loadRelations().then(loadProjects);
+      if (btn.dataset.tab === 'tabKnow')      loadRelations().then(loadKnowledge);
     });
   });
 
@@ -1988,6 +2074,10 @@
 
     const notesHtml = (p.notas || []).map(n => `<span class="person-note-tag">${escHtml(n)}</span>`).join('');
     const connHtml  = (p.conexiones || []).map(c => `<span class="person-conexion">${escHtml(c)}</span>`).join('');
+    // B1/B6: de dónde salió esta ficha — "conversacion" es lo que el
+    // clasificador escribió solo, "manual" es lo curado a mano en el panel.
+    const origenCaption = p.fuente === 'conversacion'
+      ? `<div class="person-caption">💬 Aprendido hablando${p.origen ? `: "${escHtml(p.origen)}"` : ''}</div>` : '';
 
     card.innerHTML = `
       <div class="person-card-top">
@@ -2004,6 +2094,8 @@
         </div>
       </div>
       ${(notesHtml || connHtml) ? `<div class="person-notes">${notesHtml}${connHtml}</div>` : ''}
+      ${relacionesHtml(p.nombre)}
+      ${origenCaption}
     `;
 
     card.querySelector('.edit').addEventListener('click', () => togglePersonEdit(p, card));
@@ -2176,6 +2268,7 @@
         </div>
       </div>
       ${(stackHtml || notasHtml || bloqHtml) ? `<div class="person-notes">${bloqHtml}${stackHtml}${notasHtml}</div>` : ''}
+      ${relacionesHtml(p.nombre)}
     `;
 
     card.querySelector('.edit').addEventListener('click', () => toggleProjectEdit(p, card));
@@ -2344,6 +2437,11 @@
     card.id = 'know-' + e._id;
     const imp = KNOW_IMP_BADGE[e.importancia] || '';
     const detHtml = (e.detalles||[]).map(d => `<span class="person-note-tag">${escHtml(d)}</span>`).join('');
+    // B4: la identidad de una Relation hacia conocimiento es "categoria/clave"
+    // (ver resolverEntidad en brain.ts) — hay que buscar con ese mismo formato.
+    const idRelacion = `${e.categoria}/${e.clave}`;
+    const origenCaption = e.fuente === 'conversacion'
+      ? `<div class="person-caption">💬 Aprendido hablando${e.origen ? `: "${escHtml(e.origen)}"` : ''}</div>` : '';
     card.innerHTML = `
       <div class="person-card-top">
         <div class="person-info">
@@ -2356,6 +2454,8 @@
         </div>
       </div>
       ${detHtml ? `<div class="person-notes">${detHtml}</div>` : ''}
+      ${relacionesHtml(idRelacion)}
+      ${origenCaption}
     `;
     card.querySelector('.edit').addEventListener('click', () => toggleKnowEdit(e, card));
     card.querySelector('.del').addEventListener('click',  () => deleteKnow(e._id, card));
@@ -2459,19 +2559,16 @@
     finally { document.getElementById('btnSaveNewKnow').disabled = false; }
   });
 
-  // ── Memorias — tiers ──────────────────────────────────────────────────────
-  const MEM_SOCIAL_TAGS  = ['familia','amigos','familia-politica','pareja','suegros','cuniada','cuniado','hermana','padre','madre','padres','yaimy','paula','julen','ibon','sofi','nati','elena','oscar','osvaldo'];
-  const MEM_PROJECT_TAGS = ['bako','diamadmin','unyona','kefir','ai-personal-os','matrix-game','bohdeveloper','ingresos-pasivos','robotica','busqueda-empleo','proyectos'];
-  const MEM_PERSONAL_TAGS= ['salud','gustos','historia','motivacion','valores','objetivos','finanzas','caracter','rutina','entrenamiento','lae','correccion','judicial','psicologo','hobbies','suenos','miedos','transformacion'];
-
-  function memTier(m) {
-    const t = m.tags || [];
-    if (t.some(x => MEM_SOCIAL_TAGS.includes(x)))   return 'social';
-    if (t.some(x => MEM_PROJECT_TAGS.includes(x)))  return 'project';
-    if (t.some(x => MEM_PERSONAL_TAGS.includes(x))) return 'personal';
-    return 'tech';
-  }
-  const TIER_LABEL = { social: '🔵 Social', project: '🟠 Proyecto', personal: '🟢 Personal', tech: '🟣 Técnico' };
+  // ── Memorias — clasificación por tipo ─────────────────────────────────────
+  // B5 (28/09/2026): antes había tres listas de nombres reales de familia y
+  // amigos hardcodeadas aquí (repo público) para "adivinar" un tier a partir de
+  // tags — justo el invariante §0 que B2 ya había limpiado de `profile.ts`.
+  // `Memory.type` ya es un campo propio de cada recuerdo (fact/preference/…):
+  // no hace falta adivinar nada ni escribir un solo nombre en el código.
+  const TYPE_LABEL = {
+    fact: '📌 Hecho', preference: '❤️ Preferencia', project_update: '🚀 Proyecto',
+    decision: '✅ Decisión', feeling: '😊 Sentimiento',
+  };
 
   // ── Memorias — estado y carga ─────────────────────────────────────────────
   let _allMems = [];
@@ -2492,11 +2589,11 @@
 
   function filteredMems() {
     const q    = (document.getElementById('memSearch')?.value || '').toLowerCase();
-    const tier = document.getElementById('memFilterTier')?.value || '';
+    const tipo = document.getElementById('memFilterTier')?.value || '';
     const imp  = document.getElementById('memFilterImp')?.value  || '';
     return _allMems.filter(m => {
       if (q    && !m.content.toLowerCase().includes(q) && !(m.tags||[]).some(t => t.toLowerCase().includes(q))) return false;
-      if (tier && memTier(m) !== tier)    return false;
+      if (tipo && m.type !== tipo)        return false;
       if (imp  && m.importance !== imp)   return false;
       return true;
     });
@@ -2505,15 +2602,16 @@
   function renderMemories() {
     const mems = filteredMems();
 
-    // Stats
-    const counts = { social: 0, project: 0, personal: 0, tech: 0 };
-    _allMems.forEach(m => counts[memTier(m)]++);
+    // Stats por tipo (campo propio de cada memoria, no una lista de nombres)
+    const counts = { fact: 0, preference: 0, project_update: 0, decision: 0, feeling: 0 };
+    _allMems.forEach(m => { if (counts[m.type] !== undefined) counts[m.type]++; });
     document.getElementById('memStats').innerHTML =
       `<span>${_allMems.length} memorias</span>` +
-      `<span class="mem-stat-badge" style="background:rgba(74,158,255,0.15);color:#4a9eff">🔵 ${counts.social}</span>` +
-      `<span class="mem-stat-badge" style="background:rgba(245,158,11,0.15);color:#f59e0b">🟠 ${counts.project}</span>` +
-      `<span class="mem-stat-badge" style="background:rgba(16,185,129,0.15);color:#10b981">🟢 ${counts.personal}</span>` +
-      `<span class="mem-stat-badge" style="background:rgba(139,92,246,0.15);color:#a78bfa">🟣 ${counts.tech}</span>`;
+      `<span class="mem-stat-badge" style="background:rgba(74,158,255,0.15);color:#4a9eff">📌 ${counts.fact}</span>` +
+      `<span class="mem-stat-badge" style="background:rgba(239,68,68,0.15);color:#ef4444">❤️ ${counts.preference}</span>` +
+      `<span class="mem-stat-badge" style="background:rgba(245,158,11,0.15);color:#f59e0b">🚀 ${counts.project_update}</span>` +
+      `<span class="mem-stat-badge" style="background:rgba(16,185,129,0.15);color:#10b981">✅ ${counts.decision}</span>` +
+      `<span class="mem-stat-badge" style="background:rgba(139,92,246,0.15);color:#a78bfa">😊 ${counts.feeling}</span>`;
 
     const list    = document.getElementById('memList');
     const visible = mems.slice(0, _memPage);
@@ -2533,7 +2631,6 @@
   }
 
   function buildMemItem(m) {
-    const tier  = memTier(m);
     const item  = document.createElement('div');
     item.className = 'mem-item';
     item.id        = 'memitem-' + m._id;
@@ -2550,7 +2647,7 @@
         </div>
       </div>
       <div class="mem-item-meta">
-        <span class="mem-badge ${tier}">${TIER_LABEL[tier]}</span>
+        <span class="mem-badge ${m.type}">${TYPE_LABEL[m.type] || m.type}</span>
         <span class="mem-badge ${m.importance}">${m.importance}</span>
         ${tagsHtml}
       </div>

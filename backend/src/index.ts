@@ -17,6 +17,8 @@ import notificationsRoutes from './routes/notifications';
 import autoconfigRoutes from './routes/autoconfig';
 import ttsRoutes from './routes/tts';
 import pushRoutes from './routes/push';
+import relationsRoutes from './routes/relations';
+import profileRoutes from './routes/profile';
 import { startTelegramBot } from './tools/telegram';
 import { startProactivityService } from './services/ProactivityService';
 import { User } from './memory/User';
@@ -87,6 +89,8 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/autoconfig',    autoconfigRoutes);
 app.use('/api/tts',           ttsRoutes);
 app.use('/api/push',          pushRoutes);
+app.use('/api/relations',     relationsRoutes);
+app.use('/api/profile',       profileRoutes);
 app.use('/bako-client', bakoClientRoutes);
 
 // Error handler global — evita exponer stack traces al cliente en producción
@@ -107,6 +111,10 @@ mongoose.connect(process.env.MONGODB_URI!, {
   .then(async () => {
     console.log('✅ MongoDB conectado');
     await seedSuperAdmin();
+    // B5: no bloquea el arranque ni lo rompe si el cluster no es Atlas — solo
+    // deja la búsqueda semántica en el fallback de coseno que ya existía.
+    const { ensureVectorSearchIndexes } = await import('./tools/vectorSearch');
+    ensureVectorSearchIndexes().catch(err => console.warn('📏 Atlas Vector Search:', err.message));
   })
   .catch((err) => console.error('❌ Error MongoDB:', err));
 

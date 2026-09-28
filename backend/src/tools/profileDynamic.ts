@@ -97,8 +97,13 @@ export async function updateProfileField(
 // antes ambos casos devolvían el mismo ok:false y el /perfil manual acababa
 // diciendo "campo no reconocido" ante una fecha de nacimiento perfectamente
 // reconocida pero imposible (31/02) — encontrado en /code-review 16/09/2026.
-): Promise<{ ok: boolean; label: string; prev: string; current: string; reason?: 'unknown_field' | 'invalid_value' }> {
-  const meta = PROFILE_FIELDS[key];
+): Promise<{ ok: boolean; label: string; prev: string; current: string; reason?: 'unknown_field' | 'invalid_value' | 'immutable_field' }> {
+  // `hasOwnProperty` explícito, no `PROFILE_FIELDS[key]` a secas: una `key`
+  // como "__proto__" resuelve a `Object.prototype` (verdadero) y se saltaría
+  // este guardarraíl, reventando más abajo en `getNestedValue` con un 500 en
+  // vez del 400 limpio que cualquier otra clave inválida recibe — hallazgo de
+  // /code-review 28/09/2026, expuesto ahora por el nuevo `PATCH /api/profile/:key`.
+  const meta = Object.prototype.hasOwnProperty.call(PROFILE_FIELDS, key) ? PROFILE_FIELDS[key] : undefined;
   if (!meta) return { ok: false, label: key, prev: '', current: '', reason: 'unknown_field' };
   // La fecha de nacimiento alimenta un cálculo, no solo una línea de texto: si no
   // es una fecha real, rechazarla aquí en vez de dejar que `edadDesde` calle y el
@@ -109,6 +114,17 @@ export async function updateProfileField(
 
   const existing = await ProfileOverride.findOne({ key });
   const prevValue = existing?.value ?? String(getNestedValue(BAKO_PROFILE, meta.path) ?? '');
+
+  // B6, hallazgo de /code-review: hasta ahora NADA impedía reescribir un campo
+  // `immutable` (nombre, fecha de nacimiento, sexo…) una vez sembrado — ni por
+  // aquí, ni por el /perfil de Telegram, ni por el nuevo `PATCH /api/profile`
+  // del panel, ni siquiera por la detección en lenguaje natural de conversación
+  // ("nací el 12/03/1990" dicho dos veces habría pisado la fecha real). Se
+  // permite sembrarlo UNA VEZ (`prevValue` vacío, modo génesis de B2), nunca
+  // reescribirlo después.
+  if (meta.immutable && prevValue) {
+    return { ok: false, label: meta.label, prev: prevValue, current: prevValue, reason: 'immutable_field' };
+  }
 
   await ProfileOverride.findOneAndUpdate(
     { key },
