@@ -8,7 +8,7 @@
 
 ---
 
-## Estado actual (05/09/2026)
+## Estado actual (06/10/2026)
 
 **El objetivo del proyecto se ha reenfocado.** BAKO funciona como asistente (lee agenda, tareas,
 correo, clima; ejecuta acciones en Notion, Calendar, GitHub y Gmail; es proactivo con 7 crons), pero
@@ -34,7 +34,10 @@ cabecera móvil, GPU nueva en marcha). Seguridad cerrada del todo.
 | **Tooling** — Spec-Driven + grafo `codebase-memory-mcp` | ✅ 14/08/2026 |
 | **LLM local** — GPU de 8 GB y Ollama por defecto | ✅ 05/09/2026 |
 | **🧠 El cerebro de BAKO** — de perfil hardcodeado a memoria viva | ✅ Cerrado (B0-B6, 28/09/2026) |
-| Horizonte 2 — Multi-agente y fine-tuning | ❌ No empezado (después del cerebro) |
+| Fase 10 — Aprendizaje de patrones | ⏳ Código completo y verificado contra GitHub/Notion reales; falta ver la primera noche del cron en Render |
+| Fase 11 — Orquestación multi-agente | ✅ 06/10/2026 (núcleo + PM y Dev Agent; otros 5 agentes diferidos) |
+| Panel de administración v2 | ✅ 06/10/2026 |
+| Fase 12 — Fine-tuning | ❌ No empezado |
 | Horizonte 3 — Identidad propia (visión, dispositivos, casa) | ❌ No empezado |
 | Horizonte 4 — Presencia física (robótica) | ❌ No empezado en este repo — prerequisito de aprendizaje en marcha, ver nota en Horizonte 4 |
 
@@ -905,7 +908,13 @@ briefing lo dice así.
   anulaba la racha: los proyectos de Notion no se llaman como su repo ("Diamadmin — reconstrucción
   kickstack", "BAKO" frente a `ai-personal-os`). Corregido con `proyectoCorrespondeARepo` (la parte
   anterior al guion largo, los dos puntos o el paréntesis) y el repo por defecto pasa a `bako`.
-  **Revisar en Render** que `PROACTIVITY_REPOS`, si está definida, use `bako` y no `ai-personal-os`
+  `PROACTIVITY_REPOS` no está definida en Render, así que vale el defecto (`bako`).
+  **06/10/2026, tarde**: no había `GITHUB_TOKEN` válido en ningún sitio (toda la integración con GitHub
+  estaba caída en producción: briefing, alertas, PR review, racha, Dev Agent, issueSync). El señor creó
+  uno nuevo, puesto en Render y en `.env`. Verificado con `_verify_f10_real.ts`: bako 16 commits,
+  unyona 13, diamadmin 0 en 28 días; detecta la racha de "Diamadmin — reconstrucción kickstack" (si esa
+  reconstrucción vive en otro repo, hay que añadirlo a `PROACTIVITY_REPOS`). **Falta para cerrar**:
+  comprobar que el cron de las 23:55 guarda el histórico en producción
 - Decisión deliberada: el job `patrones` no pasa por `AutoConfig` ni por `isJobEnabled`. No avisa de
   nada (solo guarda historia), y meterlo en `/automaticos` lo haría aparecer como un aviso más
 - Límite conocido: Render free duerme la instancia sin tráfico, y el cron de las 23:55 no corre

@@ -17,9 +17,11 @@ async function main() {
   console.log(`Ventana: ${desde} → ${hoy} · repos vigilados: ${WATCHED_REPOS.join(', ')}`);
 
   const porDia = new Map<string, Map<string, number>>();
+  const leidos: string[] = []; // como registrarActividad: un repo que falla no se registra como cero
   for (const repo of WATCHED_REPOS) {
     const fechas = await getCommitDatesSince(repo, inicio);
     if (!fechas) { console.log(`  ${repo}: sin datos (fallo o >500 commits) — no se registraría`); continue; }
+    leidos.push(repo);
     console.log(`  ${repo}: ${fechas.length} commits del usuario`);
     for (const f of fechas) {
       const k = madridDateKey(new Date(f));
@@ -46,7 +48,7 @@ async function main() {
     const fecha = addDays(desde, i);
     registros.push({
       fecha,
-      commits: WATCHED_REPOS.map(repo => ({ repo, n: porDia.get(fecha)?.get(repo) ?? 0 })),
+      commits: leidos.map(repo => ({ repo, n: porDia.get(fecha)?.get(repo) ?? 0 })),
       tareasHechas: hechasPorDia.get(fecha) ?? 0,
       ...(fecha === hoy ? { tareas: [...conteo].map(([proyecto, n]) => ({ proyecto, abiertas: n })) } : {}),
     });

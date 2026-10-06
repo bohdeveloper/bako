@@ -40,7 +40,13 @@ GitHub y Notion, marca el tracker diario por voz, programa recordatorios y redac
 
 **Proactividad.** Briefing matutino a las 05:45, alertas inteligentes a las 08:30, Tech Radar los
 lunes, PR Review automático, resumen semanal los viernes y reglas propias definidas por voz. Todo
-conmutable desde `/automaticos`.
+conmutable desde `/automaticos`. Además aprende patrones de tu actividad (commits y tareas cerradas
+por día): pregunta si un proyecto lleva días parado y adapta el briefing al ritmo de cada día de la
+semana.
+
+**Agentes.** Para análisis de varios pasos ("¿qué proyecto debería priorizar?", "revisa el PR 12")
+delega en un agente especializado (PM o Dev) que investiga con sus propias herramientas de solo
+lectura. Un verificador comprueba que el informe solo diga lo que de verdad consultó.
 
 **Privacidad de verdad.** Los mensajes sensibles se procesan solo en el Ollama local; si el PC está
 apagado, BAKO rechaza el mensaje en vez de mandarlo a la nube.
