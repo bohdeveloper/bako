@@ -820,11 +820,11 @@ en cada consulta. Correcto con 100 registros, insostenible con 10.000.
 Motivo: el panel acumula 7 pestañas con formularios de alta siempre desplegados, y en móvil se ven
 todas las secciones una debajo de otra. Objetivo: un solo panel, resumido, con navegación propia.
 
-- [ ] **Estructura** — PC: menú lateral fijo con las secciones y la sección activa a la derecha.
+- [x] **Estructura** (06/10/2026) — PC: menú lateral fijo con las secciones y la sección activa a la derecha.
   Móvil: barra inferior con las secciones principales y "Más" para el resto
-- [ ] **Unificar** — Sistema agrupa deduplicar, embeddings, avisos automáticos y Web Push en una sola
+- [x] **Unificar** (06/10/2026) — Sistema agrupa deduplicar, embeddings, avisos automáticos y Web Push en una sola
   tarjeta; los formularios de alta (Personas, Proyectos, Conocimiento) se ocultan tras un botón "+ Añadir"
-- [ ] **Ajustes de voz y volumen dentro del panel** — la rueda de la cabecera abre el panel en la
+- [x] **Ajustes de voz y volumen dentro del panel** (06/10/2026) — la rueda de la cabecera abre el panel en la
   sección Ajustes. Los usuarios no superadmin solo ven esa sección (los ajustes personales siguen
   siendo para cualquier usuario); el botón 👥 de gestión de usuarios desaparece
 - [x] **Revisión de funciones** (06/10/2026) — quitado "Generar embeddings" (botón y endpoint
@@ -832,8 +832,8 @@ todas las secciones una debajo de otra. Objetivo: un solo panel, resumido, con n
   Ollama y Cloudflare fallan justo al guardar, esa memoria queda sin vector y ya no hay botón para
   rellenarla. Se revisa si aparecen memorias sin embedding en el panel
 - Deduplicar y Web Push se quedan. La rueda del engranaje abre y cierra el panel
-- [ ] **Verificación** — build limpio, comprobación de sintaxis del JS de la PWA, y revisión visual en
-  escritorio y móvil por el señor (no hay navegador en este entorno que capture pantallas)
+- [x] **Verificación** (06/10/2026) — build limpio, comprobación de sintaxis del JS de la PWA, y revisión visual en
+  escritorio y móvil por el señor (confirmado: se ve bien) (no hay navegador en este entorno que capture pantallas)
 
 ## 🧠 Curiosidad hacia personas ya conocidas — bug (06/10/2026)
 
@@ -856,7 +856,7 @@ Decisiones del señor (06/10/2026), todas con la recomendación:
   `profile.ts` que entra en el prompt principal, instrucción de curiosidad en el propio turno
   (`curiosidadParaTurno` + `respuestaPreguntaPor`), y el mensaje aparte de B3 se elimina. El prompt
   crece ~450 caracteres: vigilar el límite de TPM de Groq (invariante §3.9)
-- [ ] **Borrar la memoria mal clasificada** "No me haces preguntas sobre Yaimy?" — pendiente del señor
+- [x] **Borrar la memoria mal clasificada** "No me haces preguntas sobre Yaimy?" (borrada por el señor el 06/10/2026) — pendiente del señor
   desde el panel (Recuerdos). No se puede borrar desde aquí: Mongo de producción no resuelve desde este
   entorno, y borrar un dato del señor sin su confirmación no procede
 
@@ -913,7 +913,9 @@ briefing lo dice así.
   estaba caída en producción: briefing, alertas, PR review, racha, Dev Agent, issueSync). El señor creó
   uno nuevo, puesto en Render y en `.env`. Verificado con `_verify_f10_real.ts`: bako 16 commits,
   unyona 13, diamadmin 0 en 28 días; detecta la racha de "Diamadmin — reconstrucción kickstack" (si esa
-  reconstrucción vive en otro repo, hay que añadirlo a `PROACTIVITY_REPOS`). **Falta para cerrar**:
+  reconstrucción vive en otro repo, hay que añadirlo a `PROACTIVITY_REPOS`). **Confirmado por el señor: Diamadmin está
+  parado y bloqueado de verdad**, así que la racha es correcta. Se pregunta una sola vez hasta que haya un commit nuevo.
+  Idea pendiente de decidir: que la racha ignore los proyectos marcados como Pausado en Notion. **Falta para cerrar**:
   comprobar que el cron de las 23:55 guarda el histórico en producción
 - Decisión deliberada: el job `patrones` no pasa por `AutoConfig` ni por `isJobEnabled`. No avisa de
   nada (solo guarda historia), y meterlo en `/automaticos` lo haría aparecer como un aviso más
