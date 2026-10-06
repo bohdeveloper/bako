@@ -298,9 +298,43 @@ function huecosDePersona(p: IPerson): Array<{ campo: string; pista: string }> {
 }
 
 /**
- * Curiosidad en menciones: si el señor nombra a una persona activa con huecos, BAKO
- * pregunta aunque el clasificador no haya creado ni cambiado su ficha en este turno.
- * Solo se mira el mensaje del señor, nunca la respuesta de BAKO, y el nombre tiene que
+ * Curiosidad dentro del turno (06/10/2026). Si el señor nombra a una persona activa con
+ * huecos, devuelve una instrucción para el prompt: que BAKO cierre su respuesta con UNA
+ * pregunta sobre el primer hueco. Va en la misma llamada al modelo que responde, así que
+ * no añade latencia ni llega tarde por otro canal, que era lo que rompía la conversación.
+ */
+export async function curiosidadParaTurno(mensaje: string): Promise<{ instruccion: string; personaId: IPerson['_id']; nombre: string; campo: string } | null> {
+  const persona = await personaMencionadaConHuecos(mensaje);
+  if (!persona) return null;
+  const hueco = huecosDePersona(persona)[0];
+  if (!hueco) return null;
+  return {
+    // La ficha es la de antes de este mensaje: si el propio mensaje ya lo responde,
+    // BAKO no debe preguntarlo ("Ana se ha mudado a Bilbao" → no "¿dónde vive Ana?")
+    instruccion: `CURIOSIDAD: el señor acaba de nombrar a ${persona.nombre} y todavía no sabes ${hueco.pista}. `
+      + `Responde primero a lo que te ha dicho y, al final, hazle UNA pregunta breve y natural sobre eso, `
+      + `nombrando a ${persona.nombre}, con interés de verdad. Si su mensaje ya lo dice, no preguntes nada.`,
+    personaId: persona._id,
+    nombre: persona.nombre,
+    campo: hueco.campo,
+  };
+}
+
+/** Si la respuesta hace de verdad la pregunta: una frase interrogativa que nombra a la persona. */
+export function respuestaPreguntaPor(respuesta: string, nombre: string): boolean {
+  const n = normalizar(nombre).toLowerCase();
+  return respuesta
+    .split(/(?<=[.!?¿¡\n])/)
+    .some(frase => frase.includes('?') && normalizar(frase).toLowerCase().includes(n));
+}
+
+/** Marca un hueco como ya preguntado, para no repetir la misma pregunta otro día. */
+export async function marcarHuecoPreguntado(personaId: IPerson['_id'], campo: string): Promise<void> {
+  await Person.updateOne({ _id: personaId }, { $addToSet: { preguntasHechas: campo } });
+}
+
+/**
+ * Persona activa con huecos nombrada en el mensaje del señor. El nombre tiene que
  * aparecer como palabra entera ("Ana" no debe coincidir con "anatomía").
  */
 async function personaMencionadaConHuecos(mensaje: string): Promise<IPerson | null> {
@@ -316,75 +350,6 @@ async function personaMencionadaConHuecos(mensaje: string): Promise<IPerson | nu
     if (menciona) return p;
   }
   return null;
-}
-
-/**
- * Redacta 2-3 preguntas naturales sobre los huecos de `persona` y las manda
- * como mensaje aparte (no en el turno en curso, para no añadirle latencia a
- * cada mensaje) por el mismo canal que ya usan los avisos de los crons —
- * llega a Telegram y a la cola de `Notification` que consultan PWA/Desktop.
- * Mismo proveedor que decidió el turno (invariante §3.3): si fue sensible, no
- * se llama a esta función en absoluto (ver `learnFromConversation`).
- */
-async function preguntarPorHuecos(persona: IPerson, alaNube: boolean, origen: 'turno' | 'mencion' = 'turno'): Promise<void> {
-  if (!persona.activo) return; // ficha desactivada a mano — nadie quiere que BAKO pregunte por ella
-  const huecos = huecosDePersona(persona).slice(0, 3);
-  if (!huecos.length) return;
-
-  const conocido = [
-    persona.relacion !== 'conocido' && `relación: ${persona.relacion}`,
-    persona.descripcion && `descripción: ${persona.descripcion}`,
-    persona.ubicacion && `vive en ${persona.ubicacion}`,
-    persona.trabajo && `trabaja en ${persona.trabajo}`,
-  ].filter(Boolean).join(' · ') || 'nada más todavía';
-
-  // Una mención no es un aprendizaje: el prompt no puede afirmar que BAKO acaba de aprender algo
-  const intro = origen === 'mencion'
-    ? `El señor acaba de nombrar a "${persona.nombre}" en la conversación.`
-    : `Acabas de aprender o actualizar algo sobre "${persona.nombre}".`;
-  const prompt = `${intro} Lo que ya sabes de `
-    + `${persona.nombre}: ${conocido}. Sientes curiosidad genuina por completar el resto — como un niño `
-    + `que acaba de conocer a alguien nuevo y quiere saberlo todo, pero sin agobiar. Escribe UN mensaje `
-    + `breve y cálido para el señor con ${huecos.length} pregunta${huecos.length > 1 ? 's' : ''} sobre: `
-    + `${huecos.map(h => h.pista).join('; ')}. Una sola frase de entrada + las preguntas, nada de listas `
-    + `ni de markdown, trato de "señor".`;
-
-  // `alaNube` es la decisión del TURNO, no de estos datos: si un turno sensible
-  // anterior dejó algo delicado guardado en `descripcion`/`ubicacion`/`trabajo`
-  // de esta misma ficha, ese texto viaja ahora dentro de `conocido` — y aunque
-  // el turno actual no dispare `isSensitive`, el dato sí puede hacerlo. Mismo
-  // criterio que ya aplica `consultar_cerebro` en `agent.ts` (hallazgo de
-  // /code-review 17/09/2026): el contenido manda sobre el turno, nunca al
-  // revés.
-  const local = !alaNube || isSensitive(conocido);
-  try {
-    const texto = await askClaude(prompt, {
-      maxTokens: 200, temperature: 0.7,
-      ...(local ? { private: true } : { useCloud: true }),
-    });
-    const mensaje = texto.trim();
-    // Una generación vacía/degenerada no es una pregunta real: si se marcara
-    // igual como preguntado, el hueco quedaría cerrado para siempre sin que el
-    // señor haya visto nada — hallazgo de /code-review 17/09/2026.
-    if (!mensaje) { console.warn('🧠 Curiosidad: el modelo devolvió una respuesta vacía, se descarta'); return; }
-    // Enviar ANTES de marcar como preguntado: si `sendSystemMessage` falla (bot
-    // caído, Telegram sin responder...), el hueco debe seguir abierto para la
-    // próxima oportunidad — marcarlo antes rompería "no insistir sin haber
-    // preguntado de verdad" (hallazgo de /code-review 17/09/2026).
-    const { sendSystemMessage } = await import('./telegram');
-    await sendSystemMessage(`🧠 ${mensaje}`, mensaje);
-    // `$addToSet`/`updateOne` en vez de reasignar el array en memoria y hacer
-    // `persona.save()`: este documento se cargó antes de la llamada al LLM (que
-    // puede tardar), así que un segundo turno sobre la misma ficha en paralelo
-    // pisaría este guardado y borraría huecos ya marcados — hallazgo de
-    // /code-review 17/09/2026.
-    await Person.updateOne(
-      { _id: persona._id },
-      { $addToSet: { preguntasHechas: { $each: huecos.map(h => h.campo) } } }
-    );
-  } catch (err) {
-    console.warn('🧠 Curiosidad: no se pudo redactar/enviar la pregunta:', (err as Error).message);
-  }
 }
 
 async function aplicarConocimiento(op: Operacion, origen: string): Promise<{ log: string; contradicciones: Contradiccion[] } | null> {
@@ -538,7 +503,7 @@ async function aplicarRelacion(op: Operacion, origen: string, conversacion: stri
  * nunca inventa una entidad nueva (`resolverEntidad` solo encuentra lo que ya
  * existe), y cualquier propuesta por debajo de confianza 0.5 se descarta para
  * no llenar el cerebro de ruido. Es un extra, nunca crítico — cualquier fallo
- * se traga en silencio, igual que `preguntarPorHuecos` de B3.
+ * se traga en silencio, igual que hacía la curiosidad de B3.
  */
 async function deducirConexiones(
   entidad: { tipo: RelationEntityType; id: any; nombre: string },
@@ -571,7 +536,7 @@ async function deducirConexiones(
     // `alaNube` es la decisión del TURNO (isSensitive solo mira el mensaje
     // suelto), pero `contexto` trae relaciones ya guardadas de OTROS turnos —
     // que pueden ser sensibles aunque este turno no lo parezca. Mismo criterio
-    // que ya aplica `preguntarPorHuecos`/`preguntarPorContradiccion`: el
+    // que ya aplica `preguntarPorContradiccion`: el
     // contenido manda sobre el turno, nunca al revés (invariante §3.3).
     const local = !alaNube || isSensitive(contexto);
     let raw: string;
@@ -644,7 +609,7 @@ async function deducirConexiones(
  * B4.4 — pregunta por una posible contradicción en vez de callarla. El valor
  * nuevo ya se guardó (se sigue usando "el más reciente", como antes); esto
  * solo añade la pregunta que faltaba. Un único mensaje para hasta 3
- * contradicciones del turno, mismo estilo que `preguntarPorHuecos` de B3.
+ * contradicciones del turno, mismo estilo que la curiosidad de B3.
  */
 async function preguntarPorContradiccion(contradicciones: Contradiccion[], alaNube: boolean): Promise<void> {
   const lote = contradicciones.slice(0, 3);
@@ -659,7 +624,7 @@ async function preguntarPorContradiccion(contradicciones: Contradiccion[], alaNu
     + `malentendido — sin sonar a interrogatorio, con la curiosidad de quien quiere tener sus notas al día. `
     + `Trato de "señor". Nada de listas ni markdown.`;
 
-  // Mismo criterio que `preguntarPorHuecos`: el contenido de la propia
+  // Mismo criterio que la curiosidad de B3: el contenido de la propia
   // contradicción manda sobre la decisión del turno si resulta sensible.
   const local = !alaNube || isSensitive(detalle);
   try {
@@ -850,16 +815,10 @@ export async function learnFromConversation(
       if (candidatoId) {
         const persona = await Person.findById(candidatoId);
         if (persona) {
-          if (!contradiccionesTurno.length) await preguntarPorHuecos(persona, alaNube);
-          // B4.2: deducir sobre la misma persona que ya centra la curiosidad de
-          // este turno — mismo alcance acotado a propósito que B3.
+          // B4.2: deducir sobre la persona creada o actualizada en este turno — una sola,
+          // mismo alcance acotado a propósito que B3.
           await deducirConexiones({ tipo: 'persona', id: persona._id, nombre: persona.nombre }, conversacion, alaNube);
         }
-      } else if (!contradiccionesTurno.length) {
-        // Curiosidad en menciones (06/10): una persona conocida nombrada en el mensaje
-        // con huecos abiertos. Como mucho una pregunta por turno, igual que B3.
-        const mencionada = await personaMencionadaConHuecos(userMessage);
-        if (mencionada) await preguntarPorHuecos(mencionada, alaNube, 'mencion');
       }
     }
   } catch (err) {

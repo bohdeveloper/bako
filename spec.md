@@ -284,6 +284,11 @@ No se reabren sin decisión explícita del usuario.
     BAKO puede preguntar por uno de ellos. Mismas reglas que B3: como mucho una pregunta por turno, un
     hueco se pregunta una sola vez, y nunca en un turno sensible (§3.3). Las quejas sobre cómo se
     comporta BAKO no son preferencias del señor y no se guardan como tales.
+    **La pregunta va dentro de la respuesta, nunca como mensaje aparte** (corregido el mismo día): el
+    mensaje aparte de B3 llegaba por Telegram o por una cola que la PWA consulta cada minuto, así que la
+    conversación nunca parecía curiosa. Ahora la curiosidad es una instrucción más del prompt del turno
+    (`curiosidadParaTurno` en `brain.ts`), sin llamada extra al modelo. Un hueco solo se marca como
+    preguntado si la respuesta tiene una frase interrogativa que nombra a esa persona.
 
 ---
 

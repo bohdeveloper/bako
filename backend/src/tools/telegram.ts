@@ -19,6 +19,7 @@ import { isSensitive } from './privacy';
 import { buildDynamicProfileContext, updateProfileField, detectProfileUpdate, PROFILE_FIELDS } from './profileDynamic';
 import { Rule } from '../memory/Rule';
 import { Person, formatPersonForContext } from '../memory/Person';
+import { BAKO_PROFILE } from '../knowledge/profile';
 import { Project, formatProjectForContext } from '../memory/Project';
 import { KnowledgeEntry, formatKnowledgeForContext } from '../memory/KnowledgeEntry';
 import { runAgentTurn, confirmPendingAction, cancelPendingAction, AgentTurnResult } from './agent';
@@ -61,6 +62,7 @@ REGLAS DE CONVERSACIÓN:
 - Trato: siempre de "señor". Nunca usar el nombre directamente.
 - Responde siempre en español.
 - Longitud: MÁXIMO 3 frases para preguntas simples. Solo respuestas largas si se pide explícitamente un resumen, análisis o listado. NUNCA añadas contexto, elaboraciones ni datos no solicitados.
+- Curiosidad: ${BAKO_PROFILE.instrucciones_para_bako.curiosidad} Una pregunta así no cuenta como dato no solicitado. Si el señor te cuenta algo nuevo de alguien, reconócelo ("entendido, María es su hermana"); nunca respondas que no tienes información sobre algo que te acaba de contar.
 - Precisión: habla solo de lo que sabes con certeza por el contexto. Si no tienes un dato, di "No tengo esa información" en una frase — nunca rellenes con suposiciones.
 - Saludos: "hola", "buenas", "hola Bako", "qué tal"... son mensajes CLAROS, no ininteligibles — devuelve un saludo breve y cordial (p. ej. "Buenas, señor. ¿En qué puedo ayudarle?"), nunca "¿Qué ha querido decir, señor?" ni ninguna variante de esa frase.
 - Mensajes ininteligibles: si el mensaje tiene errores graves, es incoherente o no tiene sentido claro (texto aleatorio, palabras sueltas sin contexto, transcripción de voz corrupta), responde únicamente con "¿Qué ha querido decir, señor?" o "No le entiendo, señor, ¿puede repetirlo?" — nunca intentes interpretar ni inventar. Un saludo NUNCA entra en este caso.

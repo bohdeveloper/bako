@@ -846,6 +846,13 @@ Decisiones del señor (06/10/2026), todas con la recomendación:
 - [x] **Curiosidad en menciones** — `personaMencionadaConHuecos()` en `brain.ts`: si el señor nombra a
   una persona activa con huecos, BAKO pregunta aunque el turno no haya tocado su ficha. Como mucho
   una pregunta por turno, nunca si el turno fue sensible, y cada hueco se pregunta una sola vez
+- [x] **Curiosidad dentro de la conversación** (06/10/2026, tras otra prueba del señor sin preguntas).
+  Tres causas: la pregunta salía como mensaje aparte (Telegram + cola que la PWA consulta cada 60 s);
+  el prompt principal decía "NUNCA añadas... datos no solicitados" y nada pedía curiosidad; y un turno
+  sin operaciones salía del clasificador antes de llegar a la curiosidad. Ahora: regla de curiosidad en
+  `profile.ts` que entra en el prompt principal, instrucción de curiosidad en el propio turno
+  (`curiosidadParaTurno` + `respuestaPreguntaPor`), y el mensaje aparte de B3 se elimina. El prompt
+  crece ~450 caracteres: vigilar el límite de TPM de Groq (invariante §3.9)
 - [ ] **Borrar la memoria mal clasificada** "No me haces preguntas sobre Yaimy?" — pendiente del señor
   desde el panel (Recuerdos). No se puede borrar desde aquí: Mongo de producción no resuelve desde este
   entorno, y borrar un dato del señor sin su confirmación no procede

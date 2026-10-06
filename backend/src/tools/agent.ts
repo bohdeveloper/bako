@@ -20,7 +20,7 @@ import { createNotionTask, updateNotionTaskStatus, findNotionTaskByName, updateN
 import { createCalendarEvent } from './calendar';
 import { createIssueSync, closeIssueSync } from './issueSync';
 import { invalidateCalendarCache } from './context';
-import { consultarCerebro, olvidarPersona, olvidarConocimiento } from './brain';
+import { consultarCerebro, olvidarPersona, olvidarConocimiento, curiosidadParaTurno, marcarHuecoPreguntado, respuestaPreguntaPor } from './brain';
 import { isSensitive } from './privacy';
 import { nowInSpain } from './time';
 import { BAKO_PROFILE } from '../knowledge/profile';
@@ -487,11 +487,22 @@ export async function runAgentTurn(
   const runtime = `EJECUCIÓN ACTUAL: ahora mismo te ejecuta ${describeRuntime(enLaNube)}. `
     + `Si el señor pregunta dónde te ejecutas, con qué modelo funcionas o si estás usando la GPU de su PC, `
     + `respóndele con este dato — nunca supongas que eres un modelo en la nube.`;
-  const systemPrompt = `${options.systemPrompt ?? ''}\n\n${TOOL_INSTRUCTIONS}\nFecha y hora actual: ${fechaContexto()}\n${runtime}`;
+  // Curiosidad dentro del turno: nunca en un turno sensible (§3.3), y sin romper el
+  // turno si falla la consulta
+  const curiosidad = (options.private || isSensitive(userText))
+    ? null
+    : await curiosidadParaTurno(userText).catch(() => null);
+  const systemPrompt = `${options.systemPrompt ?? ''}\n\n${TOOL_INSTRUCTIONS}\nFecha y hora actual: ${fechaContexto()}\n${runtime}`
+    + (curiosidad ? `\n${curiosidad.instruccion}` : '');
   const result = await askClaudeWithTools(userText, TOOL_SCHEMAS, { ...options, systemPrompt });
 
   if (!result.toolCall) {
     const text = result.text || 'Sin respuesta';
+    // Solo cuenta como preguntado si una frase interrogativa nombra a esa persona:
+    // un "¿Quiere que se lo apunte?" no puede cerrar el hueco para siempre
+    if (curiosidad && respuestaPreguntaPor(text, curiosidad.nombre)) {
+      marcarHuecoPreguntado(curiosidad.personaId, curiosidad.campo).catch(() => {});
+    }
     return { text, voice: stripMarkdown(text) };
   }
 
