@@ -3,7 +3,7 @@
  * Ejecutar: npx ts-node src/scripts/_verify_f10.ts
  */
 import {
-  addDays, detectarRacha, detectarEnergia, textoEnergia, textoRacha, debePreguntarRacha, RegistroDia,
+  proyectoCorrespondeARepo, addDays, detectarRacha, detectarEnergia, textoEnergia, textoRacha, debePreguntarRacha, RegistroDia,
 } from '../tools/patrones';
 
 let fallos = 0;
@@ -30,16 +30,17 @@ for (let i = 1; i <= 28; i++) {
 }
 registrosRacha.find(r => r.fecha === addDays(HOY, -5))!.commits[0].n = 3;
 registrosRacha.find(r => r.fecha === addDays(HOY, -1))!.tareas = [
-  { proyecto: 'Diamadmin', abiertas: 4 },
-  { proyecto: 'Unyona',    abiertas: 2 },
+  { proyecto: 'Diamadmin — reconstrucción kickstack', abiertas: 4 },
+  { proyecto: 'Unyona — BETA', abiertas: 2 },
+  { proyecto: 'unyona-landing', abiertas: 7 },
   { proyecto: 'General',   abiertas: 9 },
 ];
 
 const racha = detectarRacha(registrosRacha, HOY);
 check('racha: detecta Diamadmin (5 días sin commits, 4 tareas)',
-  racha?.proyecto === 'Diamadmin' && racha?.diasSin === 5 && racha?.abiertas === 4 && racha?.ultimo === addDays(HOY, -5),
+  racha?.proyecto === 'Diamadmin — reconstrucción kickstack' && racha?.diasSin === 5 && racha?.abiertas === 4 && racha?.ultimo === addDays(HOY, -5),
   JSON.stringify(racha));
-check('racha: Unyona no sale (commit ayer)', racha?.proyecto !== 'Unyona');
+check('racha: Unyona no sale (commit ayer)', !racha?.proyecto.toLowerCase().startsWith('unyona'));
 check('racha: "General" ignorado (no es repo)', racha?.proyecto !== 'General');
 
 const sinRacha = detectarRacha(registrosRacha.map(r => ({ ...r, commits: r.commits.map(c => ({ ...c, n: 1 })) })), HOY);
@@ -57,6 +58,12 @@ check('racha: se pregunta si nunca se preguntó', !!racha && debePreguntarRacha(
 check('racha: no se repite si sigue igual', !!racha && !debePreguntarRacha(racha, racha.ultimo));
 check('racha: vuelve a preguntar si hubo un commit nuevo y se paró otra vez',
   !!racha && debePreguntarRacha(racha, '2026-09-20'));
+
+check('racha: la clave es el repo, no el nombre del proyecto', racha?.repo === 'diamadmin', racha?.repo);
+check('nombres: "BAKO: bot" y "Unyona (BETA)" corresponden a su repo',
+  proyectoCorrespondeARepo('BAKO: bot', 'bako') && proyectoCorrespondeARepo('Unyona (BETA)', 'unyona'));
+check('nombres: el guion normal no separa ("unyona - landing" no es unyona)',
+  !proyectoCorrespondeARepo('unyona - landing', 'unyona') && !proyectoCorrespondeARepo('unyona-landing', 'unyona'));
 
 // ─── Energía ─────────────────────────────────────────────────────────────────
 

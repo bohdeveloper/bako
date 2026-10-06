@@ -1390,7 +1390,8 @@ export function startTelegramBot(): void {
       }));
       const response = turn.text;
       await sendAgentTurn(chatId, turn);
-      appendToSession(chatId, transcription, response);
+      // Un informe hecho con datos sensibles no entra en la sesión: viajaría a la nube en el siguiente turno
+      if (!turn.sensible) appendToSession(chatId, transcription, response);
       if (!turn.toolUsed || turn.toolReadOnly) learnFromConversation(transcription, response).catch(() => {});
       const detectedMood = detectMoodFromText(transcription);
       if (detectedMood) { currentMood = detectedMood; moodMessageCount = 0; }
@@ -1672,7 +1673,8 @@ Formato de respuesta: SOLO el cuerpo del email, sin "Asunto:" ni cabeceras.`;
       }));
       const response = turn.text;
       await sendAgentTurn(chatId, turn);
-      appendToSession(chatId, text, response);
+      // Un informe hecho con datos sensibles no entra en la sesión: viajaría a la nube en el siguiente turno
+      if (!turn.sensible) appendToSession(chatId, text, response);
       if (!turn.toolUsed || turn.toolReadOnly) learnFromConversation(text, response).catch(() => {});
       const detectedMoodText = detectMoodFromText(text);
       if (detectedMoodText) { currentMood = detectedMoodText; moodMessageCount = 0; }

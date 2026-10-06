@@ -18,7 +18,7 @@ import { getNotionTasks, getFechasTareasHechas } from './notion';
 
 const VENTANA_REGISTRO = 28;  // días que recalcula cada noche el job
 const VENTANA_ANALISIS = 56;  // 8 semanas para medir la energía por día de la semana
-const DIAS_RACHA       = 3;   // días sin commits con tareas abiertas antes de avisar
+export const DIAS_RACHA = 3;   // días sin commits con tareas abiertas antes de avisar
 const MIN_DIAS_TOTAL   = 20;  // muestras laborables mínimas antes de afirmar nada
 const MIN_MUESTRAS_DIA = 4;   // muestras mínimas de un mismo día de la semana
 const RATIO_ALTA       = 1.5;
@@ -33,6 +33,7 @@ export interface RegistroDia {
 
 export interface Racha {
   proyecto: string;
+  repo:     string;        // repo vigilado al que corresponde: clave estable aunque se renombre el proyecto
   diasSin:  number | null; // null = sin commits en toda la ventana registrada
   ultimo:   string | null; // fecha del último commit conocido
   abiertas: number;
@@ -77,6 +78,18 @@ function actividadDia(r: RegistroDia): number {
 // ─── Detectores puros ────────────────────────────────────────────────────────
 
 /**
+ * Un proyecto de Notion corresponde a un repo si la parte del nombre anterior al guion largo
+ * coincide con el repo, sin mayúsculas ni acentos: "Diamadmin — reconstrucción kickstack" →
+ * diamadmin, "Unyona — BETA" → unyona, "BAKO: bot" → bako. El guion normal NO separa:
+ * "unyona-landing" o "unyona - landing" son otro repo, no unyona.
+ */
+export function proyectoCorrespondeARepo(proyecto: string, repo: string): boolean {
+  const base = proyecto.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+    .split(/\s*[—–:(]/)[0].trim();
+  return base === repo.toLowerCase();
+}
+
+/**
  * Racha sin avanzar: un proyecto con tareas abiertas (según el último snapshot de Notion) y sin
  * commits desde hace DIAS_RACHA días o más. Solo cuenta proyectos que tienen repo vigilado con el
  * mismo nombre (sin distinguir mayúsculas); el resto no se puede medir y se ignora.
@@ -90,22 +103,22 @@ export function detectarRacha(registros: RegistroDia[], hoy: string): Racha | nu
   const candidatos: Racha[] = [];
   for (const { proyecto, abiertas } of snapshot.tareas) {
     if (abiertas <= 0) continue;
-    const repo = proyecto.toLowerCase();
+    const coincide = (repo: string) => proyectoCorrespondeARepo(proyecto, repo);
 
-    const hayDatos = registros.some(r => r.commits.some(c => c.repo.toLowerCase() === repo));
-    if (!hayDatos) continue;
+    const repo = registros.flatMap(r => r.commits).find(c => coincide(c.repo))?.repo;
+    if (!repo) continue;
 
     let ultimo: string | null = null;
     for (const r of registros) {
       if (r.fecha > hoy) continue;
-      if (r.commits.some(c => c.repo.toLowerCase() === repo && c.n > 0)) {
+      if (r.commits.some(c => coincide(c.repo) && c.n > 0)) {
         if (!ultimo || r.fecha > ultimo) ultimo = r.fecha;
       }
     }
 
     const diasSin = ultimo ? diasEntre(hoy, ultimo) : null;
     if (diasSin === null || diasSin >= DIAS_RACHA) {
-      candidatos.push({ proyecto, diasSin, ultimo, abiertas });
+      candidatos.push({ proyecto, repo, diasSin, ultimo, abiertas });
     }
   }
 
@@ -270,7 +283,7 @@ export async function rachaParaPreguntar(ahora: Date = new Date()): Promise<{ te
   const racha = detectarRacha(registros, hoy);
   if (!racha) return null;
 
-  const clave = `patron_racha_${racha.proyecto.toLowerCase()}`;
+  const clave = `patron_racha_${racha.repo.toLowerCase()}`;
   const previa = await AutoConfig.findOne({ key: clave }).lean();
   if (!debePreguntarRacha(racha, previa?.value ?? null)) return null;
 
@@ -286,4 +299,11 @@ async function cargarRegistros(hoy: string): Promise<RegistroDia[]> {
   return ActividadDiaria
     .find({ fecha: { $gte: addDays(hoy, -VENTANA_ANALISIS) } })
     .lean<IActividadDiaria[]>();
+}
+
+/** Racha actual en texto, sin marcarla como preguntada (para el PM Agent de la Fase 11). */
+export async function rachaActual(ahora: Date = new Date()): Promise<string | null> {
+  const hoy = madridDateKey(ahora);
+  const racha = detectarRacha(await cargarRegistros(hoy), hoy);
+  return racha ? textoRacha(racha) : null;
 }

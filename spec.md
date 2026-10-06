@@ -289,6 +289,12 @@ No se reabren sin decisión explícita del usuario.
     conversación nunca parecía curiosa. Ahora la curiosidad es una instrucción más del prompt del turno
     (`curiosidadParaTurno` en `brain.ts`), sin llamada extra al modelo. Un hueco solo se marca como
     preguntado si la respuesta tiene una frase interrogativa que nombra a esa persona.
+19. **Los agentes solo leen** (decidido el 06/10/2026, Fase 11). Un agente (`agents/`) es un rol con
+    herramientas de solo lectura dentro de un bucle ReAct propio, sin dependencias externas. Si
+    concluye que hay que hacer algo, lo propone en su informe; la escritura la hace el turno principal
+    con el gate de confirmación de B0. Todo informe pasa por un verificador que lo contrasta con las
+    observaciones, y si no se puede verificar sale con aviso. Una observación sensible (§3.3) pasa el
+    resto del bucle a local y marca el turno para que no entre en la sesión ni en el aprendizaje.
 
 ---
 

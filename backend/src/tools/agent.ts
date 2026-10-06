@@ -24,6 +24,8 @@ import { consultarCerebro, olvidarPersona, olvidarConocimiento, curiosidadParaTu
 import { isSensitive } from './privacy';
 import { nowInSpain } from './time';
 import { BAKO_PROFILE } from '../knowledge/profile';
+import { AGENTES } from '../agents/agentes';
+import { ejecutarAgente } from '../agents/react';
 
 function fechaContexto(): string {
   return nowInSpain().toLocaleString('es-ES', {
@@ -95,8 +97,13 @@ interface ToolDef {
   parameters:  Record<string, any>; // JSON Schema
   destructive: boolean;             // true → pide confirmación explícita antes de ejecutar
   soloLectura?: boolean;            // no escribe nada → nunca pide confirmación, ni con el modelo local
-  run:         (args: any) => Promise<string>;
+  yaRedactado?: boolean;            // su salida ya es una respuesta al señor: no pasa por redactarRespuestaLectura
+  // Una herramienta puede marcar su salida como sensible (§3.3): el turno no debe acabar en la nube
+  run:         (args: any, options?: AskClaudeOptions) => Promise<string | { texto: string; sensible: boolean }>;
 }
+
+// Fase 11 — Orquestador: el propio modelo del turno elige en qué agente delegar
+const AGENTES_DISPONIBLES = AGENTES.map(a => `${a.id} (${a.descripcion})`).join('; ');
 
 const TOOLS: ToolDef[] = [
   {
@@ -238,7 +245,7 @@ const TOOLS: ToolDef[] = [
   },
   {
     name:        'consultar_cerebro',
-    description: 'Consulta lo que BAKO tiene guardado sobre una persona, un tema o un asunto concreto (personas, conocimiento personal, recuerdos y sus conexiones con otras personas o proyectos, dichas o deducidas). Úsala cuando el señor pregunte "¿qué sabes de X?" o cuando necesites datos sobre alguien que no aparezcan ya en el contexto.',
+    description: 'Consulta lo que BAKO tiene guardado sobre una persona, un tema o un asunto concreto (personas, conocimiento personal, recuerdos y sus conexiones con otras personas o proyectos, dichas o deducidas). Úsala cuando el señor pregunte "¿qué sabes de X?" o cuando necesites datos sobre alguien que no aparezcan ya en el contexto. No sirve para tareas, proyectos de Notion ni código: eso es delegar_en_agente.',
     label:       'consultar lo que sé sobre eso',
     parameters: {
       type: 'object',
@@ -300,6 +307,28 @@ const TOOLS: ToolDef[] = [
       return `✅ Siguiente acción de *${md(args.proyecto)}* actualizada:\n_"${md(args.siguienteAccion)}"_`;
     },
   },
+  {
+    name:        'delegar_en_agente',
+    description: `Solo para análisis de varios pasos (qué proyecto está parado, qué priorizar, revisar un PR). Nunca para preguntas simples. Agentes: ${AGENTES_DISPONIBLES}.`,
+    label:       'consultar a un agente',
+    parameters: {
+      type: 'object',
+      properties: {
+        agente: { type: 'string', enum: AGENTES.map(a => a.id), description: 'Agente al que delegar' },
+        tarea:  { type: 'string', description: 'La petición del señor tal cual la dijo, sin reinterpretarla ni añadir nombres que él no haya usado' },
+      },
+      required: ['agente', 'tarea'],
+    },
+    destructive: false,
+    soloLectura: true,
+    yaRedactado: true,
+    run: async (args, options) => {
+      const agente = AGENTES.find(a => a.id === args.agente);
+      if (!agente) return `No tengo ningún agente "${args.agente}", señor.`;
+      const r = await ejecutarAgente(agente, String(args.tarea ?? ''), options ?? {});
+      return { texto: r.informe, sensible: r.privado };
+    },
+  },
 ];
 
 // Esquema que espera la API (formato OpenAI, el mismo que aceptan Groq y Ollama)
@@ -323,6 +352,10 @@ crear, actualizar, agendar o cerrar algo — nunca para conversar ni para dar in
 señor pregunte qué sabes de alguien o de algo, o cuando necesites un dato sobre una persona que no
 esté ya en el contexto de arriba. \`olvidar_persona\` y \`olvidar_conocimiento\` solo si pide
 explícitamente que olvides algo.
+
+3) AGENTES. \`delegar_en_agente\` pasa una consulta de varios pasos a un agente especializado (proyectos
+y tareas, o desarrollo y código) y te devuelve su informe ya redactado. Solo para análisis que exijan
+mirar varias fuentes; para una pregunta simple, responde tú.
 
 Si falta un dato imprescindible para una herramienta, pregúntalo en texto en vez de inventarlo o de
 rellenarlo con un valor de ejemplo.`;
@@ -421,6 +454,7 @@ export interface AgentTurnResult {
   // y el señor suele corregir o ampliar en la misma frase. Las de solo lectura
   // no escriben nada, así que su turno se aprende como cualquier otro.
   toolReadOnly?: boolean;
+  sensible?: boolean; // la salida vino de datos sensibles: el llamador no la guarda en la sesión (§3.3)
   awaitingConfirmation?: boolean; // el texto es una pregunta de confirmación: quien pueda (Telegram) que muestre botones
 }
 
@@ -434,7 +468,8 @@ export async function confirmPendingAction(confirmKey: string): Promise<AgentTur
   const tool = TOOLS.find(t => t.name === pending.toolName);
   if (!tool) return { text: '⚠️ Ya no reconozco esa acción.', voice: 'Ya no reconozco esa acción, señor.' };
   try {
-    const text = await tool.run(pending.args);
+    const salida = await tool.run(pending.args);
+    const text = typeof salida === 'string' ? salida : salida.texto;
     return { text, voice: stripMarkdown(text), toolUsed: tool.name };
   } catch (err) {
     const text = `❌ ${(err as Error).message}`;
@@ -540,9 +575,11 @@ export async function runAgentTurn(
   }
 
   try {
-    const rawText = await tool.run(result.toolCall.arguments);
+    const salida = await tool.run(result.toolCall.arguments, options);
+    const rawText = typeof salida === 'string' ? salida : salida.texto;
+    const sensible = typeof salida !== 'string' && salida.sensible;
     let text = rawText;
-    if (tool.soloLectura) {
+    if (tool.soloLectura && !tool.yaRedactado) {
       // `options.private` es el gate sobre el MENSAJE del señor ("¿qué sabes de
       // Ibon?" no dispara isSensitive), pero `consultarCerebro` puede devolver
       // notas guardadas sobre esa persona que sí lo sean — brain.ts ya protege su
@@ -553,7 +590,9 @@ export async function runAgentTurn(
       const privado = options.private || isSensitive(rawText);
       text = await redactarRespuestaLectura(userText, rawText, { ...options, private: privado, useCloud: privado ? false : options.useCloud });
     }
-    return { text, voice: stripMarkdown(text), toolUsed: tool.name, toolReadOnly: tool.soloLectura === true };
+    // Un informe de agente no se trata como conversación de la que aprender: puede venir de
+    // observaciones sensibles resueltas en local, y el aprendizaje clasificaría en la nube
+    return { text, voice: stripMarkdown(text), toolUsed: tool.name, toolReadOnly: tool.soloLectura === true && !tool.yaRedactado, sensible };
   } catch (err) {
     const text = `❌ ${(err as Error).message}`;
     return { text, voice: `No pude ejecutar esa acción. ${(err as Error).message}` };

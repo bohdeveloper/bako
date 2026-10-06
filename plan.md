@@ -899,7 +899,13 @@ briefing lo dice así.
   sintéticos (pasan) y `npm run build` limpio; `/code-review` aplicado (paginación y filtro de autor
   corregidos). **Pendiente**: el briefing real contra GitHub/Notion y la primera pasada del cron, que
   solo se puede ver tras desplegar en Render (el histórico se llena solo a partir de esa noche; hasta
-  tener ~3 semanas de datos la energía no afirma nada)
+  tener ~3 semanas de datos la energía no afirma nada). Revisión del 06/10/2026 con
+  `_verify_f10_real.ts` (solo lectura): Notion responde bien (tareas cerradas y abiertas); GitHub no se
+  pudo probar porque el `GITHUB_TOKEN` del `.env` local está caducado (401). Y destapó un fallo que
+  anulaba la racha: los proyectos de Notion no se llaman como su repo ("Diamadmin — reconstrucción
+  kickstack", "BAKO" frente a `ai-personal-os`). Corregido con `proyectoCorrespondeARepo` (la parte
+  anterior al guion largo, los dos puntos o el paréntesis) y el repo por defecto pasa a `bako`.
+  **Revisar en Render** que `PROACTIVITY_REPOS`, si está definida, use `bako` y no `ai-personal-os`
 - Decisión deliberada: el job `patrones` no pasa por `AutoConfig` ni por `isJobEnabled`. No avisa de
   nada (solo guarda historia), y meterlo en `/automaticos` lo haría aparecer como un aviso más
 - Límite conocido: Render free duerme la instancia sin tráfico, y el cron de las 23:55 no corre
@@ -911,6 +917,43 @@ briefing lo dice así.
 ### Fase 11 — Orquestación multi-agente
 Patrón ReAct propio, sin CrewAI ni dependencias externas. Un orquestador reparte y un verificador
 valida las salidas antes de ejecutar.
+
+Desglose (06/10/2026). Restricciones que mandan sobre el diseño: coste $0 (§3.1), el límite de 6.000
+TPM de Groq (§3.9: cada paso de un bucle reenvía el contexto, así que el agente usa un prompt mínimo y
+observaciones recortadas) y la privacidad (§3.3). Los agentes **solo leen**: cualquier escritura la
+propone el agente y la ejecuta el turno principal, con el gate de confirmación de B0 de siempre.
+
+- [x] **11.1 — Bucle ReAct** (06/10/2026) (`agents/react.ts`): pensar → herramienta → observación, hasta 3
+  herramientas y un informe final. Observaciones como texto en el historial (funciona igual en Groq y
+  Ollama), recortadas a 1.200 caracteres, con freno ante una llamada repetida
+- [x] **11.2 — Verificador** (06/10/2026): una llamada que comprueba que el informe solo afirma lo que está en las
+  observaciones; si no, una reescritura y, si vuelve a fallar, se avisa de que no está verificado
+- [x] **11.3 — Orquestador** (06/10/2026): herramienta de solo lectura `delegar_en_agente` en el turno principal. El
+  propio modelo elige el agente según la petición; el informe vuelve ya redactado al señor
+- [x] **11.4 — PM Agent** (06/10/2026): tareas y proyectos de Notion, rachas de la Fase 10, actividad de GitHub
+- [x] **11.5 — Dev Agent** (06/10/2026): repos, commits recientes, PRs abiertos y diff de un PR concreto
+- [x] **11.6 — Verificación** (06/10/2026): `_verify_f11.ts` con 13 comprobaciones sobre LLM
+  simulado, prueba real del PM Agent con Groq y Notion, y prueba de punta a punta del orquestador
+  (delega en una petición de análisis y no en un saludo). Dos rondas de `/code-review` y
+  `/security-review` sin hallazgos
+- Hallazgos de las pruebas reales, corregidos: con 51 tareas la observación recortada no permitía
+  contar por proyecto (la herramienta da ahora un recuento primero); 400 tokens cortaban el informe y
+  200 no daban al verificador de `gpt-oss` para devolver el JSON; `consultar_cerebro` se comía las
+  preguntas de proyectos; el modelo principal reescribía la tarea con nombres inventados ("Centro de
+  Mando"); y Groq rechaza con 400 un parámetro opcional enviado como `null` si el esquema solo admite
+  texto
+- Del `/code-review`: privacidad propagada (un informe con datos sensibles marca el turno como
+  `sensible` y no entra en la sesión de Telegram ni en el aprendizaje); validación de `repo` y
+  `numero` antes de llamar a la API de GitHub; un informe sin consultas también se verifica; OpenRouter
+  sin observaciones dice que no pudo consultar en vez de inventar; las llamadas repetidas no gastan el
+  tope de pasos; un fallo de la reescritura conserva el informe original
+- **Riesgo conocido**: con Groq, una delegación suma 3-6 llamadas a la del turno y toca con facilidad el
+  límite de 6.000 TPM. El agente responde entonces "he llegado al límite de consultas"; con Ollama (el
+  proveedor por defecto) no hay ese límite. Residual de privacidad: la marca `sensible` no llega al
+  historial que guarda la PWA
+- Diferidos, cada uno con su bloqueo: **Research** e **Ideas** (no hay buscador web gratuito y fiable;
+  solo se podría leer una URL dada), **Ops** (APIs de Vercel/Cloudflare/Render sin configurar),
+  **Content** y **Learning** (no tienen herramientas propias: hoy serían el mismo LLM con otro prompt)
 
 | Agente | Rol | Herramientas clave |
 |---|---|---|

@@ -77,7 +77,7 @@ export async function getUserRepos(): Promise<RepoSummary[]> {
   }));
 }
 
-async function getRecentCommits(
+export async function getRecentCommits(
   owner: string,
   repo: string,
   since: Date
@@ -99,7 +99,7 @@ async function getRecentCommits(
   }
 }
 
-async function getOpenPRs(owner: string, repo: string): Promise<PullRequest[]> {
+export async function getOpenPRs(owner: string, repo: string): Promise<PullRequest[]> {
   try {
     const { data } = await getClient().get(`/repos/${owner}/${repo}/pulls`, {
       params: { state: 'open', per_page: 10 },
@@ -222,7 +222,7 @@ export async function getPRDetails(repo: string, prNumber: number): Promise<{
 }
 
 // Repos que vigila la proactividad y el registro de patrones (Fase 10)
-export const WATCHED_REPOS = (process.env.PROACTIVITY_REPOS ?? 'diamadmin,unyona,ai-personal-os')
+export const WATCHED_REPOS = (process.env.PROACTIVITY_REPOS ?? 'diamadmin,unyona,bako')
   .split(',')
   .map(r => r.trim().toLowerCase());
 
