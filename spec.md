@@ -279,6 +279,11 @@ No se reabren sin decisión explícita del usuario.
     GitHub o Notion conserva el dato anterior en vez de registrar un cero, porque un cero falso
     fabricaría una racha inexistente. El conteo de commits es un proxy de actividad en código, no de
     energía ni de ánimo: cualquier texto que lo presente como estado personal incumple este invariante.
+18. **BAKO pregunta por las personas que nombras, no solo por las que acaba de crear** (decidido el
+    06/10/2026, tras el caso Yaimy). Si el señor menciona a una persona activa con huecos abiertos,
+    BAKO puede preguntar por uno de ellos. Mismas reglas que B3: como mucho una pregunta por turno, un
+    hueco se pregunta una sola vez, y nunca en un turno sensible (§3.3). Las quejas sobre cómo se
+    comporta BAKO no son preferencias del señor y no se guardan como tales.
 
 ---
 

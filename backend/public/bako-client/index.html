@@ -1051,7 +1051,6 @@
   <div class="admin-tab-content" id="tabSystem" data-section="Sistema">
     <div class="admin-section-title">Mantenimiento del cerebro</div>
     <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnDedupe" data-tooltip="Analiza duplicados y pide confirmación antes de eliminar nada" style="width:100%">🧹 Deduplicar memoria</button><button class="mobile-info" data-target="btnDedupe" type="button">ℹ</button></div>
-    <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnEmbedMemories" data-tooltip="Genera vectores de búsqueda semántica para todas las memorias" style="width:100%">🔢 Generar embeddings</button><button class="mobile-info" data-target="btnEmbedMemories" type="button">ℹ</button></div>
     <div class="admin-feedback" id="seedFeedback"></div>
 
     <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">
@@ -1648,26 +1647,6 @@
     finally { btn.disabled = false; btn.textContent = '🧹 Deduplicar memoria'; }
   });
 
-  document.getElementById('btnEmbedMemories').addEventListener('click', async () => {
-    const btn = document.getElementById('btnEmbedMemories');
-    const fb  = document.getElementById('seedFeedback');
-    btn.disabled = true; btn.textContent = '⏳ Generando embeddings… (puede tardar)';
-    fb.textContent = ''; fb.className = 'admin-feedback';
-    try {
-      const res  = await fetch(`${BAKO_URL}/api/agent/embed-memories`, { method:'POST', headers: authHeaders() });
-      const data = await res.json();
-      if (res.ok) {
-        fb.textContent = data.embedded === 0
-          ? `✓ ${data.message}`
-          : `✓ ${data.embedded} embeddings generados · ${data.errors} errores · ${data.total} memorias procesadas`;
-        fb.className = 'admin-feedback ok';
-      } else {
-        fb.textContent = data.error || 'Error'; fb.className = 'admin-feedback err';
-      }
-    } catch { fb.textContent = 'Error de conexión'; fb.className = 'admin-feedback err'; }
-    finally { btn.disabled = false; btn.textContent = '🔢 Generar embeddings'; }
-  });
-
   // ── Panel de administración ───────────────────────────────────────────────
   // Un solo panel con una sección a la vez. Superadmin ve todo; el resto solo Ajustes.
   // Cada sección carga sus datos al mostrarse, no al abrir el panel.
@@ -1705,8 +1684,11 @@
     adminOverlay.classList.remove('visible');
   }
 
-  // El botón de la cabecera recibe el evento como argumento: no debe llegar a tabId
-  btnAdmin.addEventListener('click', () => openAdmin());
+  // El botón de la cabecera alterna: abre si está cerrado y cierra si ya está abierto.
+  // No recibe tabId: el evento del clic no debe llegar como nombre de sección
+  btnAdmin.addEventListener('click', () => {
+    adminPanel.classList.contains('visible') ? closeAdmin() : openAdmin();
+  });
   adminClose.addEventListener('click', closeAdmin);
   adminOverlay.addEventListener('click', closeAdmin);
 

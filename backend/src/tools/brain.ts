@@ -91,7 +91,9 @@ Si es nuevo, usa "crear".
 
 NO guardes: consultas de tiempo, noticias o la hora; saludos; eventos de calendario con fecha y hora
 (el calendario es su propia fuente de verdad); nada que ya conste arriba sin cambios; ni lo que diga
-BAKO sobre sí mismo (qué modelo usa, dónde se ejecuta). Tampoco estos campos CUANDO SON DEL PROPIO
+BAKO sobre sí mismo (qué modelo usa, dónde se ejecuta), ni las quejas o correcciones sobre cómo se
+comporta BAKO ("no me haces preguntas", "contestas mal"): eso es conversación, no un recuerdo ni una
+preferencia de Borja. Tampoco estos campos CUANDO SON DEL PROPIO
 BORJA — de las demás personas sí se guardan en su ficha, que para eso está la caja "persona":
 ${CAMPOS_DE_PERFIL}. Esos ocho tienen su propia ficha de perfil y su propio cauce de actualización
 ("ya no trabajo en X", "me he mudado a Y", "nací el 12/03/1990"). Ojo: la rutina, los hábitos y los horarios de Borja SÍ son conocimiento y se
@@ -296,6 +298,27 @@ function huecosDePersona(p: IPerson): Array<{ campo: string; pista: string }> {
 }
 
 /**
+ * Curiosidad en menciones: si el señor nombra a una persona activa con huecos, BAKO
+ * pregunta aunque el clasificador no haya creado ni cambiado su ficha en este turno.
+ * Solo se mira el mensaje del señor, nunca la respuesta de BAKO, y el nombre tiene que
+ * aparecer como palabra entera ("Ana" no debe coincidir con "anatomía").
+ */
+async function personaMencionadaConHuecos(mensaje: string): Promise<IPerson | null> {
+  const texto = normalizar(mensaje).toLowerCase();
+  const candidatas = await Person.find({ activo: true });
+  for (const p of candidatas) {
+    if (!huecosDePersona(p).length) continue;
+    const nombres = [p.nombre, ...p.alias].filter(Boolean);
+    const menciona = nombres.some(n => {
+      const nombre = escapeRegex(normalizar(n).toLowerCase());
+      return new RegExp(`(^|[^a-z0-9ñ])${nombre}($|[^a-z0-9ñ])`).test(texto);
+    });
+    if (menciona) return p;
+  }
+  return null;
+}
+
+/**
  * Redacta 2-3 preguntas naturales sobre los huecos de `persona` y las manda
  * como mensaje aparte (no en el turno en curso, para no añadirle latencia a
  * cada mensaje) por el mismo canal que ya usan los avisos de los crons —
@@ -303,7 +326,7 @@ function huecosDePersona(p: IPerson): Array<{ campo: string; pista: string }> {
  * Mismo proveedor que decidió el turno (invariante §3.3): si fue sensible, no
  * se llama a esta función en absoluto (ver `learnFromConversation`).
  */
-async function preguntarPorHuecos(persona: IPerson, alaNube: boolean): Promise<void> {
+async function preguntarPorHuecos(persona: IPerson, alaNube: boolean, origen: 'turno' | 'mencion' = 'turno'): Promise<void> {
   if (!persona.activo) return; // ficha desactivada a mano — nadie quiere que BAKO pregunte por ella
   const huecos = huecosDePersona(persona).slice(0, 3);
   if (!huecos.length) return;
@@ -315,7 +338,11 @@ async function preguntarPorHuecos(persona: IPerson, alaNube: boolean): Promise<v
     persona.trabajo && `trabaja en ${persona.trabajo}`,
   ].filter(Boolean).join(' · ') || 'nada más todavía';
 
-  const prompt = `Acabas de aprender o actualizar algo sobre "${persona.nombre}". Lo que ya sabes de `
+  // Una mención no es un aprendizaje: el prompt no puede afirmar que BAKO acaba de aprender algo
+  const intro = origen === 'mencion'
+    ? `El señor acaba de nombrar a "${persona.nombre}" en la conversación.`
+    : `Acabas de aprender o actualizar algo sobre "${persona.nombre}".`;
+  const prompt = `${intro} Lo que ya sabes de `
     + `${persona.nombre}: ${conocido}. Sientes curiosidad genuina por completar el resto — como un niño `
     + `que acaba de conocer a alguien nuevo y quiere saberlo todo, pero sin agobiar. Escribe UN mensaje `
     + `breve y cálido para el señor con ${huecos.length} pregunta${huecos.length > 1 ? 's' : ''} sobre: `
@@ -828,6 +855,11 @@ export async function learnFromConversation(
           // este turno — mismo alcance acotado a propósito que B3.
           await deducirConexiones({ tipo: 'persona', id: persona._id, nombre: persona.nombre }, conversacion, alaNube);
         }
+      } else if (!contradiccionesTurno.length) {
+        // Curiosidad en menciones (06/10): una persona conocida nombrada en el mensaje
+        // con huecos abiertos. Como mucho una pregunta por turno, igual que B3.
+        const mencionada = await personaMencionadaConHuecos(userMessage);
+        if (mencionada) await preguntarPorHuecos(mencionada, alaNube, 'mencion');
       }
     }
   } catch (err) {

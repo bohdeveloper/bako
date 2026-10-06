@@ -261,33 +261,6 @@ router.post('/deduplicate-memories', async (req: Request, res: Response) => {
   });
 });
 
-// POST /api/agent/embed-memories — genera embeddings para memorias que aún no los tienen
-// Usa Ollama si está disponible, Cloudflare Workers AI como fallback
-router.post('/embed-memories', async (_req: Request, res: Response) => {
-  const { Memory } = await import('../memory/Memory');
-  const { generateEmbedding } = await import('../tools/embeddings');
-
-  const pending = await Memory.find({ embeddingDim: 0 });
-  if (!pending.length) {
-    res.json({ ok: true, message: 'Todas las memorias ya tienen embedding', embedded: 0 });
-    return;
-  }
-
-  let ok = 0, err = 0;
-  for (const m of pending) {
-    try {
-      const { vector, dim, model } = await generateEmbedding(m.content);
-      await Memory.findByIdAndUpdate(m._id, { embedding: vector, embeddingDim: dim, embeddingModel: model });
-      ok++;
-    } catch { err++; }
-    // Pequeña pausa para no saturar Cloudflare si hay muchas memorias
-    await new Promise(r => setTimeout(r, 150));
-  }
-
-  console.log(`🔢 embed-memories: ${ok} embeddings generados (${err} errores) de ${pending.length} pendientes`);
-  res.json({ ok: true, embedded: ok, errors: err, total: pending.length });
-});
-
 // POST /api/agent/memories/import — importar memorias en batch
 router.post('/memories/import', async (req: Request, res: Response) => {
   const { memories } = req.body;

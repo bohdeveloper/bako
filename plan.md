@@ -824,8 +824,11 @@ todas las secciones una debajo de otra. Objetivo: un solo panel, resumido, con n
 - [ ] **Ajustes de voz y volumen dentro del panel** — la rueda de la cabecera abre el panel en la
   sección Ajustes. Los usuarios no superadmin solo ven esa sección (los ajustes personales siguen
   siendo para cualquier usuario); el botón 👥 de gestión de usuarios desaparece
-- [ ] **Revisión de funciones** — lo que no se use se quita; la lista de candidatas se propone al señor
-  antes de borrar nada
+- [x] **Revisión de funciones** (06/10/2026) — quitado "Generar embeddings" (botón y endpoint
+  `POST /api/agent/embed-memories`): cada memoria se embebe al guardarla. **Riesgo que se acepta**: si
+  Ollama y Cloudflare fallan justo al guardar, esa memoria queda sin vector y ya no hay botón para
+  rellenarla. Se revisa si aparecen memorias sin embedding en el panel
+- Deduplicar y Web Push se quedan. La rueda del engranaje abre y cierra el panel
 - [ ] **Verificación** — build limpio, comprobación de sintaxis del JS de la PWA, y revisión visual en
   escritorio y móvil por el señor (no hay navegador en este entorno que capture pantallas)
 
@@ -837,9 +840,15 @@ esa frase quedó guardada como **Memoria tipo preferencia** (etiquetas `Yaimy`, 
 prompt la lee como "no preguntes". La frase era una queja, no una preferencia.
 Además, B3 solo dispara la curiosidad cuando el clasificador crea o completa una ficha en ese turno;
 preguntar por una persona ya conocida no la dispara nunca.
-- [ ] Decidir con el señor (ver mensaje de 06/10/2026) y corregir: clasificación de quejas sobre el
-  comportamiento de BAKO, disparador de curiosidad en menciones de personas con huecos, y borrar la
-  memoria mal clasificada
+Decisiones del señor (06/10/2026), todas con la recomendación:
+- [x] **Quejas fuera del clasificador** — el prompt de `brain.ts` ya dice que las quejas y correcciones
+  sobre el comportamiento de BAKO son conversación, no recuerdo ni preferencia
+- [x] **Curiosidad en menciones** — `personaMencionadaConHuecos()` en `brain.ts`: si el señor nombra a
+  una persona activa con huecos, BAKO pregunta aunque el turno no haya tocado su ficha. Como mucho
+  una pregunta por turno, nunca si el turno fue sensible, y cada hueco se pregunta una sola vez
+- [ ] **Borrar la memoria mal clasificada** "No me haces preguntas sobre Yaimy?" — pendiente del señor
+  desde el panel (Recuerdos). No se puede borrar desde aquí: Mongo de producción no resuelve desde este
+  entorno, y borrar un dato del señor sin su confirmación no procede
 
 ## Horizonte 1 — Cerrar BAKO como asistente completo ✅ 28/09/2026
 
