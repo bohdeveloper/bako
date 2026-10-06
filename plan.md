@@ -828,9 +828,40 @@ móvil y Desktop) se cerró el 28/09/2026.
 > (multi-agente) solo tiene sentido sobre el tool-calling de B0.
 
 ### Fase 10 — Aprendizaje de patrones
-- [ ] Analizar commits, tareas y rutinas para detectar patrones ("llevas 3 días sin avanzar en
-  Diamadmin — ¿bloqueado?")
-- [ ] Adaptar el briefing a la energía histórica por día de la semana
+
+Desglose (06/10/2026). Sin LLM y sin datos nuevos de terceros: sale de lo que ya existe (commits del
+propio usuario en GitHub, tareas abiertas de Notion) y se guarda solo como conteo por día, nunca el
+contenido de los commits. Las "rutinas" del punto original quedan fuera: no hay fuente de datos de
+rutina fiable. Los conteos de commits son un proxy de actividad en código, no de energía real; el
+briefing lo dice así.
+
+- [x] **10.1 — Historia diaria** (06/10/2026). Modelo `ActividadDiaria` (una fila por día,
+  Europe/Madrid): commits por repo y tareas abiertas por proyecto. Cron silencioso a las 23:55 que
+  recalcula los últimos 28 días, así no hace falta backfill y un día perdido se cubre en la siguiente
+  pasada. Si GitHub o Notion fallan, se conserva el dato anterior en vez de registrar ceros falsos.
+  Filtra por autor (los bots no cuentan) y pagina hasta 500 commits; por encima, no registra
+- [x] **10.2 — Detectores** (06/10/2026). Funciones puras, sin I/O: (a) racha sin avanzar — proyecto
+  con tareas abiertas y sin commits desde hace ≥ 3 días; (b) energía por día de la semana — media
+  laborable de las últimas 8 semanas frente al día de hoy, con mínimo de 20 muestras y 4 por día, y
+  umbrales 1,5× / 0,5× para "alta"/"baja". Los fines de semana no se analizan
+- [x] **10.3 — Briefing adaptado** (06/10/2026). La línea de energía va en el briefing, determinista.
+  La racha **no** va en el briefing: se pregunta aparte, justo después, y solo una vez por racha
+  (decisión del señor, 06/10/2026). Su fallo no tumba el briefing
+- Decisiones del señor (06/10/2026): la "energía" suma commits del propio usuario **más** tareas de
+  Notion marcadas Hecho ese día (no solo commits, que no ven el trabajo sin código); las rutinas
+  quedan descartadas; y se commitea y se empuja a master para que Render despliegue
+- [~] **10.4 — Verificación** (06/10/2026). Hecho: `_verify_f10.ts` con 12 comprobaciones sobre datos
+  sintéticos (pasan) y `npm run build` limpio; `/code-review` aplicado (paginación y filtro de autor
+  corregidos). **Pendiente**: el briefing real contra GitHub/Notion y la primera pasada del cron, que
+  solo se puede ver tras desplegar en Render (el histórico se llena solo a partir de esa noche; hasta
+  tener ~3 semanas de datos la energía no afirma nada)
+- Decisión deliberada: el job `patrones` no pasa por `AutoConfig` ni por `isJobEnabled`. No avisa de
+  nada (solo guarda historia), y meterlo en `/automaticos` lo haría aparecer como un aviso más
+- Límite conocido: Render free duerme la instancia sin tráfico, y el cron de las 23:55 no corre
+  mientras duerme. Se cubre en la siguiente pasada salvo el snapshot de tareas de ese día
+- Racha con pregunta aparte, implementada tras la decisión del señor. La pregunta sale por
+  `sendSystemMessage`, igual que el resto de avisos; la clave `patron_racha_<proyecto>` de `AutoConfig`
+  recuerda la última pregunta hecha
 
 ### Fase 11 — Orquestación multi-agente
 Patrón ReAct propio, sin CrewAI ni dependencias externas. Un orquestador reparte y un verificador

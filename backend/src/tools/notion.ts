@@ -299,6 +299,22 @@ export async function getNotionTasks(): Promise<NotionTask[]> {
   return results.map(p => mapTask(p, projectNames));
 }
 
+/**
+ * Fechas de última edición de las tareas en Hecho desde `desde` (historial de Fase 10).
+ * Aproximación: una tarea editada después de cerrarse cuenta también en el día de la edición.
+ */
+export async function getFechasTareasHechas(desde: Date): Promise<string[]> {
+  const results = await queryAll(tasksDbId(), {
+    filter: {
+      and: [
+        { property: TAREA.estado, select: { equals: TAREA_HECHA } },
+        { timestamp: 'last_edited_time', last_edited_time: { on_or_after: desde.toISOString() } },
+      ],
+    },
+  });
+  return results.map((p: any) => p.last_edited_time as string).filter(Boolean);
+}
+
 export async function updateNotionTaskStatus(taskId: string, estado: EstadoTarea): Promise<void> {
   await api.patch(`/pages/${taskId}`, {
     properties: { [TAREA.estado]: { select: { name: estado } } },

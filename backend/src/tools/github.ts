@@ -221,6 +221,43 @@ export async function getPRDetails(repo: string, prNumber: number): Promise<{
   }
 }
 
+// Repos que vigila la proactividad y el registro de patrones (Fase 10)
+export const WATCHED_REPOS = (process.env.PROACTIVITY_REPOS ?? 'diamadmin,unyona,ai-personal-os')
+  .split(',')
+  .map(r => r.trim().toLowerCase());
+
+/**
+ * Fechas de los commits del propio usuario en `repo` desde `since`. Filtra por autor para que los
+ * bots (dependabot, CI) no cuenten como actividad. Pagina hasta 500 commits; si hay más, devuelve
+ * null antes que una cuenta truncada que parecería cero en los días cortados.
+ * Devuelve null también si la llamada falla: "no lo sé" no es lo mismo que "cero commits", y
+ * registrar un cero falso en el historial fabricaría una racha que no existe.
+ */
+export async function getCommitDatesSince(repo: string, since: Date): Promise<string[] | null> {
+  const username = process.env.GITHUB_USERNAME;
+  if (!username) return null;
+  const PAGINA = 100;
+  const MAX_PAGINAS = 5;
+  try {
+    const fechas: string[] = [];
+    for (let page = 1; page <= MAX_PAGINAS; page++) {
+      const { data } = await getClient().get(`/repos/${username}/${repo}/commits`, {
+        params: { since: since.toISOString(), author: username, per_page: PAGINA, page },
+      });
+      for (const c of data) {
+        const fecha = c.commit?.author?.date;
+        if (typeof fecha === 'string') fechas.push(fecha);
+      }
+      if (data.length < PAGINA) return fechas;
+    }
+    console.warn(`⚠️  ${repo}: más de ${PAGINA * MAX_PAGINAS} commits en la ventana, historial no fiable`);
+    return null;
+  } catch (err) {
+    console.warn(`⚠️  No se pudieron leer commits de ${repo} para el historial:`, (err as Error).message);
+    return null;
+  }
+}
+
 export async function fetchGitHubData(): Promise<GitHubData> {
   const username = process.env.GITHUB_USERNAME;
   if (!username) throw new Error('GITHUB_USERNAME no está definido en .env');

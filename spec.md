@@ -270,6 +270,15 @@ No se reabren sin decisión explícita del usuario.
     su nivel de confianza), nunca igualada a algo dicho explícitamente. El mismo criterio de §3.3
     aplica al propio paso de deducción: si el vecindario de relaciones ya guardadas de una entidad es
     sensible, se fuerza a local aunque el turno en curso no lo pareciera.
+17. **El historial de patrones guarda conteos, nunca contenido, y no usa LLM** (decidido el 06/10/2026,
+    Fase 10). `ActividadDiaria` solo almacena cuántos commits del propio usuario hubo por repo y día,
+    cuántas tareas de Notion se marcaron Hecho ese día, y cuántas tareas abiertas tenía cada proyecto;
+    nunca los mensajes de commit ni el texto de Notion.
+    Los detectores (racha sin avanzar, energía por día de la semana) son deterministas: no se les pide
+    a ningún modelo que "deduzca" nada, así que no hay coste ni salida al proveedor. Un fallo de
+    GitHub o Notion conserva el dato anterior en vez de registrar un cero, porque un cero falso
+    fabricaría una racha inexistente. El conteo de commits es un proxy de actividad en código, no de
+    energía ni de ánimo: cualquier texto que lo presente como estado personal incumple este invariante.
 
 ---
 

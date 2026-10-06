@@ -7,6 +7,7 @@ import { nowInSpain } from '../tools/time';
 import { getUnreadEmails, formatEmailsForSpeech } from '../tools/gmail';
 import { speak } from '../tools/tts';
 import { askClaude } from '../llm/claude';
+import { observacionEnergia } from '../tools/patrones';
 
 function buildWeatherText(weather: WeatherData): string {
   const today    = weather.forecast[0];
@@ -145,6 +146,10 @@ export async function runMorningBriefing(options: { speak?: boolean } = {}): Pro
     sections.push(buildTasksText(tasks, projects, { repos: [], recentCommits: [], openPRs: [], issues: [], fetchedAt: '' }));
   }
   if (emails.length > 0) sections.push(formatEmailsForSpeech(emails));
+
+  // Fase 10: energía por día de la semana, determinista. Las rachas van en pregunta aparte (ProactivityService)
+  const patron = await observacionEnergia().catch(() => null);
+  if (patron) sections.push(patron);
 
   const briefing = sections.join(' ');
 

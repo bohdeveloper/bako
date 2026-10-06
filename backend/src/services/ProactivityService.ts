@@ -4,7 +4,8 @@
 
 import cron from 'node-cron';
 import { runMorningBriefing } from '../agents/MorningBriefingAgent';
-import { fetchGitHubData, getUserRepos, getPRFiles, getPRDetails } from '../tools/github';
+import { fetchGitHubData, getUserRepos, getPRFiles, getPRDetails, WATCHED_REPOS } from '../tools/github';
+import { registrarActividad, rachaParaPreguntar, marcarRachaPreguntada } from '../tools/patrones';
 import { getCalendarEvents } from '../tools/calendar';
 import { nowInSpain } from '../tools/time';
 import { getNotionTasks, getAllNotionProjects, esPrioridadCritica } from '../tools/notion';
@@ -15,10 +16,6 @@ import { askClaude } from '../llm/claude';
 import { checkStaleFields } from '../tools/profileDynamic';
 import { getTechRadarItems } from '../tools/news';
 import { AutoConfig, isJobEnabled } from '../memory/AutoConfig';
-
-const WATCHED_REPOS = (process.env.PROACTIVITY_REPOS ?? 'diamadmin,unyona,ai-personal-os')
-  .split(',')
-  .map(r => r.trim().toLowerCase());
 
 // ─── Horarios por defecto ─────────────────────────────────────────────────────
 
@@ -369,7 +366,18 @@ async function runBriefingJob(): Promise<void> {
   try {
     const briefing = await runMorningBriefing();
     await sendSystemMessage(briefing, briefing);
+    await preguntarRachaPatron();
   } catch (err) { console.error('❌ CRON Briefing:', (err as Error).message); }
+}
+
+// Fase 10: pregunta aparte, una vez por racha. Va después del briefing, nunca dentro de él
+async function preguntarRachaPatron(): Promise<void> {
+  try {
+    const pendiente = await rachaParaPreguntar();
+    if (!pendiente) return;
+    await sendSystemMessage(pendiente.texto, pendiente.texto);
+    await marcarRachaPreguntada(pendiente.clave, pendiente.valor);
+  } catch (err) { console.error('❌ CRON Patrones (racha):', (err as Error).message); }
 }
 
 async function runAlertasJob(): Promise<void> {
@@ -432,6 +440,13 @@ async function runResumenSemanalJob(): Promise<void> {
   } catch (err) { console.error('❌ CRON Resumen semanal:', (err as Error).message); }
 }
 
+// Silencioso: no avisa de nada, solo guarda la historia que usa el briefing (Fase 10)
+async function runPatronesJob(): Promise<void> {
+  console.log('⏰ CRON: Registro de actividad diaria');
+  try { await registrarActividad(); }
+  catch (err) { console.error('❌ CRON Patrones:', (err as Error).message); }
+}
+
 async function runNotionSyncJob(): Promise<void> {
   if (!await isJobEnabled('notion_sync')) return;
   console.log('⏰ CRON: Sincronización plan.md → Notion');
@@ -469,4 +484,5 @@ export async function startProactivityService(): Promise<void> {
   registerTask('techradar',       s('techradar'),       runTechRadarJob);
   registerTask('resumen_semanal', s('resumen_semanal'), runResumenSemanalJob);
   registerTask('notion_sync',     s('notion_sync'),     runNotionSyncJob);
+  registerTask('patrones',        '55 23 * * *',        runPatronesJob);
 }
