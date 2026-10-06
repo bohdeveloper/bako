@@ -771,13 +771,13 @@ export async function learnFromConversation(
     let ops: Operacion[];
     try { ops = JSON.parse(match[0]); }
     catch { console.warn('🧠 Clasificador: JSON inválido'); return; }
-    if (!Array.isArray(ops) || !ops.length) {
-      // Se registra a propósito: sin esto, "no había nada que guardar" y "el
-      // modelo no supo clasificarlo" son indistinguibles desde fuera.
-      console.log('🧠 Clasificador: nada que guardar en este turno');
-      return;
-    }
-    console.log(`🧠 Clasificador: ${ops.length} operación(es) propuesta(s)`);
+    if (!Array.isArray(ops)) { console.warn('🧠 Clasificador: la respuesta no es una lista'); return; }
+    // Sin operaciones el turno NO termina aquí: la curiosidad por menciones (06/10)
+    // depende de nombrar a alguien conocido, y "¿quién es Yaimy?" casi nunca propone
+    // nada nuevo. Se registra a propósito: "no había nada que guardar" y "el modelo
+    // no supo clasificarlo" deben verse distintos desde fuera.
+    if (!ops.length) console.log('🧠 Clasificador: nada que guardar en este turno');
+    else console.log(`🧠 Clasificador: ${ops.length} operación(es) propuesta(s)`);
 
     const origen       = userMessage.slice(0, 300);
     const conversacion = `${userMessage}\n${assistantResponse}`;
