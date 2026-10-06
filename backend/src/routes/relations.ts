@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { Relation } from '../memory/Relation';
-import { requireAuth } from '../middleware/authMiddleware';
+import { requireSuperAdmin } from '../middleware/authMiddleware';
 
 const router = Router();
-router.use(requireAuth);
+router.use(requireSuperAdmin); // panel de administración: solo superadmin
 
 // GET /api/relations — B6: el grafo de B4 (dicho y deducido), para que el
 // panel pueda enseñar junto a cada Persona/Proyecto/Conocimiento con qué está

@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { KnowledgeEntry } from '../memory/KnowledgeEntry';
-import { requireAuth } from '../middleware/authMiddleware';
+import { requireSuperAdmin } from '../middleware/authMiddleware';
 import { sanitizeString, sanitizeTags } from '../middleware/security';
 
 const router = Router();
-router.use(requireAuth);
+router.use(requireSuperAdmin); // panel de administración: solo superadmin
 
 const VALID_CATS = ['salud','valores','caracter','finanzas','historia','rutina','objetivos','legal','hobbies','otro'] as const;
 const VALID_IMP  = ['alta','media','baja'] as const;

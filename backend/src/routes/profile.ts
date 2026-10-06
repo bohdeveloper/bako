@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { requireAuth } from '../middleware/authMiddleware';
+import { requireSuperAdmin } from '../middleware/authMiddleware';
 import { sanitizeString } from '../middleware/security';
 import { PROFILE_FIELDS, getProfileOverrides, updateProfileField } from '../tools/profileDynamic';
 
 const router = Router();
-router.use(requireAuth);
+router.use(requireSuperAdmin); // panel de administración: solo superadmin
 
 // GET /api/profile - B6: campos de identidad minima (B2.2) con su valor actual,
 // para la pestana "Perfil" del panel - hasta ahora solo se podian leer/editar

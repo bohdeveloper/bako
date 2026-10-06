@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { Person } from '../memory/Person';
-import { requireAuth } from '../middleware/authMiddleware';
+import { requireSuperAdmin } from '../middleware/authMiddleware';
 import { sanitizeString, sanitizeTags } from '../middleware/security';
 
 const router = Router();
-router.use(requireAuth);
+router.use(requireSuperAdmin); // panel de administración: solo superadmin
 
 // GET /api/people — listar todas las personas
 router.get('/', async (_req: Request, res: Response) => {

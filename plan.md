@@ -812,6 +812,35 @@ en cada consulta. Correcto con 100 registros, insostenible con 10.000.
 
 ---
 
+## 🖥️ Panel de administración v2 — rediseño (06/10/2026)
+
+Motivo: el panel acumula 7 pestañas con formularios de alta siempre desplegados, y en móvil se ven
+todas las secciones una debajo de otra. Objetivo: un solo panel, resumido, con navegación propia.
+
+- [ ] **Estructura** — PC: menú lateral fijo con las secciones y la sección activa a la derecha.
+  Móvil: barra inferior con las secciones principales y "Más" para el resto
+- [ ] **Unificar** — Sistema agrupa deduplicar, embeddings, avisos automáticos y Web Push en una sola
+  tarjeta; los formularios de alta (Personas, Proyectos, Conocimiento) se ocultan tras un botón "+ Añadir"
+- [ ] **Ajustes de voz y volumen dentro del panel** — la rueda de la cabecera abre el panel en la
+  sección Ajustes. Los usuarios no superadmin solo ven esa sección (los ajustes personales siguen
+  siendo para cualquier usuario); el botón 👥 de gestión de usuarios desaparece
+- [ ] **Revisión de funciones** — lo que no se use se quita; la lista de candidatas se propone al señor
+  antes de borrar nada
+- [ ] **Verificación** — build limpio, comprobación de sintaxis del JS de la PWA, y revisión visual en
+  escritorio y móvil por el señor (no hay navegador en este entorno que capture pantallas)
+
+## 🧠 Curiosidad hacia personas ya conocidas — bug (06/10/2026)
+
+Captura del señor: "¿Quién es Yaimy?" → BAKO responde bien pero no pregunta nada sobre ella; luego el
+señor escribe "No me haces preguntas sobre Yaimy?" y BAKO contesta que no lo haría. Causa encontrada:
+esa frase quedó guardada como **Memoria tipo preferencia** (etiquetas `Yaimy`, `preguntas`), y el
+prompt la lee como "no preguntes". La frase era una queja, no una preferencia.
+Además, B3 solo dispara la curiosidad cuando el clasificador crea o completa una ficha en ese turno;
+preguntar por una persona ya conocida no la dispara nunca.
+- [ ] Decidir con el señor (ver mensaje de 06/10/2026) y corregir: clasificación de quejas sobre el
+  comportamiento de BAKO, disparador de curiosidad en menciones de personas con huecos, y borrar la
+  memoria mal clasificada
+
 ## Horizonte 1 — Cerrar BAKO como asistente completo ✅ 28/09/2026
 
 Cerrado. Quedan solo dos puntos deliberadamente diferidos, ninguno bloqueante: 7c paso 4 (caché de

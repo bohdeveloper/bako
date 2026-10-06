@@ -1,9 +1,9 @@
 import { Router, Request, Response } from 'express';
 import { Project } from '../memory/Project';
-import { requireAuth } from '../middleware/authMiddleware';
+import { requireSuperAdmin } from '../middleware/authMiddleware';
 
 const router = Router();
-router.use(requireAuth);
+router.use(requireSuperAdmin); // panel de administración: solo superadmin
 
 const PROJECT_FIELDS = [
   'nombre','slug','tipo','estado','prioridad','descripcion',

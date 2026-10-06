@@ -484,43 +484,6 @@
     .btn-admin:hover { border-color: var(--blue); color: var(--blue); }
     .btn-admin svg { width: 18px; height: 18px; display: block; }
 
-    /* Ajustes personales (voz + volumen) — accesible a cualquier usuario, no
-       solo superadmin (a diferencia de #adminPanel). Icono en el header que
-       despliega un popover con los controles, sin ocupar espacio permanente. */
-    .settings-control { position: relative; display: inline-flex; flex-shrink: 0; }
-    .settings-btn {
-      background: none; border: 1px solid var(--border); border-radius: 8px;
-      padding: 5px; cursor: pointer; color: var(--dim);
-      display: flex; align-items: center; justify-content: center;
-      width: 32px; height: 32px;
-      transition: border-color 0.2s, color 0.2s;
-    }
-    .settings-btn:hover, .settings-btn.open { border-color: var(--teal); color: var(--teal); }
-    .settings-btn svg { width: 18px; height: 18px; display: block; }
-
-    .settings-popover {
-      position: absolute; top: calc(100% + 10px); left: 0;
-      display: flex; flex-direction: column; gap: 4px;
-      background: var(--bg2); border: 1px solid var(--border); border-radius: 12px;
-      padding: 12px 14px; min-width: 220px; z-index: 30;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
-      opacity: 0; visibility: hidden; transform: translateY(-6px);
-      transition: opacity .18s ease-out, transform .18s ease-out, visibility .18s;
-    }
-    .settings-popover::before {
-      content: ''; position: absolute; top: -5px; left: 10px;
-      width: 9px; height: 9px; background: var(--bg2);
-      border-left: 1px solid var(--border); border-top: 1px solid var(--border);
-      transform: rotate(45deg);
-    }
-    .settings-popover.visible { opacity: 1; visibility: visible; transform: translateY(0); }
-    @media (prefers-reduced-motion: reduce) {
-      .settings-popover { transition: opacity .15s ease; transform: none; }
-    }
-    .settings-popover-title {
-      font-size: 10px; color: var(--dim); text-transform: uppercase;
-      letter-spacing: 1.5px; margin-bottom: 6px;
-    }
     .settings-row {
       display: flex; align-items: center; justify-content: space-between;
       gap: 14px; padding: 7px 0;
@@ -536,12 +499,7 @@
       transform: translateX(100%); transition: transform 0.3s cubic-bezier(.4,0,.2,1);
     }
     .admin-panel.visible { transform: translateX(0); }
-    .admin-body { flex: 1; min-height: 0; overflow-y: auto; padding: 16px 24px 40px; }
-    .admin-header {
-      display: flex; align-items: center; gap: 12px;
-      padding: 14px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
-    }
-    .admin-title  { flex: 1; text-align: center; font-size: 14px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; color: var(--dim); }
+    .admin-title  { font-size: 13px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--teal); }
     .admin-close  {
       background: none; border: none; color: var(--dim); cursor: pointer;
       display: flex; align-items: center; padding: 4px; border-radius: 6px;
@@ -599,16 +557,29 @@
     }
     .logout-btn:hover { border-color: var(--teal); color: var(--teal); background: rgba(20,184,166,0.07); }
 
-    /* ── Tabs del panel admin ───────────────────────────────────────────────── */
-    .admin-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
-    .admin-tab-btn {
-      flex: 1; padding: 9px 4px; font-size: 13px; font-weight: 500;
-      background: none; border: none; border-bottom: 2px solid transparent;
-      color: var(--dim); cursor: pointer; transition: color 0.15s, border-color 0.15s;
+    /* ── Navegación del panel admin: menú lateral (PC) / barra inferior (móvil) ─ */
+    .admin-nav {
+      display: flex; flex-direction: column; gap: 2px; flex-shrink: 0;
+      background: var(--bg2); border-right: 1px solid var(--border);
+      padding: 14px 10px; width: 196px; box-sizing: border-box;
     }
-    .admin-tab-btn.active { color: var(--teal); border-bottom-color: var(--teal); font-weight: 600; }
+    .admin-nav-brand {
+      font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+      color: var(--dim); padding: 4px 10px 12px;
+    }
+    .admin-tab-btn {
+      display: flex; align-items: center; gap: 10px; width: 100%;
+      padding: 9px 10px; border: none; border-radius: 8px; background: none;
+      color: var(--dim); font-size: 13px; font-weight: 500; font-family: inherit;
+      cursor: pointer; text-align: left; transition: color 0.15s, background 0.15s;
+    }
+    .admin-tab-btn:hover { color: var(--text); background: var(--bg3); }
+    .admin-tab-btn.active { color: var(--teal); background: rgba(20,184,166,0.1); font-weight: 600; }
+    .admin-tab-btn .nav-ico { font-size: 15px; line-height: 1; width: 18px; text-align: center; }
     .admin-tab-content { display: none; }
     .admin-tab-content.active { display: block; }
+    /* Sin superadmin: solo Ajustes */
+    .admin-panel.solo-ajustes [data-role="superadmin"] { display: none; }
 
     /* ── Memorias ───────────────────────────────────────────────────────────── */
     .mem-toolbar { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
@@ -833,58 +804,44 @@
       .person-form-row .admin-select { min-width: 0; flex: 1 1 100%; }
     }
 
-    /* ── Admin: desktop layout ───────────────────────────────────────────────── */
-    @media (min-width: 768px) {
-      /* Ocultar tabs — todas las secciones visibles a la vez */
-      .admin-tabs { display: none; }
+    /* ── Admin: layout — una sección a la vez ────────────────────────────────── */
+    .admin-panel {
+      display: grid; grid-template-columns: 196px minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr);
+    }
+    .admin-nav { grid-column: 1; grid-row: 1 / span 2; }
+    .admin-main-head {
+      grid-column: 2; grid-row: 1;
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 24px; border-bottom: 1px solid var(--border);
+    }
+    .admin-main-head .admin-title {
+      flex: 1; text-align: left; font-size: 13px; font-weight: 700;
+      letter-spacing: 1.5px; text-transform: uppercase; color: var(--teal);
+    }
+    .admin-body { grid-column: 2; grid-row: 2; min-height: 0; overflow-y: auto; padding: 18px 24px 40px; max-width: 880px; width: 100%; box-sizing: border-box; }
+    .admin-tab-content .admin-section-title:first-child { margin-top: 0; }
+    .person-form-row .admin-input,
+    .person-form-row .admin-select { min-width: 0; }
 
-      /* Body: 5 columnas, una por sección, sin scroll propio */
-      .admin-body {
-        flex: 1;
-        min-height: 0;
-        overflow: hidden;
-        display: grid;
-        grid-template-columns: repeat(5, 1fr);
-        grid-template-rows: 1fr;
-        gap: 12px;
-        padding: 12px 20px 16px;
-        width: 100%;
-        box-sizing: border-box;
-        align-items: stretch;
+    /* Móvil: la barra inferior sustituye al menú lateral */
+    @media (max-width: 767px) {
+      .admin-panel { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; }
+      .admin-main-head { grid-column: 1; grid-row: 1; }
+      .admin-body { grid-column: 1; grid-row: 2; }
+      .admin-nav {
+        grid-column: 1; grid-row: 3; width: auto; flex-direction: row; justify-content: space-around;
+        border-right: none; border-top: 1px solid var(--border);
+        padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); gap: 0;
       }
-
-      /* Cada sección: scroll propio, aspecto de card */
-      .admin-tab-content {
-        display: block !important;
-        overflow-y: auto;
-        min-height: 0;
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        padding: 0 14px 14px;
-        background: var(--bg2);
+      .admin-nav-brand { display: none; }
+      .admin-tab-btn {
+        flex: 1; flex-direction: column; gap: 3px; width: auto;
+        padding: 6px 2px; font-size: 10px; text-align: center; min-width: 0;
       }
-
-      /* Cabecera de sección — sticky dentro del scroll de la card */
-      .admin-tab-content::before {
-        content: attr(data-section);
-        display: block;
-        position: sticky;
-        top: 0;
-        z-index: 1;
-        background: var(--bg2);
-        padding: 9px 0 8px;
-        margin-bottom: 10px;
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 1.5px;
-        text-transform: uppercase;
-        color: var(--teal);
-        border-bottom: 1px solid var(--border);
-      }
-
-      /* Inputs en fila sin overflow */
-      .person-form-row .admin-input,
-      .person-form-row .admin-select { min-width: 0; }
+      .admin-tab-btn .nav-ico { font-size: 17px; width: auto; }
+      .admin-tab-btn span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+      .admin-main-head { padding: 12px 16px; }
+      .admin-body { padding: 14px 16px 24px; }
     }
 
     /* ── Tooltip PC (hover) ─────────────────────────────────────────────────── */
@@ -1058,24 +1015,25 @@
 <!-- ── Admin panel (pantalla completa) ───────────────────────────────────── -->
 <div class="admin-overlay" id="adminOverlay"></div>
 <div class="admin-panel" id="adminPanel">
-  <div class="admin-header">
-    <button class="admin-close" id="adminClose">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/></svg>
-    </button>
-    <span class="admin-title">Administración</span>
-    <div style="width:28px"></div>
-  </div>
+  <!-- Navegación: menú lateral en PC, barra inferior en móvil. Una sección visible a la vez.
+       Sin superadmin (openAdmin) solo queda Ajustes -->
+  <nav class="admin-nav" id="adminNav" aria-label="Secciones del panel">
+    <div class="admin-nav-brand">BAKO</div>
+    <button class="admin-tab-btn active" id="tabBtnProfile"  data-tab="tabProfile"  data-label="Perfil"        data-role="superadmin"><span class="nav-ico">👤</span><span>Perfil</span></button>
+    <button class="admin-tab-btn"        id="tabBtnPeople"   data-tab="tabPeople"   data-label="Personas"      data-role="superadmin"><span class="nav-ico">👥</span><span>Personas</span></button>
+    <button class="admin-tab-btn"        id="tabBtnProjects" data-tab="tabProjects" data-label="Proyectos"     data-role="superadmin"><span class="nav-ico">📁</span><span>Proyectos</span></button>
+    <button class="admin-tab-btn"        id="tabBtnKnow"     data-tab="tabKnow"     data-label="Conocimiento" data-role="superadmin"><span class="nav-ico">📚</span><span>Conocimiento</span></button>
+    <button class="admin-tab-btn"        id="tabBtnMemories" data-tab="tabMemories" data-label="Recuerdos"     data-role="superadmin"><span class="nav-ico">🧠</span><span>Recuerdos</span></button>
+    <button class="admin-tab-btn"        id="tabBtnSystem"   data-tab="tabSystem"   data-label="Sistema"       data-role="superadmin"><span class="nav-ico">🛠</span><span>Sistema</span></button>
+    <button class="admin-tab-btn"        id="tabBtnUsers"    data-tab="tabUsers"    data-label="Usuarios"      data-role="superadmin"><span class="nav-ico">🛡</span><span>Usuarios</span></button>
+    <button class="admin-tab-btn"        id="tabBtnSettings" data-tab="tabSettings" data-label="Ajustes"><span class="nav-ico">🎚</span><span>Ajustes</span></button>
+  </nav>
 
-  <!-- Tabs — B6: reorganizadas para seguir el cerebro (Perfil→Personas→Proyectos→
-       Conocimiento→Recuerdos), con Sistema y Usuarios al final -->
-  <div class="admin-tabs">
-    <button class="admin-tab-btn active" id="tabBtnProfile"  data-tab="tabProfile">Perfil</button>
-    <button class="admin-tab-btn"        id="tabBtnPeople"   data-tab="tabPeople">Personas</button>
-    <button class="admin-tab-btn"        id="tabBtnProjects" data-tab="tabProjects">Proyectos</button>
-    <button class="admin-tab-btn"        id="tabBtnKnow"     data-tab="tabKnow">Conocimiento</button>
-    <button class="admin-tab-btn"        id="tabBtnMemories" data-tab="tabMemories">Recuerdos</button>
-    <button class="admin-tab-btn"        id="tabBtnSystem"   data-tab="tabSystem">Sistema</button>
-    <button class="admin-tab-btn"        id="tabBtnUsers"    data-tab="tabUsers">Usuarios</button>
+  <div class="admin-main-head">
+    <span class="admin-title" id="adminSectionTitle">Perfil</span>
+    <button class="admin-close" id="adminClose" title="Cerrar" aria-label="Cerrar panel">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
   </div>
   <div class="admin-body">
 
@@ -1100,6 +1058,39 @@
       <div class="admin-section-title">Mensajes automáticos</div>
       <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnOpenAutoconf" data-tooltip="Gestiona horarios y fuentes de noticias de los avisos automáticos" style="width:100%">⚙️ Configurar avisos automáticos</button><button class="mobile-info" data-target="btnOpenAutoconf" type="button">ℹ</button></div>
       <div class="btn-info-wrap"><button class="btn-create-user secondary" id="btnOpenPush" data-tooltip="Estado VAPID, dispositivos suscritos y herramientas de diagnóstico push" style="width:100%">🔔 Estado Web Push</button><button class="mobile-info" data-target="btnOpenPush" type="button">ℹ</button></div>
+    </div>
+  </div>
+
+  <!-- Tab: Ajustes — voz y volumen, personales. Visibles para cualquier usuario logueado.
+       Los ids se conservan: el JS de voz los usa tal cual -->
+  <div class="admin-tab-content" id="tabSettings" data-section="Ajustes">
+    <div class="admin-section-title">Voz de BAKO</div>
+    <div class="settings-row">
+      <span class="settings-row-label">Voz</span>
+      <span class="voice-select-wrap" id="voiceSelectWrap" style="display:none">
+        <select id="voiceSelect" class="voice-select" title="Voz de BAKO" aria-label="Voz de BAKO"></select>
+      </span>
+    </div>
+    <div class="settings-row">
+      <span class="settings-row-label" id="btnVolume" title="Volumen de voz">
+        <svg id="volIconMute" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none;width:16px;height:16px;vertical-align:-3px">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H3v6h3l5 4V5z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 9.5l4 5m0-5l-4 5"/>
+        </svg>
+        <svg id="volIconLow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none;width:16px;height:16px;vertical-align:-3px">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H3v6h3l5 4V5z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.5 9.5a3.5 3.5 0 010 5"/>
+        </svg>
+        <svg id="volIconHigh" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:16px;height:16px;vertical-align:-3px">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H3v6h3l5 4V5z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15.5 9.5a3.5 3.5 0 010 5"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M18 7a8 8 0 010 10"/>
+        </svg>
+      </span>
+      <div class="volume-control" id="volumeControl">
+        <input type="range" id="volumeSlider" class="volume-slider" min="0" max="100" step="1" value="100" aria-label="Volumen de voz de BAKO">
+        <span class="volume-value" id="volumeValue">100%</span>
+      </div>
     </div>
   </div>
 
@@ -1371,49 +1362,12 @@
 
 <div class="header">
   <div class="header-side header-left">
-    <button class="btn-admin" id="btnAdmin" title="Gestión de usuarios">
+    <button class="btn-admin" id="btnAdmin" title="Ajustes y administración" aria-label="Ajustes y administración">
       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
         <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
         <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
       </svg>
     </button>
-    <span class="settings-control" id="settingsControl">
-      <button class="settings-btn" id="btnSettings" type="button" title="Ajustes" aria-label="Ajustes de voz y volumen" aria-haspopup="true" aria-expanded="false">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M6 13.5V3.75m0 9.75a1.5 1.5 0 010 3m0-3a1.5 1.5 0 000 3m0 3.75V16.5m12-3V3.75m0 9.75a1.5 1.5 0 010 3m0-3a1.5 1.5 0 000 3m0 3.75V16.5m-6-9V3.75m0 3.75a1.5 1.5 0 010 3m0-3a1.5 1.5 0 000 3m0 9.75V10.5"/>
-        </svg>
-      </button>
-      <div class="settings-popover" id="settingsPopover" role="group" aria-label="Ajustes de voz y volumen">
-        <div class="settings-popover-title">Voz de BAKO</div>
-        <div class="settings-row">
-          <span class="settings-row-label">Voz</span>
-          <span class="voice-select-wrap" id="voiceSelectWrap" style="display:none">
-            <select id="voiceSelect" class="voice-select" title="Voz de BAKO" aria-label="Voz de BAKO"></select>
-          </span>
-        </div>
-        <div class="settings-row">
-          <span class="settings-row-label" id="btnVolume" title="Volumen de voz">
-            <svg id="volIconMute" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none;width:16px;height:16px;vertical-align:-3px">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H3v6h3l5 4V5z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 9.5l4 5m0-5l-4 5"/>
-            </svg>
-            <svg id="volIconLow" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:none;width:16px;height:16px;vertical-align:-3px">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H3v6h3l5 4V5z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15.5 9.5a3.5 3.5 0 010 5"/>
-            </svg>
-            <svg id="volIconHigh" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:16px;height:16px;vertical-align:-3px">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M11 5L6 9H3v6h3l5 4V5z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15.5 9.5a3.5 3.5 0 010 5"/>
-              <path stroke-linecap="round" stroke-linejoin="round" d="M18 7a8 8 0 010 10"/>
-            </svg>
-          </span>
-          <div class="volume-control" id="volumeControl">
-            <input type="range" id="volumeSlider" class="volume-slider" min="0" max="100" step="1" value="100" aria-label="Volumen de voz de BAKO">
-            <span class="volume-value" id="volumeValue">100%</span>
-          </div>
-        </div>
-      </div>
-    </span>
   </div>
   <h1 id="bakoTitle" class="header-title" style="cursor:pointer" title="Limpiar chat">BAKO</h1>
   <div class="header-side header-right">
@@ -1594,8 +1548,7 @@
 
   function showApp(user) {
     loginScreen.classList.remove('visible');
-    if (user?.role === 'superadmin') btnAdmin.classList.add('visible');
-    else btnAdmin.classList.remove('visible');
+    btnAdmin.classList.add('visible'); // ajustes para todos; el panel filtra las secciones por rol
   }
 
   async function doLogin() {
@@ -1715,26 +1668,45 @@
     finally { btn.disabled = false; btn.textContent = '🔢 Generar embeddings'; }
   });
 
-  // ── Admin panel ───────────────────────────────────────────────────────────
-  function openAdmin() {
+  // ── Panel de administración ───────────────────────────────────────────────
+  // Un solo panel con una sección a la vez. Superadmin ve todo; el resto solo Ajustes.
+  // Cada sección carga sus datos al mostrarse, no al abrir el panel.
+  const adminSectionTitle = document.getElementById('adminSectionTitle');
+  function showAdminTab(tabId) {
+    document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
+    document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.toggle('active', c.id === tabId));
+    const btn = document.querySelector(`.admin-tab-btn[data-tab="${tabId}"]`);
+    adminSectionTitle.textContent = btn?.dataset.label || '';
+    document.querySelector('.admin-body').scrollTop = 0;
+
+    if (tabId === 'tabProfile')  loadProfile();
+    if (tabId === 'tabMemories') loadMemories();
+    if (tabId === 'tabPeople')   loadRelations().then(loadPeople);
+    if (tabId === 'tabProjects') loadRelations().then(loadProjects);
+    if (tabId === 'tabKnow')     loadRelations().then(loadKnowledge);
+    if (tabId === 'tabUsers')    loadUsers();
+  }
+  document.querySelectorAll('.admin-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => showAdminTab(btn.dataset.tab));
+  });
+
+  function openAdmin(tabId) {
+    const isSuper = getAuthUser()?.role === 'superadmin';
     const headerEl = document.querySelector('.header');
     adminPanel.style.top = headerEl ? headerEl.getBoundingClientRect().height + 'px' : '0';
+    adminPanel.classList.toggle('solo-ajustes', !isSuper);
     adminPanel.classList.add('visible');
     adminOverlay.classList.add('visible');
     _relationsCargadas = false; // refresca el grafo una vez por apertura del panel
-    loadUsers();
-    loadProfile();
-    if (window.innerWidth >= 768) {
-      loadRelations().then(() => { loadPeople(); loadProjects(); loadKnowledge(); });
-      loadMemories();
-    }
+    showAdminTab(tabId || (isSuper ? 'tabProfile' : 'tabSettings'));
   }
   function closeAdmin() {
     adminPanel.classList.remove('visible');
     adminOverlay.classList.remove('visible');
   }
 
-  btnAdmin.addEventListener('click', openAdmin);
+  // El botón de la cabecera recibe el evento como argumento: no debe llegar a tabId
+  btnAdmin.addEventListener('click', () => openAdmin());
   adminClose.addEventListener('click', closeAdmin);
   adminOverlay.addEventListener('click', closeAdmin);
 
@@ -1896,21 +1868,6 @@
     }).join('');
     return `<div class="person-relations">${items}</div>`;
   }
-
-  // ── Tabs del panel admin ──────────────────────────────────────────────────
-  document.querySelectorAll('.admin-tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.admin-tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById(btn.dataset.tab).classList.add('active');
-      if (btn.dataset.tab === 'tabProfile')   loadProfile();
-      if (btn.dataset.tab === 'tabMemories')  loadMemories();
-      if (btn.dataset.tab === 'tabPeople')    loadRelations().then(loadPeople);
-      if (btn.dataset.tab === 'tabProjects')  loadRelations().then(loadProjects);
-      if (btn.dataset.tab === 'tabKnow')      loadRelations().then(loadKnowledge);
-    });
-  });
 
   // ── Personas ──────────────────────────────────────────────────────────────
   const REL_LABELS = { pareja:'Pareja', familiar:'Familiar', amigo:'Amigo', compañero:'Compañero', conocido:'Conocido', otro:'Otro' };
@@ -2986,38 +2943,6 @@
 
   syncVolumeUI(ttsVolume);
 
-  // Popover de ajustes — reúne voz y volumen (antes vivían sueltos en el
-  // header y chocaban con el título "BAKO" en pantallas estrechas). Accesible
-  // para cualquier usuario logueado, a diferencia de #adminPanel (superadmin).
-  const btnSettings     = document.getElementById('btnSettings');
-  const settingsPopover = document.getElementById('settingsPopover');
-
-  function openSettingsPopover() {
-    settingsPopover.classList.add('visible');
-    btnSettings.classList.add('open');
-    btnSettings.setAttribute('aria-expanded', 'true');
-  }
-  function closeSettingsPopover() {
-    settingsPopover.classList.remove('visible');
-    btnSettings.classList.remove('open');
-    btnSettings.setAttribute('aria-expanded', 'false');
-  }
-
-  btnSettings.addEventListener('click', e => {
-    e.stopPropagation();
-    settingsPopover.classList.contains('visible') ? closeSettingsPopover() : openSettingsPopover();
-  });
-  document.addEventListener('click', e => {
-    if (!settingsPopover.classList.contains('visible')) return;
-    if (e.target.closest('#settingsControl')) return;
-    closeSettingsPopover();
-  });
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && settingsPopover.classList.contains('visible')) {
-      closeSettingsPopover();
-      btnSettings.focus();
-    }
-  });
 
   // Botón de escuchar por mensaje — solo uno activo a la vez: si se pulsa otro
   // mientras uno suena, el anterior se para primero.

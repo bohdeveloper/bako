@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
-import { requireAuth } from '../middleware/authMiddleware';
+import { requireSuperAdmin } from '../middleware/authMiddleware';
 import { AutoConfig, JOB_DEFS, setJobEnabled } from '../memory/AutoConfig';
 import { rescheduleJob, DEFAULT_SCHEDULES } from '../services/ProactivityService';
 
 const router = Router();
-router.use(requireAuth);
+router.use(requireSuperAdmin); // panel de administración: solo superadmin
 
 // GET /api/autoconfig/jobs — lista todos los jobs con estado habilitado y cron actual
 router.get('/jobs', async (_req: Request, res: Response) => {
