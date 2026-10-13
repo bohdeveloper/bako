@@ -15,7 +15,7 @@
  *  - Olvidar una persona o un conocimiento (destructivas, añadidas en B2)
  */
 
-import { askClaude, askClaudeWithTools, describeRuntime, isOllamaAvailableCached, AskClaudeOptions } from '../llm/claude';
+import { askClaude, askClaudeWithTools, describeRuntime, isOllamaAvailableCached, toolCallingValidado, AskClaudeOptions } from '../llm/claude';
 import { createNotionTask, updateNotionTaskStatus, findNotionTaskByName, updateNotionProjectSiguienteAccion, normalizeEstadoTarea } from './notion';
 import { createCalendarEvent } from './calendar';
 import { createIssueSync, closeIssueSync } from './issueSync';
@@ -563,7 +563,9 @@ export async function runAgentTurn(
   // que Groq (gpt-oss-120b) acertó las 4 pruebas sin un solo falso positivo.
   // Hasta que haya un modelo local más fiable para esto, mejor confirmar de
   // más que escribir basura en Notion/Calendar sin que el señor lo pidiera.
-  const requiresConfirmation = tool.destructive || (result.provider === 'ollama' && !tool.soloLectura);
+  // Desde la Fase 7d la nube no es solo gpt-oss-120b: los escalones de respaldo
+  // del router (qwen en Groq, Gemini) tampoco están validados y también confirman.
+  const requiresConfirmation = tool.destructive || (!tool.soloLectura && !toolCallingValidado(result));
   if (requiresConfirmation) {
     pendingActions.set(confirmKey, { toolName: tool.name, args: result.toolCall.arguments, ts: Date.now() });
     const resumen = describeArgs(result.toolCall.arguments);

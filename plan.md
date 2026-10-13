@@ -799,6 +799,69 @@ en cada consulta. Correcto con 100 registros, insostenible con 10.000.
 - Paso 4 (cache de respuestas frecuentes) — condicionado a que reaparezcan 429 en uso normal;
   revisado el 28/09/2026, sin implementar por no haber evidencia de que haga falta
 
+## Fase 7d — Modelo local de 8B y router anti rate-limit ⏳ (13/10/2026)
+
+Origen: prueba en local con `llama3.2:3b` (el `.env` pisaba el default `qwen3:8b` del código): dice
+cosas sin sentido y guarda memorias sin lógica; con Groq el 429 salta enseguida y el usuario lo
+nota. Decisiones del señor (13/10/2026): modelo **qwen3:8b**, orden **local primero y nube de
+refuerzo**, proveedor extra **Cerebras**, memorias con **puerta de validación + mejor modelo**.
+Sin hardware nuevo: el invariante de coste $0 manda y el 8B cabe en las 8 GB medidas el 05/09.
+
+- [x] **A — Volver al 8B local** (13/10/2026)
+  - [x] `.env` local: `OLLAMA_MODEL=llama3.2:3b` → `qwen3:8b` (ya estaba descargado)
+  - [ ] Comprobar que Render no tenga `OLLAMA_MODEL=llama3.2:3b` (pisaría el default del código)
+  - [x] Comparativa contra Ollama directo (sin backend), `think:false`, `num_ctx` 8192, 7 pruebas:
+
+    | Prueba | llama3.2:3b | qwen3:8b |
+    |---|---|---|
+    | "¿Cómo se llama mi perro?" | ❌ **inventa** "Max" | ✅ dice que no lo sabe |
+    | ¿3B u 8B con 8 GB? | ❌ recomienda el 3B | ✅ coherente |
+    | Cálculo de horas | ✅ | ✅ |
+    | Tool `crear_evento` | ✅ | ✅ |
+    | Tool `buscar_memoria` | ❌ escribe el JSON de la tool como texto | ❌ no la llama: contesta "no recuerdo" |
+    | Extraer memoria de un mensaje mixto | ⚠️ 1 de 2 hechos | ✅ 2 de 2, pero con fechas relativas ("lunes") |
+    | Mensaje de ruido ("jaja vale") | ✅ vacío | ✅ vacío |
+    | Velocidad / frío / VRAM | 92 tok/s · 6,1 s | 45 tok/s · 7,8 s (< 18 s del timeout) · 6,2 GB, 100 % GPU |
+
+    El 8B elimina las invenciones, que eran la queja principal, a mitad de velocidad pero de sobra
+    para voz. Quedan dos huecos para la fase C: el modelo **no busca en su memoria por iniciativa
+    propia** ante "¿qué te conté…?" (reforzar el prompt de sistema) y los hechos extraídos deben
+    **resolver fechas relativas** a absolutas antes de guardarse
+- [ ] **B — Router de proveedores con cooldown** (sustituye la cadena que solo reacciona al 429)
+  - [x] Causa real medida (13/10/2026): Groq declara **~8.000 tokens/min por modelo** en
+    `x-ratelimit-remaining-tokens`, y el prompt completo ronda 7.700 → un mensaje agota el minuto
+  - [x] Router en `llm/claude.ts`: cuota por proveedor+modelo en memoria, alimentada por las
+    cabeceras; **estima los tokens antes de enviar** y salta sin llamarlo al que no tiene cubo;
+    pausas por error (429 según `retry-after`/"try again in", diaria 1 h, 401/403 10 min, modelo
+    retirado 1 h, 5xx 20 s, 413 solo esa petición). Detalle en `spec.md` §2
+  - [x] Segundo modelo de Groq: `qwen/qwen3.8-27b` con `reasoning_effort:none` (Groq ya no tiene
+    `llama-3.3-70b`; probado: tool-calling correcto, 0,2–0,4 s)
+  - [x] ~~Cerebras~~ **descartado**: exige tarjeta incluso para sus 5 $ de créditos, que no se
+    renuevan (choca con coste $0). Sustituido por **Gemini** free tier sin tarjeta (`GEMINI_API_KEY`)
+  - [x] Gemini probado de verdad (13/10/2026): `gemini-2.5-flash` da **404 a cuentas nuevas**;
+    `gemini-3.5-flash` + `reasoning_effort:none` → texto 0,8 s y tool-calling correcto (default).
+    3.7/3.8-flash daban 503 por saturación: el router los aparta 20 s, no rompe nada
+  - [x] OpenRouter queda como último recurso y va sin herramientas; ahora entra ante cualquier fallo
+    de la nube, no solo ante el 429
+  - [x] Privacidad: los turnos `private` siguen yendo solo a Ollama (`PrivacyError` sin tocar la nube)
+  - [x] `describeRuntime` nombra al proveedor que de verdad va a responder, no "Groq" fijo
+  - [x] `src/scripts/_verify_f7d.ts` con axios simulado: 22/22 (cuota por cabeceras, 429, 401, 413,
+    cuota diaria, Gemini con tools, OpenRouter sin tools, todo en pausa → 429, privado, gate, reserva
+    concurrente, key inválida de Gemini, error representativo)
+  - [x] `/code-review` (13/10/2026): 9 hallazgos arreglados — gate de confirmación solo omite
+    `gpt-oss-120b` (`toolCallingValidado`), tools en la estimación, presupuesto total de 20 s,
+    reserva de tokens, 400 de key inválida, diaria respeta "try again in", error representativo,
+    `reasoning_effort` solo a flash/qwen, `describeRuntime` con tamaño de turno real
+  - [x] `/security-review`: sin hallazgos (los turnos `private` no llegan al router)
+  - [ ] Desplegar en Render (`GEMINI_API_KEY` ya está allí) y vigilar los logs `⏸️`/`↪️` unos días
+- [ ] **C — Puerta de validación de memorias**
+  - [ ] Extraer la memoria con el modelo bueno (8B local; nube si el contenido no es sensible)
+  - [ ] Filtro antes de guardar: solo hechos estables del usuario, umbral de confianza, deduplicación
+    contra lo ya guardado
+  - [ ] Revisar con el panel las memorias raras ya guardadas por el 3B
+- [ ] **D — Cache de respuestas frecuentes** (era el Paso 4 de la 7c, diferido por falta de
+  evidencia): reevaluar tras A+B; si los 429 desaparecen, se cierra sin implementar
+
 ## Fase 9 — Wake word y modo conversación ✅ 28/09/2026 (móvil y Desktop cerrados)
 
 - [x] PWA escritorio — botón 👂, `SpeechRecognition(continuous:true)` detecta "bako", modo

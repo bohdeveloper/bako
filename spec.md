@@ -56,7 +56,8 @@ uno de estos cinco gaps. Si no, espera.
 | BD portfolio | Cloudflare D1 (SQLite edge) — Tracker personal y comentarios del blog |
 | LLM local | Ollama `qwen3:8b` (`OLLAMA_MODEL`) en la AMD RX 7600 de 8 GB vía ROCm, expuesto por el túnel Cloudflare — **proveedor por defecto** cuando el túnel responde |
 | LLM cloud | Groq `openai/gpt-oss-120b` (Groq retiró `llama-3.3-70b-versatile` en agosto 2026 — ya no ofrece modelos Llama, solo `gpt-oss`, Qwen y `compound`) |
-| LLM fallback | OpenRouter (cadena de 5 modelos free, `OPENROUTER_MODEL` configurable) |
+| LLM cloud (respaldo) | Groq `qwen/qwen3.8-27b` (`GROQ_FALLBACK_MODEL`, cuota propia) · Google Gemini `gemini-3.5-flash` (`GEMINI_API_KEY`, free tier sin tarjeta; `gemini-2.5-flash` da 404 a cuentas nuevas) |
+| LLM fallback | OpenRouter (cadena de 5 modelos free, `OPENROUTER_MODEL` configurable) — último escalón, **sin herramientas** |
 | Embeddings | Ollama `nomic-embed-text` (768d) · fallback Cloudflare Workers AI `bge-small-en-v1.5` (384d) |
 | Voz salida | `msedge-tts` — las 3 únicas voces neuronales es-ES de Microsoft (Álvaro, Elvira, Ximena; verificado con `MsEdgeTTS.getVoices()` el 31/08/2026, el resto del catálogo es-* es de Latinoamérica/EEUU), elegible y persistida en Mongo (`AutoConfig`, no en memoria del proceso) desde Telegram (`/voz`), PWA y Desktop |
 | Voz entrada | Groq Whisper |
@@ -103,9 +104,17 @@ bako/
    basado en `llama3.2:3b` se probó y **se descartó**: etiquetaba "Diamadmin" o "mi rutina" como simple.
 2. Simple (saludos, clima, hora) → `getMinimalSystemPrompt()` (~5.900 chars) → Ollama.
 3. Complejo → `getFullSystemPrompt()` → Groq.
-4. Cadena de fallback en ambas rutas: **Ollama → Groq → OpenRouter**. Si OpenRouter también falla,
-   se re-lanza el 429 original para que el cliente vea "Rate limit" y no un 500.
-5. `isGroqRateLimit()` captura **429 y 413** (request too large): ambos disparan el fallback.
+4. Cadena de fallback en ambas rutas: **Ollama → router de la nube (Groq `GROQ_MODEL` → Groq
+   `GROQ_FALLBACK_MODEL` → Gemini) → OpenRouter**. Si OpenRouter también falla, se re-lanza el error
+   original de la nube (un 429 si todo estaba sin cuota) para que el cliente vea "Rate limit" y no un 500.
+5. **El router se anticipa al 429 (Fase 7d, 13/10/2026).** Groq da ~8.000 tokens/minuto **por
+   modelo** y el prompt completo ronda los 7.700, así que una petición vacía casi todo el minuto.
+   El router guarda en memoria la cuota que declara cada proveedor (`x-ratelimit-remaining-tokens`,
+   `-reset-tokens`, `-remaining-requests`) y **no llama** al que no tiene cubo para la petición
+   estimada (~3,5 chars/token + `maxTokens`). Tras un error: 429 → pausa según `retry-after` o el
+   "try again in Xs" del mensaje (1 h si es la cuota diaria); 401/403 → 10 min; modelo retirado →
+   1 h; 5xx/timeout → 20 s; 413 y otros 4xx → solo se salta esa petición. El estado vive en el
+   proceso: un reinicio de Render lo vacía, y lo peor que pasa es un 429 de más.
 
 **Construcción del system prompt.** Orden fijo: personalidad y estado de ánimo primero, luego
 Proyectos → Personas → Conocimiento → Memorias. Cada sección tiene **presupuesto de caracteres**
@@ -235,6 +244,11 @@ No se reabren sin decisión explícita del usuario.
    queda deshabilitado, fijo en Groq, ignorando la preferencia guardada; y el backend siempre manda
    sobre el cliente. `think:false` es obligatorio con qwen3 (emite `<think>` por defecto) y
    `stripThinking()` lo limpia también sin cerrar, por si `num_predict` trunca el razonamiento.
+8b. **Proveedores en la nube: solo gratuitos y sin tarjeta** (13/10/2026). Cerebras se descartó
+   porque exige forma de pago incluso para sus 5 $ de créditos, que además no se renuevan. Gemini
+   entra en su lugar: en el free tier Google puede usar las peticiones para mejorar sus productos,
+   lo que es aceptable **solo porque los turnos `private` nunca salen de Ollama** — esa regla no
+   admite excepciones al añadir proveedores.
 9. **Prompt siempre compact en los endpoints desktop.** El prompt full (~18.100 chars ≈ 6.023 tokens)
    supera el límite de 6.000 TPM de Groq y garantiza un 413.
 10. **`profile.ts` ya no es autoritativo para nada personal** (invariante reescrito el 15/09/2026,
